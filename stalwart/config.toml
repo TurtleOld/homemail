@@ -1,0 +1,78 @@
+# Конфигурация Stalwart Mail Server для Docker
+# Работает по HTTP (порт 8080) без TLS
+
+[server]
+hostname = "localhost"
+
+# HTTP listener для JMAP (без TLS)
+# Примечание: Stalwart v0.15 требует OAuth для JMAP, Basic Auth не поддерживается
+[server.listener."http"]
+bind = ["0.0.0.0:8080"]
+protocol = "http"
+
+# SMTP конфигурация
+[server.listener."smtp"]
+bind = ["0.0.0.0:25"]
+protocol = "smtp"
+
+[server.listener."submission"]
+bind = ["0.0.0.0:587"]
+protocol = "smtp"
+starttls = "optional"
+auth = ["plain", "login"]
+
+# IMAP конфигурация
+[server.listener."imap"]
+bind = ["0.0.0.0:143"]
+protocol = "imap"
+starttls = "optional"
+
+[server.listener."imaptls"]
+bind = ["0.0.0.0:993"]
+protocol = "imap"
+tls.implicit = true
+
+# Хранилище (storage)
+[storage]
+data = "rocksdb"
+fts = "rocksdb"
+blob = "rocksdb"
+lookup = "rocksdb"
+directory = "internal"
+
+# Store для базы данных
+[store."rocksdb"]
+type = "rocksdb"
+path = "/var/lib/stalwart/data/"
+compression = "lz4"
+
+# Директория пользователей (internal backend)
+[directory."internal"]
+type = "internal"
+store = "rocksdb"
+
+# Fallback admin (аварийный админ для первого входа)
+# Используется для создания обычных пользователей через веб-интерфейс
+[authentication.fallback-admin]
+user = "admin"
+secret = "plain:admin123"
+
+# Обычные пользователи (создаются через веб-интерфейс или добавляются здесь)
+# Администратор
+[[directory."internal".users]]
+name = "admin@pavlovteam.ru"
+secret = "plain:admin123"
+superuser = true
+
+# Тестовый пользователь
+[[directory."internal".users]]
+name = "test@pavlovteam.ru"
+secret = "plain:test123"
+superuser = false
+
+# Логирование
+[tracer."stdout"]
+type = "stdout"
+level = "info"
+ansi = false
+enable = true

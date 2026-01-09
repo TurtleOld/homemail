@@ -1,0 +1,27 @@
+[Unit]
+Description=Mail Web Client - Next.js Application
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/mailclient
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=/opt/mailclient/.env.production
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=mailclient
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/mailclient
+
+[Install]
+WantedBy=multi-user.target

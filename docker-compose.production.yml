@@ -1,0 +1,85 @@
+services:
+  stalwart:
+    image: ghcr.io/turtleold/homemail-stalwart:latest
+    container_name: homemail-stalwart
+    restart: unless-stopped
+    ports:
+      - "1025:25"
+      - "1143:143"
+      - "9080:8080"
+      - "1587:587"
+      - "1993:993"
+    volumes:
+      - stalwart-data:/var/lib/stalwart/data
+      - stalwart-certs:/var/lib/stalwart/certs
+      - stalwart-logs:/var/log/stalwart
+      - ./stalwart/config.toml:/opt/stalwart/etc/config.toml
+    networks:
+      - homemail-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/.well-known/jmap || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  webmail:
+    image: ghcr.io/turtleold/homemail:latest
+    container_name: homemail-webmail
+    restart: unless-stopped
+    depends_on:
+      stalwart:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MAIL_PROVIDER=stalwart
+      - STALWART_BASE_URL=http://stalwart:8080
+      - STALWART_SMTP_HOST=stalwart
+      - STALWART_SMTP_PORT=587
+      - STALWART_SMTP_SECURE=false
+      - STALWART_AUTH_MODE=basic
+    env_file:
+      - .env.production
+    volumes:
+      - ./data/.sessions.json:/app/.sessions.json
+      - ./data/.settings.json:/app/.settings.json
+    networks:
+      - homemail-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: ghcr.io/turtleold/homemail-nginx:latest
+    container_name: homemail-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - webmail
+    networks:
+      - homemail-network
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  stalwart-data:
+    driver: local
+  stalwart-certs:
+    driver: local
+  stalwart-logs:
+    driver: local
+
+networks:
+  homemail-network:
+    driver: bridge

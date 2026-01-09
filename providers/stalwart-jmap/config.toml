@@ -1,0 +1,85 @@
+# Пример конфигурации Stalwart Mail Server
+# Скопируйте этот файл в /etc/stalwart/config.toml (или путь к вашей конфигурации)
+# и адаптируйте под вашу среду
+
+[server]
+hostname = "mail.pavlovteam.ru"
+
+# HTTP/HTTPS listener для JMAP
+[server.listener."https"]
+bind = ["0.0.0.0:443"]
+protocol = "https"
+tls = "default"
+
+# TLS конфигурация
+[tls."default"]
+implicit = true
+certificate = "default"
+
+# ACME для автоматического получения сертификатов
+[acme]
+enabled = true
+contact = ["mailto:admin@pavlovteam.ru"]
+
+# Директория пользователей (Memory backend для тестирования)
+[directory]
+type = "memory"
+
+[directory."local"]
+type = "memory"
+
+# Тестовый администратор
+# ВНИМАНИЕ: Используйте plain только для тестирования!
+# В production обязательно используйте bcrypt хеш пароля
+[[directory."local".users]]
+name = "admin@pavlovteam.ru"
+secret = "plain:admin123"  # Пароль: admin123 (только для тестирования!)
+type = "individual"
+superuser = true
+
+# Пример обычного пользователя (опционально)
+[[directory."local".users]]
+name = "test@pavlovteam.ru"
+secret = "plain:test123"  # Пароль: test123 (только для тестирования!)
+type = "individual"
+superuser = false
+
+# JMAP конфигурация
+[server.listener."jmap"]
+bind = ["0.0.0.0:443"]
+protocol = "https"
+tls = "default"
+
+# SMTP конфигурация
+[server.listener."smtp"]
+bind = ["0.0.0.0:25"]
+
+[server.listener."smtp-submission"]
+bind = ["0.0.0.0:587"]
+protocol = "smtp"
+starttls = "required"
+auth = ["plain", "login"]
+
+# IMAP конфигурация (опционально, для совместимости)
+[server.listener."imap"]
+bind = ["0.0.0.0:143"]
+starttls = "required"
+
+[server.listener."imaps"]
+bind = ["0.0.0.0:993"]
+protocol = "imap"
+tls = "default"
+
+# Хранилище писем
+[storage]
+type = "fs"  # или "s3", "sql" в зависимости от вашей настройки
+
+[store."fs"]
+type = "fs"
+path = "/var/lib/stalwart/data"
+compression = "lz4"
+
+# Логирование
+[log]
+level = "info"
+file = "/var/log/stalwart/stalwart.log"
