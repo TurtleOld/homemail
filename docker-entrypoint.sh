@@ -104,10 +104,44 @@ enable = true
 EOF
 fi
 
-# Проверяем наличие nginx конфигурации
+# Nginx конфигурация
 if [ ! -f "/etc/nginx/conf.d/default.conf" ]; then
-    echo "WARNING: Nginx config not found, using default..."
-    mkdir -p /etc/nginx/conf.d
+    if [ -f "/etc/nginx/conf.d/default.conf.default" ]; then
+        echo "Nginx config not found in volume, copying default config..."
+        cp /etc/nginx/conf.d/default.conf.default /etc/nginx/conf.d/default.conf
+        echo "Default Nginx config copied to /etc/nginx/conf.d/default.conf"
+        echo "You can now edit this file on the host and restart the container."
+    else
+        echo "WARNING: Nginx default config not found in image, creating minimal config..."
+        mkdir -p /etc/nginx/conf.d
+        cat > /etc/nginx/conf.d/default.conf << 'NGINX_EOF'
+upstream mailclient {
+    server localhost:3000;
+    keepalive 64;
+}
+
+server {
+    listen 80;
+    server_name _;
+    
+    location / {
+        proxy_pass http://mailclient;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    location /api/health {
+        proxy_pass http://mailclient;
+        access_log off;
+    }
+}
+NGINX_EOF
+    fi
 fi
 
 # Проверяем, что nginx бинарник существует и исполняемый
