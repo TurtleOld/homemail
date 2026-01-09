@@ -36,23 +36,20 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
 
 # ============================================
-# Final: Объединенный образ на базе Debian (для Stalwart)
+# Final: Объединенный образ на базе Stalwart
 # ============================================
-FROM debian:bookworm-slim
+FROM stalwartlabs/stalwart:latest
 
+# Устанавливаем Node.js, nginx и supervisor
 RUN apt-get update && apt-get install -y \
-    nodejs \
-    npm \
-    nginx \
     curl \
     wget \
+    nginx \
     supervisor \
     ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
-
-# Устанавливаем Stalwart
-COPY --from=stalwartlabs/stalwart:latest /usr/local/bin/stalwart /usr/local/bin/stalwart
-RUN chmod +x /usr/local/bin/stalwart
 
 # Копируем webmail
 COPY --from=webmail-runner /app /app/webmail
@@ -66,7 +63,7 @@ COPY --from=nginx-base /var/cache/nginx /var/cache/nginx
 COPY --from=nginx-base /var/log/nginx /var/log/nginx
 RUN mkdir -p /var/lib/nginx /run/nginx
 
-# Создаем директории для Stalwart
+# Создаем директории для Stalwart (если их нет)
 RUN mkdir -p /var/lib/stalwart/data \
     /var/lib/stalwart/certs \
     /var/log/stalwart \
@@ -95,6 +92,14 @@ RUN mkdir -p /etc/supervisor/conf.d && \
     echo 'logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo '[program:stalwart]' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'command=/usr/local/bin/start-stalwart.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo '[program:webmail]' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'command=/usr/local/bin/start-webmail.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'user=nextjs' >> /etc/supervisor/conf.d/supervisord.conf && \
@@ -106,14 +111,6 @@ RUN mkdir -p /etc/supervisor/conf.d && \
     echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo '[program:nginx]' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'command=/usr/local/bin/start-nginx.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '[program:stalwart]' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'command=/usr/local/bin/start-stalwart.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
