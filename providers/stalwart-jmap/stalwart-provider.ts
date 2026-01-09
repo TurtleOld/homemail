@@ -27,8 +27,8 @@ interface StalwartConfig {
 }
 
 const config: StalwartConfig = {
-  baseUrl: process.env.STALWART_BASE_URL || 'https://mail.pavlovteam.ru',
-  smtpHost: process.env.STALWART_SMTP_HOST || 'mail.pavlovteam.ru',
+  baseUrl: process.env.STALWART_BASE_URL || 'http://stalwart:8080',
+  smtpHost: process.env.STALWART_SMTP_HOST || 'stalwart',
   smtpPort: parseInt(process.env.STALWART_SMTP_PORT || '587', 10),
   smtpSecure: process.env.STALWART_SMTP_SECURE === 'true',
   authMode: (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer') || 'basic',

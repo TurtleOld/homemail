@@ -88,7 +88,7 @@ user = "admin"
 secret = "plain:admin123"
 
 [[directory."internal".users]]
-name = "admin@pavlovteam.ru"
+name = "admin@example.com"
 secret = "plain:admin123"
 superuser = true
 

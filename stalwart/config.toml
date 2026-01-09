@@ -65,13 +65,13 @@ secret = "plain:admin123"
 # Обычные пользователи (создаются через веб-интерфейс или добавляются здесь)
 # Администратор
 [[directory."internal".users]]
-name = "admin@pavlovteam.ru"
+name = "admin@example.com"
 secret = "plain:admin123"
 superuser = true
 
 # Тестовый пользователь
 [[directory."internal".users]]
-name = "test@pavlovteam.ru"
+name = "test@example.com"
 secret = "plain:test123"
 superuser = false
 

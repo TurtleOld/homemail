@@ -3,7 +3,7 @@
 # и адаптируйте под вашу среду
 
 [server]
-hostname = "mail.pavlovteam.ru"
+hostname = "mail.example.com"
 
 # HTTP/HTTPS listener для JMAP
 [server.listener."https"]
@@ -19,7 +19,7 @@ certificate = "default"
 # ACME для автоматического получения сертификатов
 [acme]
 enabled = true
-contact = ["mailto:admin@pavlovteam.ru"]
+contact = ["mailto:admin@example.com"]
 
 # Директория пользователей (Memory backend для тестирования)
 [directory]
@@ -32,14 +32,14 @@ type = "memory"
 # ВНИМАНИЕ: Используйте plain только для тестирования!
 # В production обязательно используйте bcrypt хеш пароля
 [[directory."local".users]]
-name = "admin@pavlovteam.ru"
+name = "admin@example.com"
 secret = "plain:admin123"  # Пароль: admin123 (ВРЕМЕННО! Замените на bcrypt в production)
 type = "individual"
 superuser = true
 
 # Пример обычного пользователя (опционально)
 [[directory."local".users]]
-name = "test@pavlovteam.ru"
+name = "test@example.com"
 secret = "plain:test123"  # Пароль: test123 (ВРЕМЕННО! Замените на bcrypt в production)
 type = "individual"
 superuser = false
