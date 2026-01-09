@@ -56,12 +56,9 @@ COPY --from=webmail-runner /app /app/webmail
 COPY --from=webmail-runner /etc/passwd /etc/passwd
 COPY --from=webmail-runner /etc/group /etc/group
 
-# Копируем nginx конфигурацию
-COPY --from=nginx-base /etc/nginx /etc/nginx
-COPY --from=nginx-base /usr/sbin/nginx /usr/sbin/nginx
-COPY --from=nginx-base /var/cache/nginx /var/cache/nginx
-COPY --from=nginx-base /var/log/nginx /var/log/nginx
-RUN mkdir -p /var/lib/nginx /run/nginx
+# Копируем только nginx конфигурацию (не бинарник, т.к. он из Alpine и несовместим с Debian)
+COPY --from=nginx-base /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
+RUN mkdir -p /var/lib/nginx /run/nginx /var/cache/nginx /var/log/nginx
 
 # Создаем директории для Stalwart (если их нет)
 RUN mkdir -p /var/lib/stalwart/data \
@@ -78,6 +75,7 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start-webmail.sh && \
     chmod +x /usr/local/bin/start-webmail.sh
 
 RUN echo '#!/bin/bash' > /usr/local/bin/start-nginx.sh && \
+    echo 'nginx -t' >> /usr/local/bin/start-nginx.sh && \
     echo 'exec nginx -g "daemon off;"' >> /usr/local/bin/start-nginx.sh && \
     chmod +x /usr/local/bin/start-nginx.sh
 
@@ -85,16 +83,23 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start-stalwart.sh && \
     echo 'exec stalwart --config /opt/stalwart/etc/config.toml' >> /usr/local/bin/start-stalwart.sh && \
     chmod +x /usr/local/bin/start-stalwart.sh
 
+# Копируем entrypoint скрипт
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Supervisor конфигурация
 RUN mkdir -p /etc/supervisor/conf.d && \
     echo '[supervisord]' > /etc/supervisor/conf.d/supervisord.conf && \
     echo 'nodaemon=true' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'user=root' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo '[program:stalwart]' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'command=/usr/local/bin/start-stalwart.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'startsecs=3' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'startretries=3' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
@@ -104,6 +109,8 @@ RUN mkdir -p /etc/supervisor/conf.d && \
     echo 'command=/usr/local/bin/start-webmail.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'user=nextjs' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'startsecs=3' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'startretries=3' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
@@ -112,6 +119,8 @@ RUN mkdir -p /etc/supervisor/conf.d && \
     echo '[program:nginx]' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'command=/usr/local/bin/start-nginx.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'startsecs=2' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'startretries=3' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
@@ -119,5 +128,5 @@ RUN mkdir -p /etc/supervisor/conf.d && \
 
 EXPOSE 25 80 143 443 587 8080 993 3000
 
-# По умолчанию запускаем все сервисы через supervisor
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Используем entrypoint для инициализации
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

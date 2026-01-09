@@ -3,7 +3,6 @@ services:
     image: ghcr.io/turtleold/homemail:latest
     container_name: homemail
     restart: unless-stopped
-    command: /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
     ports:
       - "80:80"
       - "443:443"
