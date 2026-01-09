@@ -39,6 +39,7 @@ fts = "rocksdb"
 blob = "rocksdb"
 lookup = "rocksdb"
 directory = "internal"
+spam = "rocksdb"
 
 # Store для базы данных
 [store."rocksdb"]
