@@ -107,6 +107,9 @@ EOF
 fi
 
 # Nginx конфигурация
+# Удаляем дефолтные конфиги nginx, если они есть
+rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default 2>/dev/null || true
+
 if [ ! -f "/etc/nginx/conf.d/default.conf" ]; then
     if [ -f "/etc/nginx/conf.d/default.conf.default" ]; then
         echo "Nginx config not found in volume, copying default config..."
@@ -145,6 +148,9 @@ server {
 NGINX_EOF
     fi
 fi
+
+# Убеждаемся, что наш конфиг используется (удаляем другие дефолтные конфиги)
+rm -f /etc/nginx/conf.d/default.conf.bak 2>/dev/null || true
 
 # Проверяем, что nginx бинарник существует и исполняемый
 NGINX_BIN=$(which nginx || echo "")

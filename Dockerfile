@@ -61,11 +61,13 @@ COPY --from=webmail-runner /etc/passwd /etc/passwd
 COPY --from=webmail-runner /etc/group /etc/group
 
 # Копируем конфигурации в образ (как дефолтные)
-# Nginx конфигурация (дефолтная)
-COPY --from=nginx-base /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.default
+# Удаляем дефолтный конфиг nginx из Debian образа
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default || true
+# Nginx конфигурация (дефолтная) - копируем наш кастомный конфиг
+COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf.default
 # Stalwart конфигурация (дефолтная)
 COPY stalwart/config.toml /opt/stalwart/etc/config.toml.default
-RUN mkdir -p /var/lib/nginx /run/nginx /var/cache/nginx /var/log/nginx
+RUN mkdir -p /var/lib/nginx /run/nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
 
 # Создаем директории для Stalwart (если их нет)
 RUN mkdir -p /var/lib/stalwart/data \
