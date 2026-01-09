@@ -103,6 +103,7 @@ level = "info"
 ansi = false
 enable = true
 EOF
+    fi
 fi
 
 # Nginx конфигурация
