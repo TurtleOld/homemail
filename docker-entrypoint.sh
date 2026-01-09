@@ -110,12 +110,20 @@ fi
 # Удаляем дефолтные конфиги nginx, если они есть
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default 2>/dev/null || true
 
+# Проверяем наличие конфигов nginx
 if [ ! -f "/etc/nginx/conf.d/default.conf" ]; then
-    if [ -f "/etc/nginx/conf.d/default.conf.default" ]; then
+    # Если есть nginx.conf, переименовываем его в default.conf
+    if [ -f "/etc/nginx/conf.d/nginx.conf" ]; then
+        echo "Found nginx.conf, renaming to default.conf..."
+        mv /etc/nginx/conf.d/nginx.conf /etc/nginx/conf.d/default.conf
+        echo "nginx.conf renamed to default.conf"
+    # Если есть дефолтный конфиг в образе, копируем его
+    elif [ -f "/etc/nginx/conf.d/default.conf.default" ]; then
         echo "Nginx config not found in volume, copying default config..."
         cp /etc/nginx/conf.d/default.conf.default /etc/nginx/conf.d/default.conf
         echo "Default Nginx config copied to /etc/nginx/conf.d/default.conf"
         echo "You can now edit this file on the host and restart the container."
+    # Если нет никаких конфигов, создаем минимальный
     else
         echo "WARNING: Nginx default config not found in image, creating minimal config..."
         mkdir -p /etc/nginx/conf.d
@@ -149,8 +157,13 @@ NGINX_EOF
     fi
 fi
 
-# Убеждаемся, что наш конфиг используется (удаляем другие дефолтные конфиги)
+# Убеждаемся, что наш конфиг используется (удаляем другие дефолтные конфиги и дубликаты)
 rm -f /etc/nginx/conf.d/default.conf.bak 2>/dev/null || true
+# Удаляем nginx.conf, если он остался (чтобы избежать конфликтов)
+if [ -f "/etc/nginx/conf.d/nginx.conf" ] && [ -f "/etc/nginx/conf.d/default.conf" ]; then
+    echo "WARNING: Both nginx.conf and default.conf exist. Removing nginx.conf to avoid conflicts..."
+    rm -f /etc/nginx/conf.d/nginx.conf
+fi
 
 # Проверяем, что nginx бинарник существует и исполняемый
 NGINX_BIN=$(which nginx || echo "")
