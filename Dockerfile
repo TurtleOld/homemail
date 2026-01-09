@@ -60,8 +60,11 @@ COPY --from=webmail-runner /app /app/webmail
 COPY --from=webmail-runner /etc/passwd /etc/passwd
 COPY --from=webmail-runner /etc/group /etc/group
 
-# Копируем только nginx конфигурацию (не бинарник, т.к. он из Alpine и несовместим с Debian)
+# Копируем конфигурации в образ (как дефолтные)
+# Nginx конфигурация
 COPY --from=nginx-base /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
+# Stalwart конфигурация (дефолтная)
+COPY stalwart/config.toml /opt/stalwart/etc/config.toml.default
 RUN mkdir -p /var/lib/nginx /run/nginx /var/cache/nginx /var/log/nginx
 
 # Создаем директории для Stalwart (если их нет)
