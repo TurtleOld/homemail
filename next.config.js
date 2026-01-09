@@ -32,29 +32,34 @@ const nextConfig = {
     ];
 
     if (isProduction) {
-      securityHeaders.push(
-        {
-          key: 'Strict-Transport-Security',
-          value: 'max-age=31536000; includeSubDomains; preload',
-        },
-        {
-          key: 'Content-Security-Policy',
-          value: [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: https:",
-            "font-src 'self' data:",
-            "connect-src 'self'",
-            "frame-src 'self'",
-            "object-src 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-            "frame-ancestors 'none'",
-            "upgrade-insecure-requests",
-          ].join('; '),
-        }
-      );
+      const useHttps = process.env.USE_HTTPS === 'true';
+      
+      if (useHttps) {
+        securityHeaders.push(
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains; preload',
+          }
+        );
+      }
+      
+      securityHeaders.push({
+        key: 'Content-Security-Policy',
+        value: [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data: https:",
+          "font-src 'self' data: blob:",
+          "connect-src 'self'",
+          "frame-src 'self'",
+          "object-src 'none'",
+          "base-uri 'self'",
+          "form-action 'self'",
+          "frame-ancestors 'none'",
+          ...(useHttps ? ["upgrade-insecure-requests"] : []),
+        ].join('; '),
+      });
     }
 
     return [
