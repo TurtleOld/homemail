@@ -26,7 +26,26 @@ if id -u nextjs >/dev/null 2>&1; then
     chmod -R 755 /app/webmail || true
 fi
 
-# Проверяем наличие конфигурации Stalwart
+# Проверяем и валидируем конфигурацию Stalwart
+if [ -f "/opt/stalwart/etc/config.toml" ]; then
+    echo "Stalwart config found, validating..."
+    # Проверяем, что в конфигурации есть секция spam с store
+    if ! grep -q "^\[spam\]" /opt/stalwart/etc/config.toml || ! grep -A 2 "^\[spam\]" /opt/stalwart/etc/config.toml | grep -q "store"; then
+        echo "Adding/updating spam filter configuration in existing config..."
+        # Удаляем старую секцию spam, если есть
+        sed -i '/^\[spam\]/,/^\[/ { /^\[spam\]/d; /^\[/!d; }' /opt/stalwart/etc/config.toml 2>/dev/null || true
+        # Добавляем правильную секцию spam перед tracer или в конец
+        if grep -q "^\[tracer" /opt/stalwart/etc/config.toml; then
+            sed -i '/^\[tracer/i[spam]\nenabled = false\nstore = "rocksdb"\n' /opt/stalwart/etc/config.toml
+        else
+            echo "" >> /opt/stalwart/etc/config.toml
+            echo "[spam]" >> /opt/stalwart/etc/config.toml
+            echo "enabled = false" >> /opt/stalwart/etc/config.toml
+            echo "store = \"rocksdb\"" >> /opt/stalwart/etc/config.toml
+        fi
+    fi
+fi
+
 if [ ! -f "/opt/stalwart/etc/config.toml" ]; then
     echo "WARNING: Stalwart config.toml not found at /opt/stalwart/etc/config.toml"
     echo "Creating default config..."
