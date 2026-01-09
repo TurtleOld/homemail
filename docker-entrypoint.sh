@@ -77,6 +77,7 @@ store = "rocksdb"
 
 [spam]
 enabled = false
+store = "rocksdb"
 
 [authentication.fallback-admin]
 user = "admin"
@@ -143,6 +144,19 @@ if [ -d "/var/lib/stalwart/data" ]; then
     ls -ld /var/lib/stalwart/data || true
     # Убеждаемся, что директория доступна для записи
     touch /var/lib/stalwart/data/.test 2>/dev/null && rm -f /var/lib/stalwart/data/.test && echo "Stalwart data directory is writable" || echo "WARNING: Stalwart data directory may not be writable"
+    
+    # Если директория пуста или повреждена, создаем базовую структуру
+    if [ ! -d "/var/lib/stalwart/data/rocksdb" ] && [ -z "$(ls -A /var/lib/stalwart/data 2>/dev/null)" ]; then
+        echo "Stalwart data directory is empty, initializing..."
+        mkdir -p /var/lib/stalwart/data/rocksdb || true
+    fi
+fi
+
+# Убеждаемся, что пользователь www-data существует для nginx
+if ! id -u www-data >/dev/null 2>&1; then
+    echo "Creating www-data user for nginx..."
+    groupadd -r www-data 2>/dev/null || true
+    useradd -r -g www-data www-data 2>/dev/null || true
 fi
 
 echo "Entrypoint initialization complete. Starting supervisor..."

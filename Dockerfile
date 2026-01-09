@@ -51,6 +51,10 @@ RUN apt-get update && apt-get install -y \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+# Создаем пользователя www-data для nginx (если его нет)
+RUN id -u www-data >/dev/null 2>&1 || \
+    (groupadd -r www-data && useradd -r -g www-data www-data) || true
+
 # Копируем webmail
 COPY --from=webmail-runner /app /app/webmail
 COPY --from=webmail-runner /etc/passwd /etc/passwd

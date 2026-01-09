@@ -51,6 +51,11 @@ compression = "lz4"
 type = "internal"
 store = "rocksdb"
 
+# Отключаем spam filter (требуется для v0.15.3)
+[spam]
+enabled = false
+store = "rocksdb"
+
 # Fallback admin (аварийный админ для первого входа)
 # Используется для создания обычных пользователей через веб-интерфейс
 [authentication.fallback-admin]
