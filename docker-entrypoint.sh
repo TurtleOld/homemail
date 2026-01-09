@@ -26,14 +26,18 @@ if id -u nextjs >/dev/null 2>&1; then
     chmod -R 755 /app/webmail || true
 fi
 
-# Проверяем и валидируем конфигурацию Stalwart
-# Если конфиг не смонтирован через volume, используем дефолтный из образа
+# Инициализация конфигураций в mount volumes
+# Если конфиги не существуют в mount point, копируем дефолтные из образа
+
+# Stalwart конфигурация
 if [ ! -f "/opt/stalwart/etc/config.toml" ]; then
     if [ -f "/opt/stalwart/etc/config.toml.default" ]; then
-        echo "Stalwart config not found, using default from image..."
+        echo "Stalwart config not found in volume, copying default config..."
         cp /opt/stalwart/etc/config.toml.default /opt/stalwart/etc/config.toml
+        echo "Default Stalwart config copied to /opt/stalwart/etc/config.toml"
+        echo "You can now edit this file on the host and restart the container."
     else
-        echo "WARNING: Stalwart config.toml not found, creating minimal config..."
+        echo "WARNING: Stalwart default config not found in image, creating minimal config..."
         mkdir -p /opt/stalwart/etc
         cat > /opt/stalwart/etc/config.toml << 'EOF'
 [server]
