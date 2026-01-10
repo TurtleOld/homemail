@@ -79,8 +79,6 @@ superuser = false
 # Логирование
 [tracer."stdout"]
 type = "stdout"
-level = "info"
-# Логируем только предупреждения и ошибки для аутентификации (исключаем успешные входы)
-level.auth = "warn"
+level = "warn"
 ansi = false
 enable = true
