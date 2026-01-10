@@ -12,13 +12,13 @@ protocol = 'smtp'
 [server.listener.'submission']
 bind = ['0.0.0.0:587']
 protocol = 'smtp'
-starttls = 'required'
+starttls = 'disabled'
 auth = ['plain', 'login']
 
 [server.listener.'imap']
 bind = ['0.0.0.0:143']
 protocol = 'imap'
-starttls = 'required'
+starttls = 'optional'
 
 [server.listener.'imaptls']
 bind = ['0.0.0.0:993']
@@ -31,6 +31,7 @@ fts = 'rocksdb'
 blob = 'rocksdb'
 lookup = 'rocksdb'
 directory = 'internal'
+spam = 'rocksdb'
 
 [store.'rocksdb']
 type = 'rocksdb'
@@ -40,6 +41,15 @@ compression = 'lz4'
 [directory.'internal']
 type = 'internal'
 store = 'rocksdb'
+
+[authentication.fallback-admin]
+user = 'admin'
+secret = 'bcrypt:$2b$12$YOUR_BCRYPT_HASH_HERE'
+
+[[directory.'internal'.users]]
+name = 'admin@example.com'
+secret = 'bcrypt:$2b$12$YOUR_BCRYPT_HASH_HERE'
+superuser = true
 
 [tracer.'stdout']
 type = 'stdout'

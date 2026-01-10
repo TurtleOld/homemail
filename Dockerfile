@@ -65,8 +65,9 @@ COPY --from=webmail-runner /etc/group /etc/group
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default || true
 # Nginx конфигурация (дефолтная) - копируем наш кастомный конфиг
 COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf.default
-# Stalwart конфигурация (дефолтная)
+# Stalwart конфигурация (дефолтная и пример)
 COPY stalwart/config.toml /opt/stalwart/etc/config.toml.default
+COPY config/stalwart/config.toml.example /opt/stalwart/etc/config.toml.example
 RUN mkdir -p /var/lib/nginx /run/nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
 
 # Создаем директории для Stalwart (если их нет)
@@ -89,7 +90,14 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start-nginx.sh && \
     chmod +x /usr/local/bin/start-nginx.sh
 
 RUN echo '#!/bin/bash' > /usr/local/bin/start-stalwart.sh && \
-    echo 'exec stalwart --config /opt/stalwart/etc/config.toml' >> /usr/local/bin/start-stalwart.sh && \
+    echo 'STALWART_CONFIG="/var/lib/stalwart/config.toml"' >> /usr/local/bin/start-stalwart.sh && \
+    echo 'if [ ! -f "$STALWART_CONFIG" ]; then' >> /usr/local/bin/start-stalwart.sh && \
+    echo '  echo "ERROR: Runtime config not found at $STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \
+    echo '  echo "Falling back to /opt/stalwart/etc/config.toml"' >> /usr/local/bin/start-stalwart.sh && \
+    echo '  STALWART_CONFIG="/opt/stalwart/etc/config.toml"' >> /usr/local/bin/start-stalwart.sh && \
+    echo 'fi' >> /usr/local/bin/start-stalwart.sh && \
+    echo 'echo "Starting Stalwart with config: $STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \
+    echo 'exec stalwart --config "$STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \
     chmod +x /usr/local/bin/start-stalwart.sh
 
 # Копируем entrypoint скрипт

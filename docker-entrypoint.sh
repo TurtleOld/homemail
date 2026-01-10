@@ -31,22 +31,54 @@ if [ "$STALWART_MOUNT_TARGET" != "/" ]; then
     IS_STALWART_MOUNT=true
 fi
 
-if [ -f "/opt/stalwart/etc/config.toml" ]; then
-    log "INFO: Found existing Stalwart config at /opt/stalwart/etc/config.toml"
+STALWART_CONFIG="/opt/stalwart/etc/config.toml"
+STALWART_CONFIG_EXAMPLE="/opt/stalwart/etc/config.toml.example"
+STALWART_RUNTIME_CONFIG="/var/lib/stalwart/config.toml"
+STALWART_CONFIG_HASH_FILE="/var/lib/stalwart/.config_hash"
+
+if [ -f "$STALWART_CONFIG" ]; then
+    log "INFO: Found Stalwart config at $STALWART_CONFIG"
+    
+    CURRENT_HASH=$(md5sum "$STALWART_CONFIG" 2>/dev/null | cut -d' ' -f1 || echo "none")
+    SAVED_HASH=$(cat "$STALWART_CONFIG_HASH_FILE" 2>/dev/null || echo "")
+    
+    if [ -f "$STALWART_RUNTIME_CONFIG" ] && [ "$CURRENT_HASH" = "$SAVED_HASH" ]; then
+        RUNTIME_HASH=$(md5sum "$STALWART_RUNTIME_CONFIG" 2>/dev/null | cut -d' ' -f1 || echo "runtime")
+        if [ "$CURRENT_HASH" != "$RUNTIME_HASH" ]; then
+            log "WARNING: Runtime config differs from mounted config (Stalwart may have modified it)"
+            log "INFO: Restoring original mounted config to runtime location"
+        fi
+    fi
+    
+    log "INFO: Copying config to runtime location (protected from Stalwart auto-save)"
+    cp "$STALWART_CONFIG" "$STALWART_RUNTIME_CONFIG"
+    echo "$CURRENT_HASH" > "$STALWART_CONFIG_HASH_FILE"
+    log "INFO: Runtime config created at $STALWART_RUNTIME_CONFIG"
+    
+elif [ -f "$STALWART_CONFIG_EXAMPLE" ]; then
+    log "WARNING: config.toml not found, but config.toml.example exists"
+    log "WARNING: Copying example config - PLEASE CUSTOMIZE IT!"
+    cp "$STALWART_CONFIG_EXAMPLE" "$STALWART_CONFIG"
+    cp "$STALWART_CONFIG" "$STALWART_RUNTIME_CONFIG"
+    md5sum "$STALWART_CONFIG" 2>/dev/null | cut -d' ' -f1 > "$STALWART_CONFIG_HASH_FILE"
+    log "WARNING: Example config copied. Edit $STALWART_CONFIG with your settings!"
+    
 else
-    log "INFO: Stalwart config.toml not found at /opt/stalwart/etc/config.toml"
-    log "INFO: Checking for files in /opt/stalwart/etc/..."
-    ls -la /opt/stalwart/etc/ || log "INFO: Directory /opt/stalwart/etc/ does not exist or is empty"
+    log "INFO: Stalwart config.toml not found at $STALWART_CONFIG"
+    ls -la /opt/stalwart/etc/ 2>/dev/null || log "INFO: Directory /opt/stalwart/etc/ is empty"
 
     if [ "$IS_STALWART_MOUNT" = "true" ]; then
-        log "WARNING: /opt/stalwart/etc is on external volume (target $STALWART_MOUNT_TARGET), but config.toml is missing"
-        log "WARNING: Please create config.toml in your mounted volume directory"
+        log "ERROR: /opt/stalwart/etc is mounted but config.toml is missing"
+        log "ERROR: Please create config.toml in your mounted volume directory"
+        log "ERROR: You can copy from config.toml.example as a starting point"
+        exit 1
     elif [ -f "/opt/stalwart/etc/config.toml.default" ]; then
-        log "WARNING: Stalwart config not found, copying default config"
-        cp /opt/stalwart/etc/config.toml.default /opt/stalwart/etc/config.toml
-        log "WARNING: Default Stalwart config copied to /opt/stalwart/etc/config.toml"
+        log "WARNING: Using default config from image"
+        cp /opt/stalwart/etc/config.toml.default "$STALWART_CONFIG"
+        cp "$STALWART_CONFIG" "$STALWART_RUNTIME_CONFIG"
+        md5sum "$STALWART_CONFIG" 2>/dev/null | cut -d' ' -f1 > "$STALWART_CONFIG_HASH_FILE"
     else
-        log "ERROR: Stalwart config not found and no default config in image"
+        log "ERROR: Stalwart config not found and no default/example config available"
         exit 1
     fi
 fi

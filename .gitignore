@@ -59,5 +59,6 @@ data/.sessions.json
 .settings.json
 data/.settings.json
 
-# Production configs (mounted from host)
-config/
+# Production configs (sensitive data, not tracked)
+config/stalwart/config.toml
+config/nginx/default.conf
