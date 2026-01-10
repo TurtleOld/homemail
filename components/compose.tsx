@@ -198,15 +198,19 @@ export function Compose({ open, onClose, initialDraft, replyTo, forwardFrom }: C
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        toast.error(data.error || 'Ошибка отправки');
+        const data = await res.json().catch(() => ({}));
+        const errorMessage = data.error || data.details || `Ошибка отправки (${res.status})`;
+        console.error('Send error:', errorMessage, data);
+        toast.error(errorMessage);
         return;
       }
 
       toast.success('Письмо отправлено');
       onClose();
     } catch (error) {
-      toast.error('Ошибка соединения');
+      console.error('Send error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Ошибка соединения';
+      toast.error(errorMessage);
     } finally {
       setSending(false);
     }
