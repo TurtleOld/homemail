@@ -1,3 +1,5 @@
+# Пример конфигурации Docker Compose для production
+# При разворачивании используйте свой compose файл с нужными путями и настройками
 services:
   homemail:
     image: ghcr.io/turtleold/homemail:latest
