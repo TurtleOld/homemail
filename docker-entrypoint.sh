@@ -73,7 +73,6 @@ fts = "rocksdb"
 blob = "rocksdb"
 lookup = "rocksdb"
 directory = "internal"
-spam = "rocksdb"
 
 [store."rocksdb"]
 type = "rocksdb"
@@ -82,10 +81,6 @@ compression = "lz4"
 
 [directory."internal"]
 type = "internal"
-store = "rocksdb"
-
-[spam]
-enabled = false
 store = "rocksdb"
 
 [authentication.fallback-admin]
@@ -222,47 +217,20 @@ if ! id -u www-data >/dev/null 2>&1; then
     useradd -r -g www-data www-data 2>/dev/null || true
 fi
 
-# Валидируем конфигурацию Stalwart (добавляем spam секцию, если её нет или она неполная)
+# Валидируем конфигурацию Stalwart (проверяем минимальные требования)
 if [ -f "/opt/stalwart/etc/config.toml" ]; then
     echo "Validating Stalwart config..."
     
-    # Проверяем наличие секции spam
-    HAS_SPAM_SECTION=$(grep -c "^\[spam\]" /opt/stalwart/etc/config.toml 2>/dev/null || echo "0")
-    HAS_SPAM_STORE=$(grep -A 3 "^\[spam\]" /opt/stalwart/etc/config.toml 2>/dev/null | grep -c "store" || echo "0")
-    
-    if [ "$HAS_SPAM_SECTION" -eq 0 ] || [ "$HAS_SPAM_STORE" -eq 0 ]; then
-        echo "Adding/updating spam filter configuration..."
-        
-        # Удаляем старую секцию spam полностью
-        sed -i '/^\[spam\]/,/^\[/{ /^\[spam\]/d; /^\[/!d; }' /opt/stalwart/etc/config.toml 2>/dev/null || true
-        sed -i '/^enabled = false$/d; /^store = "rocksdb"$/d' /opt/stalwart/etc/config.toml 2>/dev/null || true
-        
-        # Находим место для вставки
-        if grep -q "^\[tracer" /opt/stalwart/etc/config.toml; then
-            sed -i '/^\[tracer/i[spam]\nenabled = false\nstore = "rocksdb"\n' /opt/stalwart/etc/config.toml
-        elif grep -q "^\[authentication" /opt/stalwart/etc/config.toml; then
-            sed -i '/^\[authentication/i[spam]\nenabled = false\nstore = "rocksdb"\n' /opt/stalwart/etc/config.toml
-        else
-            echo "" >> /opt/stalwart/etc/config.toml
-            echo "[spam]" >> /opt/stalwart/etc/config.toml
-            echo "enabled = false" >> /opt/stalwart/etc/config.toml
-            echo "store = \"rocksdb\"" >> /opt/stalwart/etc/config.toml
-        fi
-        
-        echo "Spam filter configuration added/updated"
+    # Проверяем наличие минимально необходимых секций
+    if ! grep -q "^\[storage\]" /opt/stalwart/etc/config.toml; then
+        echo "WARNING: [storage] section not found in config.toml"
     fi
     
-    # Проверяем наличие spam в секции storage
-    if ! grep -q "^spam = " /opt/stalwart/etc/config.toml; then
-        echo "Adding spam to storage section..."
-        if grep -q "^directory = " /opt/stalwart/etc/config.toml; then
-            sed -i '/^directory = /a spam = "rocksdb"' /opt/stalwart/etc/config.toml
-        else
-            sed -i '/^\[storage\]/a spam = "rocksdb"' /opt/stalwart/etc/config.toml
-        fi
+    if ! grep -q "^\[store" /opt/stalwart/etc/config.toml; then
+        echo "WARNING: [store] section not found in config.toml"
     fi
     
-    echo "Stalwart config validated and ready"
+    echo "Stalwart config validated"
 fi
 
 echo "Entrypoint initialization complete. Starting supervisor..."

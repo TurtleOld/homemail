@@ -39,7 +39,6 @@ fts = "rocksdb"
 blob = "rocksdb"
 lookup = "rocksdb"
 directory = "internal"
-spam = "rocksdb"
 
 # Store для базы данных
 [store."rocksdb"]
@@ -50,11 +49,6 @@ compression = "lz4"
 # Директория пользователей (internal backend)
 [directory."internal"]
 type = "internal"
-store = "rocksdb"
-
-# Отключаем spam filter (требуется для v0.15.3)
-[spam]
-enabled = false
 store = "rocksdb"
 
 # Fallback admin (аварийный админ для первого входа)
