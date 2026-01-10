@@ -76,8 +76,18 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     queryKey: ['account'],
     queryFn: async () => {
       const res = await fetch('/api/auth/me');
-      if (!res.ok) throw new Error('Unauthorized');
+      if (res.status === 401) {
+        router.push('/login?redirect=/mail');
+        throw new Error('Unauthorized');
+      }
+      if (!res.ok) throw new Error('Failed to fetch account');
       return res.json();
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message === 'Unauthorized') {
+        return false;
+      }
+      return failureCount < 2;
     },
   });
 
@@ -85,9 +95,20 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     queryKey: ['folders'],
     queryFn: async () => {
       const res = await fetch('/api/mail/folders');
+      if (res.status === 401) {
+        router.push('/login?redirect=/mail');
+        throw new Error('Unauthorized');
+      }
       if (!res.ok) throw new Error('Failed to fetch folders');
       return res.json();
     },
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message === 'Unauthorized') {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    refetchInterval: 30000,
   });
 
   const { data: messagesData, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery<{
@@ -105,12 +126,22 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         params.set('q', debouncedSearch);
       }
       const res = await fetch(`/api/mail/messages?${params}`);
+      if (res.status === 401) {
+        router.push('/login?redirect=/mail');
+        throw new Error('Unauthorized');
+      }
       if (!res.ok) throw new Error('Failed to fetch messages');
       return res.json();
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: !!selectedFolderId,
     initialPageParam: undefined,
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message === 'Unauthorized') {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 
   const messages = messagesData?.pages.flatMap((p) => p.messages) || [];
@@ -120,10 +151,20 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     queryFn: async () => {
       if (!selectedMessageId) return null;
       const res = await fetch(`/api/mail/messages/${selectedMessageId}`);
+      if (res.status === 401) {
+        router.push('/login?redirect=/mail');
+        throw new Error('Unauthorized');
+      }
       if (!res.ok) throw new Error('Failed to fetch message');
       return res.json();
     },
     enabled: !!selectedMessageId,
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message === 'Unauthorized') {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 
   useEffect(() => {

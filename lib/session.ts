@@ -20,10 +20,15 @@ async function loadSessions(): Promise<void> {
     const data = await fs.readFile(SESSIONS_FILE, 'utf-8');
     const loaded = JSON.parse(data) as Record<string, SessionData>;
     const now = Date.now();
+    let loadedCount = 0;
     for (const [sessionId, session] of Object.entries(loaded)) {
       if (session.expiresAt > now) {
         sessions.set(sessionId, session);
+        loadedCount++;
       }
+    }
+    if (loadedCount > 0) {
+      console.log(`Loaded ${loadedCount} active session(s) from file`);
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -78,7 +83,12 @@ export async function getSession(): Promise<SessionData | null> {
     return null;
   }
 
-  const session = sessions.get(sessionId);
+  let session = sessions.get(sessionId);
+
+  if (!session) {
+    await loadSessions();
+    session = sessions.get(sessionId);
+  }
 
   if (!session || session.expiresAt < Date.now()) {
     if (session) {
