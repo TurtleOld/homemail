@@ -30,11 +30,19 @@ if [ ! -f "/opt/stalwart/etc/config.toml" ]; then
     log "INFO: Checking for files in /opt/stalwart/etc/..."
     ls -la /opt/stalwart/etc/ || log "INFO: Directory /opt/stalwart/etc/ does not exist or is empty"
     
-    if [ -f "/opt/stalwart/etc/config.toml.default" ]; then
-        log "WARNING: Stalwart config not found in volume, copying default config..."
+    IS_MOUNT_POINT=false
+    if mountpoint -q /opt/stalwart/etc 2>/dev/null; then
+        IS_MOUNT_POINT=true
+    fi
+    
+    if [ "$IS_MOUNT_POINT" = "true" ]; then
+        log "WARNING: /opt/stalwart/etc is a mount point, but config.toml is missing!"
+        log "WARNING: Please create config.toml in your mounted volume directory."
+        log "WARNING: Container will continue, but Stalwart may fail to start without config."
+    elif [ -f "/opt/stalwart/etc/config.toml.default" ]; then
+        log "WARNING: Stalwart config not found, copying default config..."
         cp /opt/stalwart/etc/config.toml.default /opt/stalwart/etc/config.toml
         log "WARNING: Default Stalwart config copied to /opt/stalwart/etc/config.toml"
-        log "WARNING: This file will be overwritten on container restart if volume mount is used!"
         log "WARNING: You should create config.toml in your mounted volume directory."
     else
         log "ERROR: Stalwart config not found and no default config in image"
