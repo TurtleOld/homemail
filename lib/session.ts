@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import crypto from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -49,7 +50,7 @@ async function saveSessions(): Promise<void> {
 loadSessions().catch(console.error);
 
 export async function createSession(accountId: string, email: string): Promise<string> {
-  const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  const sessionId = `sess_${crypto.randomBytes(32).toString('base64url')}`;
   const expiresAt = Date.now() + SESSION_DURATION;
 
   const session: SessionData = {
@@ -63,10 +64,10 @@ export async function createSession(accountId: string, email: string): Promise<s
   await saveSessions();
 
   const cookieStore = await cookies();
-  const useHttps = process.env.USE_HTTPS === 'true';
+  const secureCookie = process.env.NODE_ENV === 'production' ? true : process.env.USE_HTTPS === 'true';
   cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
-    secure: useHttps,
+    secure: secureCookie,
     sameSite: 'lax',
     path: '/',
     maxAge: SESSION_DURATION / 1000,

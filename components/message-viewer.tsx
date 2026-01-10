@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import type { MessageDetail } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitize';
@@ -29,21 +29,16 @@ export function MessageViewer({
   onMarkRead,
   allowRemoteImages = false,
 }: MessageViewerProps) {
-  const [sanitizedHtml, setSanitizedHtml] = useState<string>('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const queryClient = useQueryClient();
   const markedAsReadRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (!message) {
-      setSanitizedHtml('');
-      return;
-    }
-
+  const sanitizedHtml = useMemo(() => {
+    if (!message) return '';
     if (message.body.html) {
-      const sanitized = sanitizeHtml(message.body.html, allowRemoteImages);
-      setSanitizedHtml(sanitized);
-    } else if (message.body.text) {
+      return sanitizeHtml(message.body.html, allowRemoteImages);
+    }
+    if (message.body.text) {
       const escaped = message.body.text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -51,14 +46,34 @@ export function MessageViewer({
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;')
         .replace(/\n/g, '<br>');
-      setSanitizedHtml(`<p>${escaped}</p>`);
+      return `<p>${escaped}</p>`;
     }
+    return '';
+  }, [message, allowRemoteImages]);
 
+  const handleMarkRead = useCallback(async () => {
+    if (!message) return;
+    try {
+      await fetch(`/api/mail/messages/${message.id}/flags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unread: false }),
+      });
+      onMarkRead?.(true);
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+    } catch (error) {
+      console.error('Failed to update read status:', error);
+    }
+  }, [message, onMarkRead, queryClient]);
+
+  useEffect(() => {
+    if (!message) return;
     if (message.flags.unread && !markedAsReadRef.current.has(message.id)) {
       markedAsReadRef.current.add(message.id);
       handleMarkRead();
     }
-  }, [message, allowRemoteImages]);
+  }, [message, handleMarkRead]);
 
   useEffect(() => {
     if (iframeRef.current && sanitizedHtml) {
@@ -108,22 +123,6 @@ export function MessageViewer({
       queryClient.invalidateQueries({ queryKey: ['messages'] });
     } catch (error) {
       console.error('Failed to update star:', error);
-    }
-  };
-
-  const handleMarkRead = async () => {
-    if (!message) return;
-    try {
-      await fetch(`/api/mail/messages/${message.id}/flags`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ unread: false }),
-      });
-      onMarkRead?.(true);
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
-    } catch (error) {
-      console.error('Failed to update read status:', error);
     }
   };
 

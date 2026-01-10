@@ -1,0 +1,48 @@
+[server]
+hostname = 'mail.example.com'
+
+[server.listener.'http']
+bind = ['0.0.0.0:8080']
+protocol = 'http'
+
+[server.listener.'smtp']
+bind = ['0.0.0.0:25']
+protocol = 'smtp'
+
+[server.listener.'submission']
+bind = ['0.0.0.0:587']
+protocol = 'smtp'
+starttls = 'required'
+auth = ['plain', 'login']
+
+[server.listener.'imap']
+bind = ['0.0.0.0:143']
+protocol = 'imap'
+starttls = 'required'
+
+[server.listener.'imaptls']
+bind = ['0.0.0.0:993']
+protocol = 'imap'
+tls.implicit = true
+
+[storage]
+data = 'rocksdb'
+fts = 'rocksdb'
+blob = 'rocksdb'
+lookup = 'rocksdb'
+directory = 'internal'
+
+[store.'rocksdb']
+type = 'rocksdb'
+path = '/var/lib/stalwart/data/'
+compression = 'lz4'
+
+[directory.'internal']
+type = 'internal'
+store = 'rocksdb'
+
+[tracer.'stdout']
+type = 'stdout'
+level = 'warn'
+ansi = false
+enable = true

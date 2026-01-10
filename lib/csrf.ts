@@ -6,87 +6,67 @@ export function validateOrigin(request: Request): boolean {
 
   const origin = request.headers.get('origin');
   const referer = request.headers.get('referer');
-  const host = request.headers.get('host');
-  const xForwardedHost = request.headers.get('x-forwarded-host');
-  const xForwardedProto = request.headers.get('x-forwarded-proto');
+  const hostHeader = request.headers.get('host');
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedProto = request.headers.get('x-forwarded-proto');
 
-  // Use forwarded headers if behind proxy (nginx)
-  const actualHost = xForwardedHost || host;
-  const protocol = xForwardedProto || 'http';
+  const requestHost = (forwardedHost || hostHeader || '').split(',')[0]?.trim().split(':')[0] || '';
 
-  // If behind nginx proxy, be more lenient with validation
-  if (xForwardedHost || xForwardedProto) {
-    // Behind proxy - validate hostname match instead of exact origin
-    if (origin) {
-      try {
-        const originUrl = new URL(origin);
-        const originHost = originUrl.hostname;
-        // Allow if hostname matches (ignore port differences)
-        if (originHost === actualHost || originHost === host || originHost === 'localhost') {
-          return true;
-        }
-      } catch {
-        // Invalid origin URL, but if we have host, allow it
-        if (actualHost) {
-          return true;
-        }
-      }
+  const appUrlHost = (() => {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      return null;
     }
-    
-    if (referer) {
-      try {
-        const refererUrl = new URL(referer);
-        const refererHost = refererUrl.hostname;
-        if (refererHost === actualHost || refererHost === host || refererHost === 'localhost') {
-          return true;
-        }
-      } catch {
-        // Invalid referer URL
-      }
+    try {
+      return new URL(appUrl).hostname;
+    } catch {
+      return null;
     }
-    
-    // If we have host from proxy, allow the request
-    if (actualHost) {
-      return true;
-    }
+  })();
+
+  const allowedHosts = new Set<string>();
+  if (requestHost) {
+    allowedHosts.add(requestHost);
+  }
+  if (appUrlHost) {
+    allowedHosts.add(appUrlHost);
+  }
+  const allowedExtra = (process.env.ALLOWED_ORIGIN_HOSTS || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+  for (const h of allowedExtra) {
+    allowedHosts.add(h);
   }
 
   // Standard validation for direct access
   if (!origin && !referer) {
     return false;
   }
-
-  const expectedOrigin = actualHost ? `${protocol}://${actualHost}` : null;
-
-  if (origin && expectedOrigin) {
-    if (origin !== expectedOrigin) {
-      // Check hostname match
-      try {
-        const originUrl = new URL(origin);
-        const expectedUrl = new URL(expectedOrigin);
-        if (originUrl.hostname === expectedUrl.hostname || originUrl.hostname === 'localhost') {
-          return true;
-        }
-      } catch {
-        return false;
-      }
-      return false;
-    }
+  if (allowedHosts.size === 0) {
+    return false;
   }
 
-  if (referer && expectedOrigin) {
-    if (!referer.startsWith(expectedOrigin)) {
-      try {
-        const refererUrl = new URL(referer);
-        const expectedUrl = new URL(expectedOrigin);
-        if (refererUrl.hostname === expectedUrl.hostname || refererUrl.hostname === 'localhost') {
-          return true;
-        }
-      } catch {
+  const proto = (forwardedProto || '').split(',')[0]?.trim();
+
+  const isAllowedUrl = (value: string) => {
+    try {
+      const url = new URL(value);
+      if (proto && url.protocol.replace(':', '') !== proto) {
         return false;
       }
+      return allowedHosts.has(url.hostname);
+    } catch {
       return false;
     }
+  };
+
+  if (origin && !isAllowedUrl(origin)) {
+    return false;
+  }
+
+  if (referer && !isAllowedUrl(referer)) {
+    return false;
   }
 
   return true;
