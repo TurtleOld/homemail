@@ -64,7 +64,7 @@ export async function createSession(accountId: string, email: string): Promise<s
   await saveSessions();
 
   const cookieStore = await cookies();
-  const secureCookie = process.env.NODE_ENV === 'production' ? true : process.env.USE_HTTPS === 'true';
+  const secureCookie = process.env.USE_HTTPS === 'true';
   cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
     secure: secureCookie,
