@@ -26,10 +26,10 @@ services:
       - stalwart-data:/var/lib/stalwart/data
       - stalwart-certs:/var/lib/stalwart/certs
       - stalwart-logs:/var/log/stalwart
-      - /volume3/docker/homemail/stalwart/config:/opt/stalwart/etc
-      - /volume3/docker/homemail/nginx:/etc/nginx/conf.d
-      - /volume3/docker/homemail/data/webmail/.sessions.json:/app/webmail/.sessions.json
-      - /volume3/docker/homemail/data/webmail/.settings.json:/app/webmail/.settings.json
+      - ./config/stalwart:/opt/stalwart/etc
+      - ./config/nginx:/etc/nginx/conf.d
+      - ./data/.sessions.json:/app/webmail/.sessions.json
+      - ./data/.settings.json:/app/webmail/.settings.json
     logging:
       driver: "json-file"
       options:
