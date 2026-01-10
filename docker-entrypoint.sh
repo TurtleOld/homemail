@@ -47,7 +47,10 @@ fi
 # Для отключения проверки установите переменную окружения: ALLOW_INSECURE_CREDENTIALS=true
 if [ -f "/opt/stalwart/etc/config.toml" ]; then
     if [ "${ALLOW_INSECURE_CREDENTIALS}" != "true" ]; then
-        if grep -q "plain:admin123" /opt/stalwart/etc/config.toml || grep -q "plain:test123" /opt/stalwart/etc/config.toml; then
+        # Проверяем только активные (не закомментированные) строки с plain паролями
+        # Игнорируем строки, которые начинаются с # (комментарии)
+        if grep -v '^\s*#' /opt/stalwart/etc/config.toml | grep -q "plain:admin123" || \
+           grep -v '^\s*#' /opt/stalwart/etc/config.toml | grep -q "plain:test123"; then
             echo "WARNING: Insecure default credentials (plain:admin123 or plain:test123) found in /opt/stalwart/etc/config.toml"
             echo "WARNING: This is a security risk. Please replace with bcrypt hashes."
             echo "WARNING: To disable this check, set ALLOW_INSECURE_CREDENTIALS=true environment variable."
