@@ -26,7 +26,8 @@ if id -u nextjs >/dev/null 2>&1; then
     chmod -R 755 /app/webmail || true
 fi
 IS_STALWART_MOUNT=false
-if mountpoint -q /opt/stalwart/etc 2>/dev/null; then
+STALWART_MOUNT_TARGET=$(findmnt -T /opt/stalwart/etc -o TARGET -n 2>/dev/null || echo "/")
+if [ "$STALWART_MOUNT_TARGET" != "/" ]; then
     IS_STALWART_MOUNT=true
 fi
 
@@ -38,7 +39,7 @@ else
     ls -la /opt/stalwart/etc/ || log "INFO: Directory /opt/stalwart/etc/ does not exist or is empty"
 
     if [ "$IS_STALWART_MOUNT" = "true" ]; then
-        log "WARNING: /opt/stalwart/etc is a mount point, but config.toml is missing"
+        log "WARNING: /opt/stalwart/etc is on external volume (target $STALWART_MOUNT_TARGET), but config.toml is missing"
         log "WARNING: Please create config.toml in your mounted volume directory"
     elif [ -f "/opt/stalwart/etc/config.toml.default" ]; then
         log "WARNING: Stalwart config not found, copying default config"
