@@ -109,7 +109,7 @@ export function MessageList({
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className={cn('truncate font-medium', !message.flags.unread && 'font-normal')}>
+                  <span className={cn('truncate', message.flags.unread ? 'font-bold' : 'font-normal')}>
                     {message.from.name || message.from.email}
                   </span>
                   {message.flags.hasAttachments && (
@@ -117,7 +117,7 @@ export function MessageList({
                   )}
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-sm">
-                  <span className={cn('truncate', !message.flags.unread && 'text-muted-foreground')}>
+                  <span className={cn('truncate', message.flags.unread ? 'font-semibold' : 'text-muted-foreground')}>
                     {message.subject || '(без темы)'}
                   </span>
                   <span className="text-xs text-muted-foreground flex-shrink-0">{formatDate(message.date)}</span>

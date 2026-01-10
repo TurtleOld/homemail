@@ -138,9 +138,14 @@ export function Sidebar({
             >
               {folderIcons[folder.role] || folderIcons.custom}
               <span className="flex-1">{folder.name}</span>
-              {folder.unreadCount > 0 && (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                  {folder.unreadCount}
+              {folder.role === 'drafts' && folder.unreadCount > 0 && (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-xs font-medium text-white">
+                  {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
+                </span>
+              )}
+              {folder.role !== 'drafts' && folder.unreadCount > 0 && (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-xs font-medium text-white">
+                  {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
                 </span>
               )}
             </button>

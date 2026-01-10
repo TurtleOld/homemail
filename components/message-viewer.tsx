@@ -32,6 +32,7 @@ export function MessageViewer({
   const [sanitizedHtml, setSanitizedHtml] = useState<string>('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const queryClient = useQueryClient();
+  const markedAsReadRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!message) {
@@ -51,6 +52,11 @@ export function MessageViewer({
         .replace(/'/g, '&#039;')
         .replace(/\n/g, '<br>');
       setSanitizedHtml(`<p>${escaped}</p>`);
+    }
+
+    if (message.flags.unread && !markedAsReadRef.current.has(message.id)) {
+      markedAsReadRef.current.add(message.id);
+      handleMarkRead();
     }
   }, [message, allowRemoteImages]);
 
@@ -106,15 +112,16 @@ export function MessageViewer({
   };
 
   const handleMarkRead = async () => {
-    const newRead = !message.flags.unread;
+    if (!message) return;
     try {
       await fetch(`/api/mail/messages/${message.id}/flags`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ unread: !newRead }),
+        body: JSON.stringify({ unread: false }),
       });
-      onMarkRead?.(newRead);
+      onMarkRead?.(true);
       queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
     } catch (error) {
       console.error('Failed to update read status:', error);
     }
