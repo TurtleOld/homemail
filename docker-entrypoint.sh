@@ -37,67 +37,15 @@ if [ ! -f "/opt/stalwart/etc/config.toml" ]; then
         echo "Default Stalwart config copied to /opt/stalwart/etc/config.toml"
         echo "You can now edit this file on the host and restart the container."
     else
-        echo "WARNING: Stalwart default config not found in image, creating minimal config..."
-        mkdir -p /opt/stalwart/etc
-        cat > /opt/stalwart/etc/config.toml << 'EOF'
-[server]
-hostname = "localhost"
+        echo "ERROR: Stalwart config not found and no default config in image"
+        exit 1
+    fi
+fi
 
-[server.listener."http"]
-bind = ["0.0.0.0:8080"]
-protocol = "http"
-
-[server.listener."smtp"]
-bind = ["0.0.0.0:25"]
-protocol = "smtp"
-
-[server.listener."submission"]
-bind = ["0.0.0.0:587"]
-protocol = "smtp"
-starttls = "disabled"
-auth = ["plain", "login"]
-
-[server.listener."imap"]
-bind = ["0.0.0.0:143"]
-protocol = "imap"
-starttls = "optional"
-
-[server.listener."imaptls"]
-bind = ["0.0.0.0:993"]
-protocol = "imap"
-tls.implicit = true
-
-[storage]
-data = "rocksdb"
-fts = "rocksdb"
-blob = "rocksdb"
-lookup = "rocksdb"
-directory = "internal"
-
-[store."rocksdb"]
-type = "rocksdb"
-path = "/var/lib/stalwart/data/"
-compression = "lz4"
-
-[directory."internal"]
-type = "internal"
-store = "rocksdb"
-
-[authentication.fallback-admin]
-user = "admin"
-secret = "plain:admin123"
-
-[[directory."internal".users]]
-name = "admin@example.com"
-secret = "plain:admin123"
-superuser = true
-
-[tracer."stdout"]
-type = "stdout"
-level = "warn"
-ansi = false
-enable = true
-EOF
+if [ -f "/opt/stalwart/etc/config.toml" ]; then
+    if grep -q "plain:admin123" /opt/stalwart/etc/config.toml || grep -q "plain:test123" /opt/stalwart/etc/config.toml; then
+        echo "ERROR: Insecure default credentials found in /opt/stalwart/etc/config.toml"
+        exit 1
     fi
 fi
 

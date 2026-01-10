@@ -23,20 +23,18 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [forwardFrom, setForwardFrom] = useState<{ subject: string; body: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [allowRemoteImages, setAllowRemoteImages] = useState(false);
-  const [messageListWidth, setMessageListWidth] = useState(400);
+  const [messageListWidth, setMessageListWidth] = useState(() => {
+    if (typeof window === 'undefined') return 400;
+    const saved = window.localStorage.getItem('messageListWidth');
+    if (!saved) return 400;
+    const width = parseInt(saved, 10);
+    if (Number.isNaN(width)) return 400;
+    if (width < 300 || width > 800) return 400;
+    return width;
+  });
   const [isResizing, setIsResizing] = useState(false);
   const debouncedSearch = useDebounce(searchQuery, 400);
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const saved = localStorage.getItem('messageListWidth');
-    if (saved) {
-      const width = parseInt(saved, 10);
-      if (width >= 300 && width <= 800) {
-        setMessageListWidth(width);
-      }
-    }
-  }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();

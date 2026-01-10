@@ -48,9 +48,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, account: { id: account.id, email: account.email, displayName: account.displayName } });
     } catch (providerError) {
       console.error('Provider error during login:', providerError);
-      if (providerError instanceof Error) {
-        return NextResponse.json({ error: `Authentication failed: ${providerError.message}` }, { status: 401 });
-      }
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
   } catch (error) {

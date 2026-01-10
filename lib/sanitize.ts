@@ -39,6 +39,7 @@ export function sanitizeHtml(html: string, allowRemoteImages: boolean = false): 
     ALLOWED_TAGS,
     ALLOWED_ATTR,
     ALLOW_DATA_ATTR: false,
+    ALLOW_UNKNOWN_PROTOCOLS: true,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
     FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
   };
@@ -52,7 +53,8 @@ export function sanitizeHtml(html: string, allowRemoteImages: boolean = false): 
   }
 
   sanitized = sanitized.replace(/<a\s+([^>]*href=["'])([^"']+)(["'][^>]*)>/gi, (match, before, url, after) => {
-    if (url.startsWith('javascript:') || url.startsWith('data:')) {
+    const normalized = url.trim().toLowerCase();
+    if (normalized.startsWith('javascript:') || normalized.startsWith('data:') || normalized.startsWith('vbscript:')) {
       return match.replace(/href=["'][^"']+["']/, 'href="#"');
     }
     if (!match.includes('target=')) {
@@ -62,6 +64,18 @@ export function sanitizeHtml(html: string, allowRemoteImages: boolean = false): 
       return match.replace(/>$/, ' rel="noopener noreferrer">');
     }
     return match;
+  });
+
+  sanitized = sanitized.replace(/<a(?![^>]*\shref=)([^>]*)>/gi, (match, attrs) => {
+    const hasTarget = /target\s*=/.test(attrs);
+    const hasRel = /rel\s*=/.test(attrs);
+    if (!hasTarget && !hasRel) {
+      return `<a href="#"${attrs} target="_blank" rel="noopener noreferrer">`;
+    }
+    if (hasTarget && !hasRel) {
+      return `<a href="#"${attrs} rel="noopener noreferrer">`;
+    }
+    return `<a href="#"${attrs}>`;
   });
 
   return sanitized;
