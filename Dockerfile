@@ -90,11 +90,10 @@ RUN echo '#!/bin/bash' > /usr/local/bin/start-nginx.sh && \
     chmod +x /usr/local/bin/start-nginx.sh
 
 RUN echo '#!/bin/bash' > /usr/local/bin/start-stalwart.sh && \
-    echo 'STALWART_CONFIG="/var/lib/stalwart/config.toml"' >> /usr/local/bin/start-stalwart.sh && \
+    echo 'STALWART_CONFIG="/opt/stalwart/etc/config.toml"' >> /usr/local/bin/start-stalwart.sh && \
     echo 'if [ ! -f "$STALWART_CONFIG" ]; then' >> /usr/local/bin/start-stalwart.sh && \
-    echo '  echo "ERROR: Runtime config not found at $STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \
-    echo '  echo "Falling back to /opt/stalwart/etc/config.toml"' >> /usr/local/bin/start-stalwart.sh && \
-    echo '  STALWART_CONFIG="/opt/stalwart/etc/config.toml"' >> /usr/local/bin/start-stalwart.sh && \
+    echo '  echo "ERROR: Config not found at $STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \
+    echo '  exit 1' >> /usr/local/bin/start-stalwart.sh && \
     echo 'fi' >> /usr/local/bin/start-stalwart.sh && \
     echo 'echo "Starting Stalwart with config: $STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \
     echo 'exec stalwart --config "$STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \

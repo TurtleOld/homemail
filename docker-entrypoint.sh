@@ -25,63 +25,48 @@ if id -u nextjs >/dev/null 2>&1; then
     chown -R nextjs:nodejs /app/webmail || true
     chmod -R 755 /app/webmail || true
 fi
-IS_STALWART_MOUNT=false
-STALWART_MOUNT_TARGET=$(findmnt -T /opt/stalwart/etc -o TARGET -n 2>/dev/null || echo "/")
-if [ "$STALWART_MOUNT_TARGET" != "/" ]; then
-    IS_STALWART_MOUNT=true
-fi
+mkdir -p /opt/stalwart/etc
 
+STALWART_HOST_CONFIG="/opt/stalwart/etc-host/config.toml"
+STALWART_HOST_EXAMPLE="/opt/stalwart/etc-host/config.toml.example"
 STALWART_CONFIG="/opt/stalwart/etc/config.toml"
-STALWART_CONFIG_EXAMPLE="/opt/stalwart/etc/config.toml.example"
-STALWART_RUNTIME_CONFIG="/var/lib/stalwart/config.toml"
-STALWART_CONFIG_HASH_FILE="/var/lib/stalwart/.config_hash"
+STALWART_DEFAULT_CONFIG="/opt/stalwart/etc/config.toml.default"
+STALWART_DEFAULT_EXAMPLE="/opt/stalwart/etc/config.toml.example"
 
-if [ -f "$STALWART_CONFIG" ]; then
-    log "INFO: Found Stalwart config at $STALWART_CONFIG"
+log "INFO: Checking for Stalwart configuration..."
+log "INFO: Host config path: $STALWART_HOST_CONFIG"
+log "INFO: Working config path: $STALWART_CONFIG"
+
+if [ -f "$STALWART_HOST_CONFIG" ]; then
+    log "INFO: Found host-mounted config at $STALWART_HOST_CONFIG"
+    log "INFO: Copying to working directory (Stalwart cannot modify the source)"
+    cp "$STALWART_HOST_CONFIG" "$STALWART_CONFIG"
+    log "INFO: Config copied to $STALWART_CONFIG"
     
-    CURRENT_HASH=$(md5sum "$STALWART_CONFIG" 2>/dev/null | cut -d' ' -f1 || echo "none")
-    SAVED_HASH=$(cat "$STALWART_CONFIG_HASH_FILE" 2>/dev/null || echo "")
-    
-    if [ -f "$STALWART_RUNTIME_CONFIG" ] && [ "$CURRENT_HASH" = "$SAVED_HASH" ]; then
-        RUNTIME_HASH=$(md5sum "$STALWART_RUNTIME_CONFIG" 2>/dev/null | cut -d' ' -f1 || echo "runtime")
-        if [ "$CURRENT_HASH" != "$RUNTIME_HASH" ]; then
-            log "WARNING: Runtime config differs from mounted config (Stalwart may have modified it)"
-            log "INFO: Restoring original mounted config to runtime location"
-        fi
-    fi
-    
-    log "INFO: Copying config to runtime location (protected from Stalwart auto-save)"
-    cp "$STALWART_CONFIG" "$STALWART_RUNTIME_CONFIG"
-    echo "$CURRENT_HASH" > "$STALWART_CONFIG_HASH_FILE"
-    log "INFO: Runtime config created at $STALWART_RUNTIME_CONFIG"
-    
-elif [ -f "$STALWART_CONFIG_EXAMPLE" ]; then
-    log "WARNING: config.toml not found, but config.toml.example exists"
+elif [ -f "$STALWART_HOST_EXAMPLE" ]; then
+    log "WARNING: config.toml not found in host mount, but config.toml.example exists"
     log "WARNING: Copying example config - PLEASE CUSTOMIZE IT!"
-    cp "$STALWART_CONFIG_EXAMPLE" "$STALWART_CONFIG"
-    cp "$STALWART_CONFIG" "$STALWART_RUNTIME_CONFIG"
-    md5sum "$STALWART_CONFIG" 2>/dev/null | cut -d' ' -f1 > "$STALWART_CONFIG_HASH_FILE"
-    log "WARNING: Example config copied. Edit $STALWART_CONFIG with your settings!"
+    cp "$STALWART_HOST_EXAMPLE" "$STALWART_CONFIG"
+    log "WARNING: Edit your config/stalwart/config.toml with real settings!"
+    
+elif [ -f "$STALWART_DEFAULT_EXAMPLE" ]; then
+    log "WARNING: No host-mounted config found, using example from image"
+    cp "$STALWART_DEFAULT_EXAMPLE" "$STALWART_CONFIG"
+    log "WARNING: Using example config - PLEASE mount your own config/stalwart/config.toml!"
+    
+elif [ -f "$STALWART_DEFAULT_CONFIG" ]; then
+    log "WARNING: No config found, using default from image"
+    cp "$STALWART_DEFAULT_CONFIG" "$STALWART_CONFIG"
+    log "WARNING: Using default config - PLEASE mount your own config/stalwart/config.toml!"
     
 else
-    log "INFO: Stalwart config.toml not found at $STALWART_CONFIG"
-    ls -la /opt/stalwart/etc/ 2>/dev/null || log "INFO: Directory /opt/stalwart/etc/ is empty"
-
-    if [ "$IS_STALWART_MOUNT" = "true" ]; then
-        log "ERROR: /opt/stalwart/etc is mounted but config.toml is missing"
-        log "ERROR: Please create config.toml in your mounted volume directory"
-        log "ERROR: You can copy from config.toml.example as a starting point"
-        exit 1
-    elif [ -f "/opt/stalwart/etc/config.toml.default" ]; then
-        log "WARNING: Using default config from image"
-        cp /opt/stalwart/etc/config.toml.default "$STALWART_CONFIG"
-        cp "$STALWART_CONFIG" "$STALWART_RUNTIME_CONFIG"
-        md5sum "$STALWART_CONFIG" 2>/dev/null | cut -d' ' -f1 > "$STALWART_CONFIG_HASH_FILE"
-    else
-        log "ERROR: Stalwart config not found and no default/example config available"
-        exit 1
-    fi
+    log "ERROR: No Stalwart configuration found anywhere!"
+    log "ERROR: Please create config/stalwart/config.toml on host"
+    exit 1
 fi
+
+log "INFO: Stalwart will use config at: $STALWART_CONFIG"
+ls -la "$STALWART_CONFIG" || true
 
 if [ -f "/opt/stalwart/etc/config.toml" ]; then
     if [ "${ALLOW_INSECURE_CREDENTIALS}" != "true" ]; then

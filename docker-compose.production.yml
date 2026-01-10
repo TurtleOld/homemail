@@ -28,7 +28,7 @@ services:
       - stalwart-data:/var/lib/stalwart/data
       - stalwart-certs:/var/lib/stalwart/certs
       - stalwart-logs:/var/log/stalwart
-      - ./config/stalwart:/opt/stalwart/etc
+      - ./config/stalwart:/opt/stalwart/etc-host:ro
       - ./config/nginx:/etc/nginx/conf.d
       - ./data/.sessions.json:/app/webmail/.sessions.json
       - ./data/.settings.json:/app/webmail/.settings.json
