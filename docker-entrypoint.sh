@@ -25,31 +25,29 @@ if id -u nextjs >/dev/null 2>&1; then
     chown -R nextjs:nodejs /app/webmail || true
     chmod -R 755 /app/webmail || true
 fi
-if [ ! -f "/opt/stalwart/etc/config.toml" ]; then
+IS_STALWART_MOUNT=false
+if mountpoint -q /opt/stalwart/etc 2>/dev/null; then
+    IS_STALWART_MOUNT=true
+fi
+
+if [ -f "/opt/stalwart/etc/config.toml" ]; then
+    log "INFO: Found existing Stalwart config at /opt/stalwart/etc/config.toml"
+else
     log "INFO: Stalwart config.toml not found at /opt/stalwart/etc/config.toml"
     log "INFO: Checking for files in /opt/stalwart/etc/..."
     ls -la /opt/stalwart/etc/ || log "INFO: Directory /opt/stalwart/etc/ does not exist or is empty"
-    
-    IS_MOUNT_POINT=false
-    if mountpoint -q /opt/stalwart/etc 2>/dev/null; then
-        IS_MOUNT_POINT=true
-    fi
-    
-    if [ "$IS_MOUNT_POINT" = "true" ]; then
-        log "WARNING: /opt/stalwart/etc is a mount point, but config.toml is missing!"
-        log "WARNING: Please create config.toml in your mounted volume directory."
-        log "WARNING: Container will continue, but Stalwart may fail to start without config."
+
+    if [ "$IS_STALWART_MOUNT" = "true" ]; then
+        log "WARNING: /opt/stalwart/etc is a mount point, but config.toml is missing"
+        log "WARNING: Please create config.toml in your mounted volume directory"
     elif [ -f "/opt/stalwart/etc/config.toml.default" ]; then
-        log "WARNING: Stalwart config not found, copying default config..."
+        log "WARNING: Stalwart config not found, copying default config"
         cp /opt/stalwart/etc/config.toml.default /opt/stalwart/etc/config.toml
         log "WARNING: Default Stalwart config copied to /opt/stalwart/etc/config.toml"
-        log "WARNING: You should create config.toml in your mounted volume directory."
     else
         log "ERROR: Stalwart config not found and no default config in image"
         exit 1
     fi
-else
-    log "INFO: Found existing Stalwart config at /opt/stalwart/etc/config.toml"
 fi
 
 if [ -f "/opt/stalwart/etc/config.toml" ]; then
@@ -66,29 +64,29 @@ fi
 
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default 2>/dev/null || true
 
-if [ ! -f "/etc/nginx/conf.d/default.conf" ]; then
+IS_NGINX_MOUNT_POINT=false
+if mountpoint -q /etc/nginx/conf.d 2>/dev/null; then
+    IS_NGINX_MOUNT_POINT=true
+fi
+
+if [ -f "/etc/nginx/conf.d/default.conf" ]; then
+    log "INFO: Found existing Nginx config at /etc/nginx/conf.d/default.conf"
+else
     log "INFO: Nginx default.conf not found at /etc/nginx/conf.d/default.conf"
     log "INFO: Checking for files in /etc/nginx/conf.d/..."
     ls -la /etc/nginx/conf.d/ || log "INFO: Directory /etc/nginx/conf.d/ does not exist or is empty"
-    
-    IS_NGINX_MOUNT_POINT=false
-    if mountpoint -q /etc/nginx/conf.d 2>/dev/null; then
-        IS_NGINX_MOUNT_POINT=true
-    fi
-    
+
     if [ "$IS_NGINX_MOUNT_POINT" = "true" ]; then
-        log "WARNING: /etc/nginx/conf.d is a mount point, but default.conf is missing!"
-        log "WARNING: Please create default.conf in your mounted volume directory."
-        log "WARNING: Container will continue, but Nginx may fail to start without config."
+        log "WARNING: /etc/nginx/conf.d is a mount point, but default.conf is missing"
+        log "WARNING: Please create default.conf in your mounted volume directory"
     elif [ -f "/etc/nginx/conf.d/nginx.conf" ]; then
-        log "Found nginx.conf, renaming to default.conf..."
+        log "Found nginx.conf, renaming to default.conf"
         mv /etc/nginx/conf.d/nginx.conf /etc/nginx/conf.d/default.conf
         log "nginx.conf renamed to default.conf"
     elif [ -f "/etc/nginx/conf.d/default.conf.default" ]; then
-        log "WARNING: Nginx config not found, copying default config..."
+        log "WARNING: Nginx config not found, copying default config"
         cp /etc/nginx/conf.d/default.conf.default /etc/nginx/conf.d/default.conf
         log "WARNING: Default Nginx config copied to /etc/nginx/conf.d/default.conf"
-        log "WARNING: You should create default.conf in your mounted volume directory."
     else
         log "WARNING: Nginx default config not found in image, creating minimal config..."
         mkdir -p /etc/nginx/conf.d
@@ -120,8 +118,6 @@ server {
 }
 NGINX_EOF
     fi
-else
-    log "INFO: Found existing Nginx config at /etc/nginx/conf.d/default.conf"
 fi
 
 rm -f /etc/nginx/conf.d/default.conf.bak 2>/dev/null || true
