@@ -30,6 +30,13 @@ services:
       - ./config/nginx:/etc/nginx/conf.d
       - ./data/.sessions.json:/app/webmail/.sessions.json
       - ./data/.settings.json:/app/webmail/.settings.json
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=homemail"
+        tag: "{{.Name}}/{{.ID}}"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/api/health"]
       interval: 30s
