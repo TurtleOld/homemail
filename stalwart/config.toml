@@ -18,14 +18,14 @@ protocol = "smtp"
 [server.listener."submission"]
 bind = ["0.0.0.0:587"]
 protocol = "smtp"
-starttls = "required"
+starttls = "disabled"
 auth = ["plain", "login"]
 
 # IMAP конфигурация
 [server.listener."imap"]
 bind = ["0.0.0.0:143"]
 protocol = "imap"
-starttls = "required"
+starttls = "optional"
 
 [server.listener."imaptls"]
 bind = ["0.0.0.0:993"]
@@ -51,6 +51,21 @@ compression = "lz4"
 type = "internal"
 store = "rocksdb"
 
+# Fallback admin (аварийный админ для первого входа)
+# ВНИМАНИЕ: В production используйте bcrypt хеш пароля!
+# Для генерации хеша используйте: stalwart hash --password "your_password"
+# Используйте plain только для тестирования в development
+# [authentication.fallback-admin]
+# user = "admin"
+# secret = "bcrypt:$2b$10$..."  # Замените на bcrypt хеш вашего пароля
+
+# Обычные пользователи (создаются через веб-интерфейс или добавляются здесь)
+# ВНИМАНИЕ: В production используйте bcrypt хеши паролей!
+# Пример:
+# [[directory."internal".users]]
+# name = "admin@example.com"
+# secret = "bcrypt:$2b$10$..."  # Замените на bcrypt хеш
+# superuser = true
 # Логирование
 [tracer."stdout"]
 type = "stdout"

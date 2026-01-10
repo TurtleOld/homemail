@@ -42,6 +42,7 @@ if [ ! -f "/opt/stalwart/etc/config.toml" ]; then
     fi
 fi
 
+# Проверка на insecure credentials в существующем конфиге
 if [ -f "/opt/stalwart/etc/config.toml" ]; then
     if grep -q "plain:admin123" /opt/stalwart/etc/config.toml || grep -q "plain:test123" /opt/stalwart/etc/config.toml; then
         echo "ERROR: Insecure default credentials found in /opt/stalwart/etc/config.toml"
