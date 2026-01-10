@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,27 +36,13 @@ async function saveSettings(settings: UserSettings): Promise<void> {
   }
 }
 
-export default function SettingsPage() {
+function SettingsForm({ initialSettings }: { initialSettings: UserSettings }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const initializedRef = useRef(false);
-  const [signature, setSignature] = useState('');
-  const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
-  const [autoReplySubject, setAutoReplySubject] = useState('');
-  const [autoReplyMessage, setAutoReplyMessage] = useState('');
-
-  const { data: settings, isLoading } = useQuery({
-    queryKey: ['settings'],
-    queryFn: getSettings,
-    onSuccess: (data) => {
-      if (initializedRef.current) return;
-      initializedRef.current = true;
-      setSignature(data.signature || '');
-      setAutoReplyEnabled(data.autoReply?.enabled || false);
-      setAutoReplySubject(data.autoReply?.subject || '');
-      setAutoReplyMessage(data.autoReply?.message || '');
-    },
-  });
+  const [signature, setSignature] = useState(() => initialSettings.signature || '');
+  const [autoReplyEnabled, setAutoReplyEnabled] = useState(() => initialSettings.autoReply?.enabled || false);
+  const [autoReplySubject, setAutoReplySubject] = useState(() => initialSettings.autoReply?.subject || '');
+  const [autoReplyMessage, setAutoReplyMessage] = useState(() => initialSettings.autoReply?.message || '');
 
   const saveMutation = useMutation({
     mutationFn: saveSettings,
@@ -79,17 +65,6 @@ export default function SettingsPage() {
       },
     });
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-          <p className="text-muted-foreground">Загрузка настроек...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen flex-col">
@@ -180,4 +155,24 @@ export default function SettingsPage() {
       </div>
     </div>
   );
+}
+
+export default function SettingsPage() {
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+  });
+
+  if (isLoading || !settings) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
+          <p className="text-muted-foreground">Загрузка настроек...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <SettingsForm initialSettings={settings} />;
 }
