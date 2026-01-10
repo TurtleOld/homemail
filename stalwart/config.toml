@@ -80,7 +80,7 @@ superuser = false
 [tracer."stdout"]
 type = "stdout"
 level = "info"
+# Логируем только предупреждения и ошибки для аутентификации (исключаем успешные входы)
+level.auth = "warn"
 ansi = false
 enable = true
-# Исключаем повторяющиеся сообщения об успешной аутентификации
-filter = "auth.success"
