@@ -67,15 +67,28 @@ fi
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default 2>/dev/null || true
 
 if [ ! -f "/etc/nginx/conf.d/default.conf" ]; then
-    if [ -f "/etc/nginx/conf.d/nginx.conf" ]; then
+    log "INFO: Nginx default.conf not found at /etc/nginx/conf.d/default.conf"
+    log "INFO: Checking for files in /etc/nginx/conf.d/..."
+    ls -la /etc/nginx/conf.d/ || log "INFO: Directory /etc/nginx/conf.d/ does not exist or is empty"
+    
+    IS_NGINX_MOUNT_POINT=false
+    if mountpoint -q /etc/nginx/conf.d 2>/dev/null; then
+        IS_NGINX_MOUNT_POINT=true
+    fi
+    
+    if [ "$IS_NGINX_MOUNT_POINT" = "true" ]; then
+        log "WARNING: /etc/nginx/conf.d is a mount point, but default.conf is missing!"
+        log "WARNING: Please create default.conf in your mounted volume directory."
+        log "WARNING: Container will continue, but Nginx may fail to start without config."
+    elif [ -f "/etc/nginx/conf.d/nginx.conf" ]; then
         log "Found nginx.conf, renaming to default.conf..."
         mv /etc/nginx/conf.d/nginx.conf /etc/nginx/conf.d/default.conf
         log "nginx.conf renamed to default.conf"
     elif [ -f "/etc/nginx/conf.d/default.conf.default" ]; then
-        log "Nginx config not found in volume, copying default config..."
+        log "WARNING: Nginx config not found, copying default config..."
         cp /etc/nginx/conf.d/default.conf.default /etc/nginx/conf.d/default.conf
-        log "Default Nginx config copied to /etc/nginx/conf.d/default.conf"
-        log "You can now edit this file on the host and restart the container."
+        log "WARNING: Default Nginx config copied to /etc/nginx/conf.d/default.conf"
+        log "WARNING: You should create default.conf in your mounted volume directory."
     else
         log "WARNING: Nginx default config not found in image, creating minimal config..."
         mkdir -p /etc/nginx/conf.d
@@ -107,6 +120,8 @@ server {
 }
 NGINX_EOF
     fi
+else
+    log "INFO: Found existing Nginx config at /etc/nginx/conf.d/default.conf"
 fi
 
 rm -f /etc/nginx/conf.d/default.conf.bak 2>/dev/null || true
