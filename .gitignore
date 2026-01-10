@@ -58,3 +58,6 @@ data/.sessions.json
 # Settings
 .settings.json
 data/.settings.json
+
+# Production configs (mounted from host)
+config/
