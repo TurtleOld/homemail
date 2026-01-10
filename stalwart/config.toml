@@ -2,7 +2,7 @@
 # Работает по HTTP (порт 8080) без TLS
 
 [server]
-hostname = "localhost"
+hostname = "pavlovteam.ru"
 
 # HTTP listener для JMAP (без TLS)
 # Примечание: Stalwart v0.15 требует OAuth для JMAP, Basic Auth не поддерживается
