@@ -82,3 +82,5 @@ type = "stdout"
 level = "info"
 ansi = false
 enable = true
+# Исключаем повторяющиеся сообщения об успешной аутентификации
+filter = "auth.success"

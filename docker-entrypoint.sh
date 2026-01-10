@@ -100,6 +100,7 @@ superuser = true
 [tracer."stdout"]
 type = "stdout"
 level = "info"
+level.auth = "warn"
 ansi = false
 enable = true
 EOF
