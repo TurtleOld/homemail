@@ -1,8 +1,6 @@
 services:
   webmail:
-    build:
-      context: .
-      dockerfile: Dockerfile.webmail
+    image: ghcr.io/turtleold/homemail-webmail:latest
     container_name: homemail-webmail
     restart: unless-stopped
     environment:
