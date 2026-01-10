@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { validateOrigin } from '@/lib/csrf';
+import { logger } from '@/lib/logger';
 
 const sendSchema = z.object({
   to: z.array(z.string().email()).min(1),
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
     }
-    console.error('Send message error:', error);
+    logger.error('Send message error:', error);
 
     return NextResponse.json(
       { error: 'Internal server error' },

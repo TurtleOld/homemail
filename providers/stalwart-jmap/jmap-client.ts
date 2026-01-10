@@ -185,14 +185,16 @@ export class JMAPClient {
       try {
         discovery = await discoveryRes.json();
       } catch (e) {
-        console.warn('Failed to parse discovery JSON, using default path:', e);
+        const { logger } = await import('@/lib/logger');
+        logger.warn('Failed to parse discovery JSON, using default path:', e);
         discovery = { apiUrl: `${this.baseUrl}/jmap` };
       }
       
       let sessionUrl = discovery.apiUrl || `${this.baseUrl}/jmap`;
       
       if (sessionUrl.includes('localhost') || sessionUrl.includes('127.0.0.1')) {
-        console.warn('Discovery returned localhost URL, replacing with baseUrl:', sessionUrl);
+        const { logger } = await import('@/lib/logger');
+        logger.warn('Discovery returned localhost URL, replacing with baseUrl:', sessionUrl);
         const url = new URL(sessionUrl);
         const baseUrlObj = new URL(this.baseUrl);
         url.hostname = baseUrlObj.hostname;

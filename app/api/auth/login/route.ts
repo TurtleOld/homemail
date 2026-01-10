@@ -4,6 +4,7 @@ import { createSession } from '@/lib/session';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { validateOrigin } from '@/lib/csrf';
 import { getMailProvider, getMailProviderForAccount, ensureAccount } from '@/lib/get-provider';
+import { logger } from '@/lib/logger';
 
 const loginSchema = z.object({
   email: z.string().min(1),
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       const account = await provider.getAccount(accountId);
 
       if (!account) {
-        console.error('Account not found for:', email);
+        logger.error('Account not found for:', email);
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
       }
 
@@ -47,14 +48,14 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ success: true, account: { id: account.id, email: account.email, displayName: account.displayName } });
     } catch (providerError) {
-      console.error('Provider error during login:', providerError);
+      logger.error('Provider error during login:', providerError);
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
     }
-    console.error('Login error:', error);
+    logger.error('Login error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

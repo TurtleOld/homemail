@@ -89,7 +89,8 @@ export class StalwartJMAPProvider implements MailProvider {
         displayName: account.name || creds.email.split('@')[0],
       };
     } catch (error) {
-      console.error('Failed to get account:', error instanceof Error ? error.message : error);
+      const { logger } = await import('@/lib/logger');
+      logger.error('Failed to get account:', error instanceof Error ? error.message : error);
       return null;
     }
   }

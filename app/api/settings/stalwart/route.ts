@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getUserCredentials } from '@/providers/stalwart-jmap/stalwart-provider';
+import { logger } from '@/lib/logger';
 
 const STALWART_BASE_URL = process.env.STALWART_MANAGEMENT_URL || process.env.STALWART_BASE_URL || 'http://stalwart:8080';
 
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Failed to proxy Stalwart Management:', error);
+    logger.error('Failed to proxy Stalwart Management:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

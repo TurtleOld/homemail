@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session';
 import { z } from 'zod';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { logger } from '@/lib/logger';
 
 const settingsSchema = z.object({
   signature: z.string().optional(),
@@ -25,7 +26,7 @@ async function loadSettings(): Promise<void> {
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error('Failed to load settings:', error);
+      logger.error('Failed to load settings:', error);
     }
   }
 }
@@ -35,11 +36,11 @@ async function saveSettings(): Promise<void> {
     const data = Object.fromEntries(settingsStore);
     await fs.writeFile(SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (error) {
-    console.error('Failed to save settings:', error);
+    logger.error('Failed to save settings:', error);
   }
 }
 
-loadSettings().catch(console.error);
+loadSettings().catch((error) => logger.error('Failed to load settings on startup:', error));
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(settings);
   } catch (error) {
-    console.error('Failed to get settings:', error);
+    logger.error('Failed to get settings:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
     }
-    console.error('Failed to save settings:', error);
+    logger.error('Failed to save settings:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

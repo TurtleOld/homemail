@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { logger } from './logger';
 
 const SESSION_COOKIE_NAME = 'mail_session';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
@@ -29,11 +30,11 @@ async function loadSessions(): Promise<void> {
       }
     }
     if (loadedCount > 0) {
-      console.log(`Loaded ${loadedCount} active session(s) from file`);
+      logger.log(`Loaded ${loadedCount} active session(s) from file`);
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error('Failed to load sessions:', error);
+      logger.error('Failed to load sessions:', error);
     }
   }
 }
@@ -43,11 +44,11 @@ async function saveSessions(): Promise<void> {
     const data = Object.fromEntries(sessions);
     await fs.writeFile(SESSIONS_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (error) {
-    console.error('Failed to save sessions:', error);
+    logger.error('Failed to save sessions:', error);
   }
 }
 
-loadSessions().catch(console.error);
+loadSessions().catch((error) => logger.error('Failed to load sessions on startup:', error));
 
 export async function createSession(accountId: string, email: string): Promise<string> {
   const sessionId = `sess_${crypto.randomBytes(32).toString('base64url')}`;
@@ -128,4 +129,4 @@ export async function cleanupExpiredSessions(): Promise<void> {
   }
 }
 
-setInterval(() => cleanupExpiredSessions().catch(console.error), 60 * 60 * 1000);
+setInterval(() => cleanupExpiredSessions().catch((error) => logger.error('Failed to cleanup expired sessions:', error)), 60 * 60 * 1000);
