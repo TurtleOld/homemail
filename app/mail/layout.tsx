@@ -136,6 +136,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: !!selectedFolderId,
     initialPageParam: undefined,
+    refetchInterval: 10000,
     retry: (failureCount, error) => {
       if (error instanceof Error && error.message === 'Unauthorized') {
         return false;
