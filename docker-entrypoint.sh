@@ -54,7 +54,7 @@ protocol = "smtp"
 [server.listener."submission"]
 bind = ["0.0.0.0:587"]
 protocol = "smtp"
-starttls = "optional"
+starttls = "disabled"
 auth = ["plain", "login"]
 
 [server.listener."imap"]
