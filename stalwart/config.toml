@@ -20,6 +20,8 @@ bind = ["0.0.0.0:587"]
 protocol = "smtp"
 starttls = "disabled"
 auth = ["plain", "login"]
+require-auth = true
+relay = ["authenticated"]
 
 # IMAP конфигурация
 [server.listener."imap"]

@@ -516,6 +516,25 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error('User credentials not found');
       }
 
+      const client = this.getClient(accountId);
+      const session = await client.getSession();
+      
+      let fromEmail = creds.email;
+      
+      if (!fromEmail.includes('@')) {
+        const account = await this.getAccount(accountId);
+        if (account && account.email && account.email.includes('@')) {
+          fromEmail = account.email;
+        } else {
+          const accountInfo = session.accounts[session.primaryAccounts?.mail || Object.keys(session.accounts)[0]];
+          if (accountInfo?.name && accountInfo.name.includes('@')) {
+            fromEmail = accountInfo.name;
+          } else {
+            throw new Error(`Invalid sender address: ${fromEmail}. Please use full email address for login.`);
+          }
+        }
+      }
+
       const transporter = nodemailer.createTransport({
         host: config.smtpHost,
         port: config.smtpPort,
@@ -530,7 +549,7 @@ export class StalwartJMAPProvider implements MailProvider {
       });
 
       const mailOptions = {
-        from: creds.email,
+        from: fromEmail,
         to: message.to.join(', '),
         cc: message.cc?.join(', '),
         bcc: message.bcc?.join(', '),
