@@ -1,150 +1,36 @@
-# Multi-stage build для единого образа с webmail, nginx и stalwart
-
-# ============================================
-# Stage 1: Webmail (Next.js)
-# ============================================
-FROM node:20-alpine AS webmail-base
-
+FROM node:20-alpine AS base
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-FROM webmail-base AS webmail-builder
+FROM base AS builder
 COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM webmail-base AS webmail-runner
+FROM node:20-alpine AS runner
 WORKDIR /app
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-COPY --from=webmail-builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=webmail-builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# ============================================
-# Stage 2: Nginx
-# ============================================
-FROM nginx:alpine AS nginx-base
-RUN rm -f /etc/nginx/conf.d/default.conf
-COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
+RUN touch /app/.sessions.json /app/.settings.json && \
+    chown nextjs:nodejs /app/.sessions.json /app/.settings.json
 
-# ============================================
-# Final: Объединенный образ на базе Stalwart
-# ============================================
-FROM stalwartlabs/stalwart:latest
+USER nextjs
 
-# Устанавливаем Node.js, nginx и supervisor
-RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    nginx \
-    supervisor \
-    ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+EXPOSE 3000
 
-# Создаем пользователя www-data для nginx (если его нет)
-RUN id -u www-data >/dev/null 2>&1 || \
-    (groupadd -r www-data && useradd -r -g www-data www-data) || true
-
-# Копируем webmail
-COPY --from=webmail-runner /app /app/webmail
-
-# Создаём пользователя nextjs (без перезаписи /etc/passwd чтобы не удалить www-data)
-RUN groupadd --system --gid 1001 nodejs 2>/dev/null || true && \
-    useradd --system --uid 1001 --gid nodejs nextjs 2>/dev/null || true
-
-# Копируем конфигурации в образ (как дефолтные)
-# Удаляем дефолтный конфиг nginx из Debian образа
-RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default || true
-# Nginx конфигурация (дефолтная) - копируем наш кастомный конфиг
-COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf.default
-# Stalwart конфигурация (дефолтная и пример)
-COPY stalwart/config.toml /opt/stalwart/etc/config.toml.default
-COPY config/stalwart/config.toml.example /opt/stalwart/etc/config.toml.example
-RUN mkdir -p /var/lib/nginx /run/nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
-
-# Создаем директории для Stalwart (если их нет)
-RUN mkdir -p /var/lib/stalwart/data \
-    /var/lib/stalwart/certs \
-    /var/log/stalwart \
-    /opt/stalwart/etc
-
-# Создаем скрипты запуска
-RUN echo '#!/bin/bash' > /usr/local/bin/start-webmail.sh && \
-    echo 'cd /app/webmail' >> /usr/local/bin/start-webmail.sh && \
-    echo 'export PORT=3000' >> /usr/local/bin/start-webmail.sh && \
-    echo 'export HOSTNAME="0.0.0.0"' >> /usr/local/bin/start-webmail.sh && \
-    echo 'exec node server.js' >> /usr/local/bin/start-webmail.sh && \
-    chmod +x /usr/local/bin/start-webmail.sh
-
-RUN echo '#!/bin/bash' > /usr/local/bin/start-nginx.sh && \
-    echo 'nginx -t' >> /usr/local/bin/start-nginx.sh && \
-    echo 'exec nginx -g "daemon off;"' >> /usr/local/bin/start-nginx.sh && \
-    chmod +x /usr/local/bin/start-nginx.sh
-
-RUN echo '#!/bin/bash' > /usr/local/bin/start-stalwart.sh && \
-    echo 'STALWART_CONFIG="/opt/stalwart/etc/config.toml"' >> /usr/local/bin/start-stalwart.sh && \
-    echo 'if [ ! -f "$STALWART_CONFIG" ]; then' >> /usr/local/bin/start-stalwart.sh && \
-    echo '  echo "ERROR: Config not found at $STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \
-    echo '  exit 1' >> /usr/local/bin/start-stalwart.sh && \
-    echo 'fi' >> /usr/local/bin/start-stalwart.sh && \
-    echo 'echo "Starting Stalwart with config: $STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \
-    echo 'exec stalwart --config "$STALWART_CONFIG"' >> /usr/local/bin/start-stalwart.sh && \
-    chmod +x /usr/local/bin/start-stalwart.sh
-
-# Копируем entrypoint скрипт
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# Supervisor конфигурация
-RUN mkdir -p /etc/supervisor/conf.d && \
-    echo '[supervisord]' > /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'nodaemon=true' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'user=root' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '[program:stalwart]' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'command=/usr/local/bin/start-stalwart.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'startsecs=3' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'startretries=3' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '[program:webmail]' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'command=/usr/local/bin/start-webmail.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'user=nextjs' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'startsecs=3' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'startretries=3' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '[program:nginx]' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'command=/usr/local/bin/start-nginx.sh' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'startsecs=2' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'startretries=3' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stdout_logfile=/dev/stdout' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stdout_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stderr_logfile=/dev/stderr' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'stderr_logfile_maxbytes=0' >> /etc/supervisor/conf.d/supervisord.conf
-
-EXPOSE 25 80 143 443 587 8080 993 3000
-
-# Используем entrypoint для инициализации
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["node", "server.js"]

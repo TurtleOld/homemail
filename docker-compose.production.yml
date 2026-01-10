@@ -1,7 +1,7 @@
 services:
   webmail:
-    image: ghcr.io/turtleold/homemail-webmail:latest
-    container_name: homemail-webmail
+    image: ghcr.io/turtleold/homemail:latest
+    container_name: homemail-webclient
     restart: unless-stopped
     environment:
       - NODE_ENV=production
