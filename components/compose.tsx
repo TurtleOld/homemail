@@ -20,15 +20,23 @@ import { validateEmail, parseEmailList } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Draft } from '@/lib/types';
 
+interface MinimizedDraft {
+  id: string;
+  to: string;
+  subject: string;
+  html: string;
+}
+
 interface ComposeProps {
   open: boolean;
   onClose: () => void;
+  onMinimize?: (draft: MinimizedDraft) => void;
   initialDraft?: Draft | null;
   replyTo?: { subject: string; from: { email: string; name?: string }; body: string };
   forwardFrom?: { subject: string; body: string };
 }
 
-export function Compose({ open, onClose, initialDraft, replyTo, forwardFrom }: ComposeProps) {
+export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forwardFrom }: ComposeProps) {
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
@@ -218,7 +226,17 @@ export function Compose({ open, onClose, initialDraft, replyTo, forwardFrom }: C
 
   const handleClose = async () => {
     await saveDraft();
-    onClose();
+    if (onMinimize && (to || subject || editor?.getHTML())) {
+      const id = draftId || `draft_${Date.now()}`;
+      onMinimize({
+        id,
+        to,
+        subject,
+        html: editor?.getHTML() || '',
+      });
+    } else {
+      onClose();
+    }
   };
 
   if (!editor) return null;

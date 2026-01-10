@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from '@/components/sidebar';
@@ -9,9 +9,16 @@ import { MessageViewer } from '@/components/message-viewer';
 import { Compose } from '@/components/compose';
 import type { Folder, Account, MessageListItem, MessageDetail } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Trash2, Star, Mail } from 'lucide-react';
+import { Trash2, Star, Mail, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks';
+
+interface MinimizedDraft {
+  id: string;
+  to: string;
+  subject: string;
+  html: string;
+}
 
 export default function MailLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -23,6 +30,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [forwardFrom, setForwardFrom] = useState<{ subject: string; body: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [allowRemoteImages, setAllowRemoteImages] = useState(false);
+  const [minimizedDrafts, setMinimizedDrafts] = useState<MinimizedDraft[]>([]);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [messageListWidth, setMessageListWidth] = useState(() => {
     if (typeof window === 'undefined') return 400;
     const saved = window.localStorage.getItem('messageListWidth');
@@ -89,7 +98,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     },
   });
 
-  const { data: folders = [] } = useQuery<Folder[]>({
+  const { data: folders = [], refetch: refetchFolders } = useQuery<Folder[]>({
     queryKey: ['folders'],
     queryFn: async () => {
       const res = await fetch('/api/mail/folders');
@@ -106,8 +115,17 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
       return failureCount < 2;
     },
-    refetchInterval: 30000,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    const handleFocus = () => {
+      refetchFolders();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [refetchFolders]);
 
   const { data: messagesData, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery<{
     messages: MessageListItem[];
@@ -243,6 +261,41 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     }
   };
 
+  const handleMinimizeDraft = useCallback((draft: MinimizedDraft) => {
+    setMinimizedDrafts((prev) => {
+      const existing = prev.find((d) => d.id === draft.id);
+      if (existing) {
+        return prev.map((d) => (d.id === draft.id ? draft : d));
+      }
+      return [...prev, draft];
+    });
+    setComposeOpen(false);
+    setActiveDraftId(null);
+  }, []);
+
+  const handleRestoreDraft = useCallback((draftId: string) => {
+    const draft = minimizedDrafts.find((d) => d.id === draftId);
+    if (draft) {
+      setActiveDraftId(draftId);
+      setReplyTo(null);
+      setForwardFrom(null);
+      setComposeOpen(true);
+    }
+  }, [minimizedDrafts]);
+
+  const handleCloseDraft = useCallback((draftId: string) => {
+    setMinimizedDrafts((prev) => prev.filter((d) => d.id !== draftId));
+  }, []);
+
+  const handleComposeClose = useCallback(() => {
+    setComposeOpen(false);
+    setReplyTo(null);
+    setForwardFrom(null);
+    setActiveDraftId(null);
+  }, []);
+
+  const activeDraft = activeDraftId ? minimizedDrafts.find((d) => d.id === activeDraftId) : null;
+
   return (
     <div className="flex h-screen flex-col">
       <div className="flex flex-1 overflow-hidden">
@@ -349,14 +402,37 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       )}
       <Compose
         open={composeOpen}
-        onClose={() => {
-          setComposeOpen(false);
-          setReplyTo(null);
-          setForwardFrom(null);
-        }}
+        onClose={handleComposeClose}
+        onMinimize={handleMinimizeDraft}
         replyTo={replyTo || undefined}
         forwardFrom={forwardFrom || undefined}
+        initialDraft={activeDraft ? { id: activeDraft.id, to: activeDraft.to ? [activeDraft.to] : [], subject: activeDraft.subject, html: activeDraft.html } : undefined}
       />
+      {minimizedDrafts.length > 0 && (
+        <div className="fixed bottom-0 right-4 flex gap-2 z-50">
+          {minimizedDrafts.map((draft) => (
+            <div
+              key={draft.id}
+              className="flex items-center gap-2 bg-background border rounded-t-lg shadow-lg px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
+              onClick={() => handleRestoreDraft(draft.id)}
+            >
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm max-w-[150px] truncate">
+                {draft.subject || draft.to || 'Новое письмо'}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCloseDraft(draft.id);
+                }}
+                className="p-1 hover:bg-destructive/20 rounded"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       {children}
     </div>
   );

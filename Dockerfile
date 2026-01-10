@@ -57,8 +57,10 @@ RUN id -u www-data >/dev/null 2>&1 || \
 
 # Копируем webmail
 COPY --from=webmail-runner /app /app/webmail
-COPY --from=webmail-runner /etc/passwd /etc/passwd
-COPY --from=webmail-runner /etc/group /etc/group
+
+# Создаём пользователя nextjs (без перезаписи /etc/passwd чтобы не удалить www-data)
+RUN groupadd --system --gid 1001 nodejs 2>/dev/null || true && \
+    useradd --system --uid 1001 --gid nodejs nextjs 2>/dev/null || true
 
 # Копируем конфигурации в образ (как дефолтные)
 # Удаляем дефолтный конфиг nginx из Debian образа

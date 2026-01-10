@@ -127,7 +127,7 @@ export function MessageViewer({
   };
 
   return (
-    <div className="flex h-full w-full flex-col border-l bg-background">
+    <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden">
       <div className="border-b bg-muted/50 p-4">
         <div className="mb-2 flex items-start justify-between">
           <div className="flex-1">
@@ -181,9 +181,9 @@ export function MessageViewer({
           </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto flex flex-col">
         {message.attachments.length > 0 && (
-          <div className="border-b bg-muted/30 p-4">
+          <div className="border-b bg-muted/30 p-4 flex-shrink-0">
             <h3 className="mb-2 text-sm font-semibold">Вложения ({message.attachments.length}):</h3>
             <div className="space-y-2">
               {message.attachments.map((att) => (
@@ -211,7 +211,7 @@ export function MessageViewer({
         <iframe
           ref={iframeRef}
           sandbox="allow-same-origin"
-          className="h-full w-full border-0"
+          className="flex-1 w-full border-0 min-h-[300px]"
           title="Message content"
         />
       </div>

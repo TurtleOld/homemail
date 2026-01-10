@@ -46,8 +46,8 @@ services:
     env_file:
       - .env.production
     volumes:
-      - ./data/.sessions.json:/app/.sessions.json
-      - ./data/.settings.json:/app/.settings.json
+      - ./data/.sessions.json:/app/webmail/.sessions.json
+      - ./data/.settings.json:/app/webmail/.settings.json
     networks:
       - mailclient-network
     healthcheck:

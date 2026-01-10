@@ -80,6 +80,13 @@ if [ -f "/opt/stalwart/etc/config.toml" ]; then
     fi
 fi
 
+# Создаём www-data для nginx ДО проверки конфига
+if ! id -u www-data >/dev/null 2>&1; then
+    log "Creating www-data user for nginx..."
+    groupadd -r www-data 2>/dev/null || true
+    useradd -r -g www-data www-data 2>/dev/null || true
+fi
+
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default 2>/dev/null || true
 
 IS_NGINX_MOUNT_POINT=false
@@ -185,12 +192,6 @@ if [ -d "/var/lib/stalwart/data" ]; then
         log "Stalwart data directory is empty, initializing..."
         mkdir -p /var/lib/stalwart/data/rocksdb || true
     fi
-fi
-
-if ! id -u www-data >/dev/null 2>&1; then
-    log "Creating www-data user for nginx..."
-    groupadd -r www-data 2>/dev/null || true
-    useradd -r -g www-data www-data 2>/dev/null || true
 fi
 
 if [ -f "/opt/stalwart/etc/config.toml" ]; then

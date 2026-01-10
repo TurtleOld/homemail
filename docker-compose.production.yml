@@ -1,57 +1,77 @@
-# Пример конфигурации Docker Compose для production
-# При разворачивании используйте свой compose файл с нужными путями и настройками
 services:
-  homemail:
-    image: ghcr.io/turtleold/homemail:latest
-    container_name: homemail
+  webmail:
+    build:
+      context: .
+      dockerfile: Dockerfile.webmail
+    container_name: homemail-webmail
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "1025:25"
-      - "1143:143"
-      - "9080:8080"
-      - "1587:587"
-      - "1993:993"
     environment:
       - NODE_ENV=production
       - PORT=3000
       - MAIL_PROVIDER=stalwart
-      - STALWART_BASE_URL=http://localhost:8080
-      - STALWART_SMTP_HOST=localhost
+      - STALWART_BASE_URL=http://stalwart:8080
+      - STALWART_SMTP_HOST=stalwart
       - STALWART_SMTP_PORT=587
       - STALWART_SMTP_SECURE=false
       - STALWART_AUTH_MODE=basic
     env_file:
       - .env.production
     volumes:
-      - stalwart-data:/var/lib/stalwart/data
-      - stalwart-certs:/var/lib/stalwart/certs
-      - stalwart-logs:/var/log/stalwart
-      - ./config/stalwart:/opt/stalwart/etc-host:ro
-      - ./config/nginx:/etc/nginx/conf.d
-      - ./data/.sessions.json:/app/webmail/.sessions.json
-      - ./data/.settings.json:/app/webmail/.settings.json
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=homemail"
-        tag: "{{.Name}}/{{.ID}}"
+      - ./data/.sessions.json:/app/.sessions.json
+      - ./data/.settings.json:/app/.settings.json
+    networks:
+      - homemail-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/api/health"]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  stalwart:
+    image: stalwartlabs/stalwart:latest
+    container_name: homemail-stalwart
+    restart: unless-stopped
+    ports:
+      - '1025:25'
+      - '1143:143'
+      - '9080:8080'
+      - '1587:587'
+      - '1993:993'
+    volumes:
+      - stalwart-data:/opt/stalwart-mail
+      - ./config/stalwart/config.toml:/opt/stalwart-mail/etc/config.toml:ro
+    networks:
+      - homemail-network
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8080/.well-known/jmap || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
 
+  nginx:
+    image: nginx:alpine
+    container_name: homemail-nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./config/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      webmail:
+        condition: service_healthy
+    networks:
+      - homemail-network
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   stalwart-data:
-    driver: local
-  stalwart-certs:
-    driver: local
-  stalwart-logs:
     driver: local
 
 networks:
