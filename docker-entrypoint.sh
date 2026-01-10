@@ -31,15 +31,22 @@ fi
 
 # Stalwart конфигурация
 if [ ! -f "/opt/stalwart/etc/config.toml" ]; then
+    echo "INFO: Stalwart config.toml not found at /opt/stalwart/etc/config.toml"
+    echo "INFO: Checking for files in /opt/stalwart/etc/..."
+    ls -la /opt/stalwart/etc/ || echo "INFO: Directory /opt/stalwart/etc/ does not exist or is empty"
+    
     if [ -f "/opt/stalwart/etc/config.toml.default" ]; then
-        echo "Stalwart config not found in volume, copying default config..."
+        echo "WARNING: Stalwart config not found in volume, copying default config..."
         cp /opt/stalwart/etc/config.toml.default /opt/stalwart/etc/config.toml
-        echo "Default Stalwart config copied to /opt/stalwart/etc/config.toml"
-        echo "You can now edit this file on the host and restart the container."
+        echo "WARNING: Default Stalwart config copied to /opt/stalwart/etc/config.toml"
+        echo "WARNING: This file will be overwritten on container restart if volume mount is used!"
+        echo "WARNING: You should create config.toml in your mounted volume directory."
     else
         echo "ERROR: Stalwart config not found and no default config in image"
         exit 1
     fi
+else
+    echo "INFO: Found existing Stalwart config at /opt/stalwart/etc/config.toml"
 fi
 
 # Проверка на insecure credentials в существующем конфиге
