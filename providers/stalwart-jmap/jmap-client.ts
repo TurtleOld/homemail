@@ -54,6 +54,12 @@ interface JMAPMailbox {
   };
 }
 
+interface JMAPIdentity {
+  id: string;
+  name?: string;
+  email: string;
+}
+
 interface JMAPEmail {
   id: string;
   threadId: string;
@@ -266,8 +272,37 @@ export class JMAPClient {
     const session = await this.getSession();
     const apiUrl = session.apiUrl || `${this.baseUrl}/jmap`;
 
+    const using = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'];
     const request: JMAPRequest = {
-      using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'],
+      using,
+      methodCalls,
+    };
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': this.authHeader,
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error(`JMAP request failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async requestWithUsing(
+    methodCalls: Array<[string, Record<string, any>, string]>,
+    using: string[]
+  ): Promise<JMAPResponse> {
+    const session = await this.getSession();
+    const apiUrl = session.apiUrl || `${this.baseUrl}/jmap`;
+
+    const request: JMAPRequest = {
+      using,
       methodCalls,
     };
 
@@ -309,6 +344,34 @@ export class JMAPClient {
     }
 
     const data = mailboxResponse[1] as { list: JMAPMailbox[] };
+    return data.list || [];
+  }
+
+  async getIdentities(accountId?: string): Promise<JMAPIdentity[]> {
+    const targetAccountId = accountId || this.accountId;
+    const response = await this.requestWithUsing(
+      [
+        [
+          'Identity/get',
+          {
+            accountId: targetAccountId,
+          },
+          '0',
+        ],
+      ],
+      ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']
+    );
+
+    const identityResponse = response.methodResponses[0];
+    if (identityResponse[0] !== 'Identity/get') {
+      throw new Error('Invalid identity response');
+    }
+
+    if ('type' in identityResponse[1] && identityResponse[1].type === 'error') {
+      throw new Error(`JMAP identity error: ${(identityResponse[1] as any).description}`);
+    }
+
+    const data = identityResponse[1] as { list: JMAPIdentity[] };
     return data.list || [];
   }
 
