@@ -100,10 +100,13 @@ export async function getSession(): Promise<SessionData | null> {
 
   const session = decryptSessionData(encryptedSession);
 
-  if (!session || session.expiresAt < Date.now()) {
-    if (session) {
-      await deleteSession();
-    }
+  if (!session) {
+    await deleteSession();
+    return null;
+  }
+
+  if (session.expiresAt < Date.now()) {
+    await deleteSession();
     return null;
   }
 
@@ -112,5 +115,13 @@ export async function getSession(): Promise<SessionData | null> {
 
 export async function deleteSession(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
+  const secureCookie = process.env.USE_HTTPS === 'true';
+  cookieStore.set(SESSION_COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: secureCookie,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+    expires: new Date(0),
+  });
 }

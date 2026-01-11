@@ -14,6 +14,8 @@ services:
       - STALWART_SMTP_PORT=587
       - STALWART_SMTP_SECURE=false
       - STALWART_AUTH_MODE=basic
+    env_file:
+      - .env
     volumes:
       - ./data/.settings.json:/app/.settings.json
     networks:
