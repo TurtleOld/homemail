@@ -9,7 +9,8 @@ FROM base AS builder
 COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN npm run build && \
+    test -f /app/.next/standalone/server.js || (echo "ERROR: server.js not found after build" && ls -la /app/.next/standalone/ && exit 1)
 
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -26,8 +27,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-RUN touch /app/.settings.json && \
-    chown nextjs:nodejs /app/.settings.json
+RUN mkdir -p /app/data && \
+    touch /app/data/.settings.json && \
+    chown -R nextjs:nodejs /app/data
 
 USER nextjs
 
