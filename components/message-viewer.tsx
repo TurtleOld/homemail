@@ -29,7 +29,6 @@ export function MessageViewer({
   onMarkRead,
   allowRemoteImages = false,
 }: MessageViewerProps) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const queryClient = useQueryClient();
   const markedAsReadRef = useRef<Set<string>>(new Set());
 
@@ -50,6 +49,26 @@ export function MessageViewer({
     }
     return '';
   }, [message, allowRemoteImages]);
+
+  const iframeSrcDoc = useMemo(() => {
+    if (!sanitizedHtml) return '';
+    return [
+      '<!DOCTYPE html>',
+      '<html>',
+      '<head>',
+      '<meta charset="utf-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+      '<style>',
+      'html, body { height: 100%; }',
+      'body { margin: 0; padding: 16px; font-family: system-ui, -apple-system, sans-serif; background: #ffffff; color: #111827; }',
+      'img { max-width: 100%; height: auto; }',
+      'a { color: #2563eb; }',
+      '</style>',
+      '</head>',
+      `<body>${sanitizedHtml}</body>`,
+      '</html>',
+    ].join('');
+  }, [sanitizedHtml]);
 
   const handleMarkRead = useCallback(async () => {
     if (!message) return;
@@ -74,31 +93,6 @@ export function MessageViewer({
       handleMarkRead();
     }
   }, [message, handleMarkRead]);
-
-  useEffect(() => {
-    if (iframeRef.current && sanitizedHtml) {
-      const iframe = iframeRef.current;
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (doc) {
-        doc.open();
-        doc.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="utf-8">
-              <style>
-                body { margin: 0; padding: 16px; font-family: system-ui, -apple-system, sans-serif; }
-                img { max-width: 100%; height: auto; }
-                a { color: hsl(var(--primary)); }
-              </style>
-            </head>
-            <body>${sanitizedHtml}</body>
-          </html>
-        `);
-        doc.close();
-      }
-    }
-  }, [sanitizedHtml]);
 
   if (!message) {
     return (
@@ -208,12 +202,18 @@ export function MessageViewer({
             </div>
           </div>
         )}
-        <iframe
-          ref={iframeRef}
-          sandbox="allow-same-origin"
-          className="flex-1 w-full border-0 min-h-[300px]"
-          title="Message content"
-        />
+        {iframeSrcDoc ? (
+          <iframe
+            sandbox="allow-same-origin allow-popups"
+            srcDoc={iframeSrcDoc}
+            className="flex-1 w-full border-0 min-h-[300px]"
+            title="Message content"
+          />
+        ) : (
+          <div className="flex-1 w-full min-h-[300px] flex items-center justify-center text-muted-foreground">
+            <p>Тело письма отсутствует</p>
+          </div>
+        )}
       </div>
     </div>
   );
