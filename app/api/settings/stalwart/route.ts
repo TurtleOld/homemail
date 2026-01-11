@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const creds = getUserCredentials(session.accountId);
+    const creds = await getUserCredentials(session.accountId);
     if (!creds) {
       return NextResponse.json({ error: 'Credentials not found' }, { status: 404 });
     }
