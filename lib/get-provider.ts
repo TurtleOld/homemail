@@ -27,9 +27,9 @@ export function getMailProviderForAccount(accountId: string): MailProvider {
   return getMailProvider();
 }
 
-export function ensureAccount(accountId: string, email: string, password?: string): void {
+export async function ensureAccount(accountId: string, email: string, password?: string): Promise<void> {
   if (USE_STALWART && password) {
-    setUserCredentials(accountId, email, password);
+    await setUserCredentials(accountId, email, password);
   } else if (USE_MOCK) {
     getOrCreateAccount(accountId, email);
   }

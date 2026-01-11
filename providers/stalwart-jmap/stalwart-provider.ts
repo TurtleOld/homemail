@@ -34,24 +34,52 @@ const config: StalwartConfig = {
   authMode: (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer') || 'basic',
 };
 
+import { getCredentials, setCredentials as saveCredentials, loadCredentials } from '@/lib/storage';
+
 interface UserCredentials {
   email: string;
   password: string;
 }
 
-const credentialsStore = new Map<string, UserCredentials>();
+let credentialsStore: Map<string, UserCredentials> | null = null;
 
-export function setUserCredentials(accountId: string, email: string, password: string): void {
-  credentialsStore.set(accountId, { email, password });
+async function getCredentialsStore(): Promise<Map<string, UserCredentials>> {
+  if (credentialsStore === null) {
+    credentialsStore = new Map();
+    const stored = await loadCredentials();
+    for (const [accountId, creds] of stored.entries()) {
+      credentialsStore.set(accountId, { email: creds.email, password: creds.password });
+    }
+  }
+  return credentialsStore;
 }
 
-export function getUserCredentials(accountId: string): UserCredentials | null {
-  return credentialsStore.get(accountId) || null;
+export async function setUserCredentials(accountId: string, email: string, password: string): Promise<void> {
+  const store = await getCredentialsStore();
+  store.set(accountId, { email, password });
+  await saveCredentials(accountId, email, password);
+}
+
+export async function getUserCredentials(accountId: string): Promise<UserCredentials | null> {
+  const store = await getCredentialsStore();
+  const fromMemory = store.get(accountId);
+  if (fromMemory) {
+    return fromMemory;
+  }
+  
+  const fromStorage = await getCredentials(accountId);
+  if (fromStorage) {
+    const creds = { email: fromStorage.email, password: fromStorage.password };
+    store.set(accountId, creds);
+    return creds;
+  }
+  
+  return null;
 }
 
 export class StalwartJMAPProvider implements MailProvider {
-  private getClient(accountId: string): JMAPClient {
-    const creds = getUserCredentials(accountId);
+  private async getClient(accountId: string): Promise<JMAPClient> {
+    const creds = await getUserCredentials(accountId);
     if (!creds) {
       throw new Error('User credentials not found');
     }
@@ -60,12 +88,12 @@ export class StalwartJMAPProvider implements MailProvider {
 
   async getAccount(accountId: string): Promise<Account | null> {
     try {
-      const creds = getUserCredentials(accountId);
+      const creds = await getUserCredentials(accountId);
       if (!creds) {
         return null;
       }
 
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
       const session = await client.getSession();
       
       let account: JMAPAccount | undefined;
@@ -114,7 +142,7 @@ export class StalwartJMAPProvider implements MailProvider {
 
   async getFolders(accountId: string): Promise<Folder[]> {
     try {
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       const mailboxes = await client.getMailboxes(actualAccountId);
@@ -152,7 +180,7 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   ): Promise<{ messages: MessageListItem[]; nextCursor?: string }> {
     try {
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
@@ -262,7 +290,7 @@ export class StalwartJMAPProvider implements MailProvider {
 
   async getMessage(accountId: string, messageId: string): Promise<MessageDetail | null> {
     try {
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       
@@ -366,7 +394,7 @@ export class StalwartJMAPProvider implements MailProvider {
     flags: Partial<{ unread: boolean; starred: boolean }>
   ): Promise<void> {
     try {
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       const email = await client.getEmails([messageId], { accountId: actualAccountId, properties: ['keywords'] });
@@ -409,7 +437,7 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   ): Promise<void> {
     try {
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
 
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
@@ -528,12 +556,12 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   ): Promise<string> {
     try {
-      const creds = getUserCredentials(accountId);
+      const creds = await getUserCredentials(accountId);
       if (!creds) {
         throw new Error('User credentials not found');
       }
 
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
       const session = await client.getSession();
       
       let fromEmail = creds.email;
@@ -600,7 +628,7 @@ export class StalwartJMAPProvider implements MailProvider {
 
   async saveDraft(accountId: string, draft: Draft): Promise<string> {
     try {
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       const mailboxes = await client.getMailboxes(actualAccountId);
@@ -610,7 +638,7 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error('Drafts mailbox not found');
       }
 
-      const creds = getUserCredentials(accountId);
+      const creds = await getUserCredentials(accountId);
       if (!creds) {
         throw new Error('User credentials not found');
       }
@@ -692,7 +720,7 @@ export class StalwartJMAPProvider implements MailProvider {
 
   async getDraft(accountId: string, draftId: string): Promise<Draft | null> {
     try {
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       
@@ -755,7 +783,7 @@ export class StalwartJMAPProvider implements MailProvider {
         return null;
       }
 
-      const client = this.getClient(accountId);
+      const client = await this.getClient(accountId);
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       const downloadUrl = await client.getBlobDownloadUrl(attachmentId, actualAccountId, attachment.filename);
@@ -792,7 +820,7 @@ export class StalwartJMAPProvider implements MailProvider {
       if (!isActive) return;
 
       try {
-        const client = this.getClient(accountId);
+        const client = await this.getClient(accountId);
         const session = await client.getSession();
         const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
         const mailboxes = await client.getMailboxes(actualAccountId);

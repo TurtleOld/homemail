@@ -14,7 +14,8 @@ const settingsSchema = z.object({
   }).optional(),
 });
 
-const SETTINGS_FILE = path.join(process.cwd(), '.settings.json');
+const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : process.cwd());
+const SETTINGS_FILE = path.join(DATA_DIR, '.settings.json');
 const settingsStore = new Map<string, any>();
 
 async function loadSettings(): Promise<void> {
@@ -45,6 +46,9 @@ async function saveSettings(): Promise<void> {
 }
 
 loadSettings().catch((error) => logger.error('Failed to load settings on startup:', error));
+
+import { loadCredentials } from '@/lib/storage';
+loadCredentials().catch((error) => logger.error('Failed to load credentials on startup:', error));
 
 export async function GET(request: NextRequest) {
   try {

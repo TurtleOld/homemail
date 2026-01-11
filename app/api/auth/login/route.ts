@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const { email, password } = loginSchema.parse(body);
 
     const accountId = email;
-    ensureAccount(accountId, email, password);
+    await ensureAccount(accountId, email, password);
     const provider = process.env.MAIL_PROVIDER === 'stalwart' 
       ? getMailProviderForAccount(accountId)
       : getMailProvider();

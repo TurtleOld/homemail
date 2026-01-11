@@ -54,6 +54,10 @@ logs
 # Sessions
 .sessions.json
 data/.sessions.json
+data/sessions.json
+
+# Credentials (encrypted)
+data/credentials.enc
 
 # Settings
 .settings.json

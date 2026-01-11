@@ -1,5 +1,11 @@
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
+import {
+  getSessionByCookie,
+  saveSession as saveSessionToStorage,
+  deleteSession as deleteSessionFromStorage,
+  type StoredSession,
+} from './storage';
 
 const SESSION_COOKIE_NAME = 'mail_session';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
@@ -87,6 +93,15 @@ export async function createSession(accountId: string, email: string): Promise<s
     maxAge: SESSION_DURATION / 1000,
   });
 
+  const storedSession: StoredSession = {
+    sessionId,
+    accountId,
+    email,
+    expiresAt,
+    cookieValue: encryptedSession,
+  };
+  await saveSessionToStorage(storedSession);
+
   return sessionId;
 }
 
@@ -96,6 +111,16 @@ export async function getSession(): Promise<SessionData | null> {
 
   if (!encryptedSession) {
     return null;
+  }
+
+  const storedSession = await getSessionByCookie(encryptedSession);
+  if (storedSession) {
+    return {
+      sessionId: storedSession.sessionId,
+      accountId: storedSession.accountId,
+      email: storedSession.email,
+      expiresAt: storedSession.expiresAt,
+    };
   }
 
   const session = decryptSessionData(encryptedSession);
@@ -110,11 +135,29 @@ export async function getSession(): Promise<SessionData | null> {
     return null;
   }
 
+  const storedSessionNew: StoredSession = {
+    sessionId: session.sessionId,
+    accountId: session.accountId,
+    email: session.email,
+    expiresAt: session.expiresAt,
+    cookieValue: encryptedSession,
+  };
+  await saveSessionToStorage(storedSessionNew);
+
   return session;
 }
 
 export async function deleteSession(): Promise<void> {
   const cookieStore = await cookies();
+  const encryptedSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  
+  if (encryptedSession) {
+    const session = decryptSessionData(encryptedSession);
+    if (session) {
+      await deleteSessionFromStorage(session.sessionId);
+    }
+  }
+
   const secureCookie = process.env.USE_HTTPS === 'true';
   cookieStore.set(SESSION_COOKIE_NAME, '', {
     httpOnly: true,
