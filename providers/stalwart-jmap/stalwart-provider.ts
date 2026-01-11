@@ -83,10 +83,17 @@ export class StalwartJMAPProvider implements MailProvider {
         return null;
       }
 
+      let email = creds.email;
+      if (!email.includes('@') && account.name && account.name.includes('@')) {
+        email = account.name;
+      } else if (!email.includes('@')) {
+        email = creds.email;
+      }
+
       return {
         id: account.id || accountId,
-        email: creds.email,
-        displayName: account.name || creds.email.split('@')[0],
+        email: email,
+        displayName: account.name || email.split('@')[0],
       };
     } catch (error) {
       const { logger } = await import('@/lib/logger');
@@ -522,13 +529,13 @@ export class StalwartJMAPProvider implements MailProvider {
       let fromEmail = creds.email;
       
       if (!fromEmail.includes('@')) {
-        const account = await this.getAccount(accountId);
-        if (account && account.email && account.email.includes('@')) {
-          fromEmail = account.email;
+        const accountInfo = session.accounts[session.primaryAccounts?.mail || Object.keys(session.accounts)[0]];
+        if (accountInfo?.name && accountInfo.name.includes('@')) {
+          fromEmail = accountInfo.name;
         } else {
-          const accountInfo = session.accounts[session.primaryAccounts?.mail || Object.keys(session.accounts)[0]];
-          if (accountInfo?.name && accountInfo.name.includes('@')) {
-            fromEmail = accountInfo.name;
+          const account = await this.getAccount(accountId);
+          if (account && account.email && account.email.includes('@')) {
+            fromEmail = account.email;
           } else {
             throw new Error(`Invalid sender address: ${fromEmail}. Please use full email address for login.`);
           }
