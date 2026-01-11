@@ -20,7 +20,11 @@ const settingsStore = new Map<string, any>();
 async function loadSettings(): Promise<void> {
   try {
     const data = await fs.readFile(SETTINGS_FILE, 'utf-8');
-    const loaded = JSON.parse(data) as Record<string, any>;
+    const trimmed = data.trim();
+    if (!trimmed) {
+      return;
+    }
+    const loaded = JSON.parse(trimmed) as Record<string, any>;
     for (const [accountId, settings] of Object.entries(loaded)) {
       settingsStore.set(accountId, settings);
     }

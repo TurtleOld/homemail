@@ -20,7 +20,11 @@ const sessions = new Map<string, SessionData>();
 async function loadSessions(): Promise<void> {
   try {
     const data = await fs.readFile(SESSIONS_FILE, 'utf-8');
-    const loaded = JSON.parse(data) as Record<string, SessionData>;
+    const trimmed = data.trim();
+    if (!trimmed) {
+      return;
+    }
+    const loaded = JSON.parse(trimmed) as Record<string, SessionData>;
     const now = Date.now();
     let loadedCount = 0;
     for (const [sessionId, session] of Object.entries(loaded)) {

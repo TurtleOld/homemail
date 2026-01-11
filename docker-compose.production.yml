@@ -42,14 +42,14 @@ services:
     networks:
       - homemail-network
     healthcheck:
-      test: ['CMD-SHELL', 'curl -f http://localhost:8080/.well-known/jmap || exit 1']
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:8080/.well-known/jmap || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
 
   nginx:
-    image: nginx:alpine
+    image: nginx:stable-alpine
     container_name: homemail-nginx
     restart: unless-stopped
     ports:
