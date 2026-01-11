@@ -537,7 +537,6 @@ export class StalwartJMAPProvider implements MailProvider {
       const session = await client.getSession();
       
       let fromEmail = creds.email;
-      let smtpUser = creds.email;
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       
       if (!fromEmail.includes('@')) {
@@ -546,7 +545,6 @@ export class StalwartJMAPProvider implements MailProvider {
           const identity = identities.find((i) => typeof i.email === 'string' && i.email.includes('@'));
           if (identity?.email) {
             fromEmail = identity.email;
-            smtpUser = identity.email;
           }
         } catch {
         }
@@ -556,12 +554,10 @@ export class StalwartJMAPProvider implements MailProvider {
         const accountInfo = session.accounts[actualAccountId];
         if (accountInfo?.name && accountInfo.name.includes('@')) {
           fromEmail = accountInfo.name;
-          smtpUser = accountInfo.name;
         } else {
           const account = await this.getAccount(accountId);
           if (account && account.email && account.email.includes('@')) {
             fromEmail = account.email;
-            smtpUser = account.email;
           } else {
             throw new Error(`Invalid sender address: ${fromEmail}. Please use full email address for login.`);
           }
@@ -573,7 +569,7 @@ export class StalwartJMAPProvider implements MailProvider {
         port: config.smtpPort,
         secure: config.smtpSecure,
         auth: {
-          user: smtpUser,
+          user: fromEmail,
           pass: creds.password,
         },
         tls: {
