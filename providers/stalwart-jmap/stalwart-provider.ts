@@ -84,10 +84,20 @@ export class StalwartJMAPProvider implements MailProvider {
       }
 
       let email = creds.email;
+      if (!email.includes('@')) {
+        const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+        try {
+          const identities = await client.getIdentities(actualAccountId);
+          const identity = identities.find((i) => typeof i.email === 'string' && i.email.includes('@'));
+          if (identity?.email) {
+            email = identity.email;
+          }
+        } catch {
+        }
+      }
+
       if (!email.includes('@') && account.name && account.name.includes('@')) {
         email = account.name;
-      } else if (!email.includes('@')) {
-        email = creds.email;
       }
 
       return {
@@ -527,9 +537,21 @@ export class StalwartJMAPProvider implements MailProvider {
       const session = await client.getSession();
       
       let fromEmail = creds.email;
+      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       
       if (!fromEmail.includes('@')) {
-        const accountInfo = session.accounts[session.primaryAccounts?.mail || Object.keys(session.accounts)[0]];
+        try {
+          const identities = await client.getIdentities(actualAccountId);
+          const identity = identities.find((i) => typeof i.email === 'string' && i.email.includes('@'));
+          if (identity?.email) {
+            fromEmail = identity.email;
+          }
+        } catch {
+        }
+      }
+
+      if (!fromEmail.includes('@')) {
+        const accountInfo = session.accounts[actualAccountId];
         if (accountInfo?.name && accountInfo.name.includes('@')) {
           fromEmail = accountInfo.name;
         } else {
@@ -547,7 +569,7 @@ export class StalwartJMAPProvider implements MailProvider {
         port: config.smtpPort,
         secure: config.smtpSecure,
         auth: {
-          user: creds.email,
+          user: fromEmail,
           pass: creds.password,
         },
         tls: {
@@ -593,7 +615,9 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error('User credentials not found');
       }
 
-      const from = [{ email: creds.email, name: creds.email.split('@')[0] }];
+      const account = await this.getAccount(accountId);
+      const fromEmail = account?.email || creds.email;
+      const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
       const to = draft.to?.map((email) => ({ email })) || [];
       const cc = draft.cc?.map((email) => ({ email }));
       const bcc = draft.bcc?.map((email) => ({ email }));
