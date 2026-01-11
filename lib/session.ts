@@ -1,12 +1,11 @@
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { logger } from './logger';
 
 const SESSION_COOKIE_NAME = 'mail_session';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
-const SESSIONS_FILE = path.join(process.cwd(), '.sessions.json');
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 16;
+const TAG_LENGTH = 16;
 
 export interface SessionData {
   sessionId: string;
@@ -15,44 +14,56 @@ export interface SessionData {
   expiresAt: number;
 }
 
-const sessions = new Map<string, SessionData>();
-
-async function loadSessions(): Promise<void> {
-  try {
-    const data = await fs.readFile(SESSIONS_FILE, 'utf-8');
-    const trimmed = data.trim();
-    if (!trimmed) {
-      return;
-    }
-    const loaded = JSON.parse(trimmed) as Record<string, SessionData>;
-    const now = Date.now();
-    let loadedCount = 0;
-    for (const [sessionId, session] of Object.entries(loaded)) {
-      if (session.expiresAt > now) {
-        sessions.set(sessionId, session);
-        loadedCount++;
-      }
-    }
-    if (loadedCount > 0) {
-      logger.log(`Loaded ${loadedCount} active session(s) from file`);
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.error('Failed to load sessions:', error);
-    }
-  }
+function getEncryptionKey(): Buffer {
+  const secret = process.env.SESSION_SECRET || 'default-secret-key-change-in-production';
+  return crypto.scryptSync(secret, 'salt', 32);
 }
 
-async function saveSessions(): Promise<void> {
-  try {
-    const data = Object.fromEntries(sessions);
-    await fs.writeFile(SESSIONS_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (error) {
-    logger.error('Failed to save sessions:', error);
-  }
+function encryptSessionData(data: SessionData): string {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  
+  const encrypted = Buffer.concat([
+    cipher.update(JSON.stringify(data), 'utf8'),
+    cipher.final()
+  ]);
+  
+  const tag = cipher.getAuthTag();
+  
+  return Buffer.concat([
+    iv,
+    tag,
+    encrypted
+  ]).toString('base64url');
 }
 
-loadSessions().catch((error) => logger.error('Failed to load sessions on startup:', error));
+function decryptSessionData(encryptedData: string): SessionData | null {
+  try {
+    const key = getEncryptionKey();
+    const data = Buffer.from(encryptedData, 'base64url');
+    
+    if (data.length < IV_LENGTH + TAG_LENGTH) {
+      return null;
+    }
+    
+    const iv = data.subarray(0, IV_LENGTH);
+    const tag = data.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
+    const encrypted = data.subarray(IV_LENGTH + TAG_LENGTH);
+    
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(tag);
+    
+    const decrypted = Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final()
+    ]).toString('utf8');
+    
+    return JSON.parse(decrypted) as SessionData;
+  } catch (error) {
+    return null;
+  }
+}
 
 export async function createSession(accountId: string, email: string): Promise<string> {
   const sessionId = `sess_${crypto.randomBytes(32).toString('base64url')}`;
@@ -65,12 +76,10 @@ export async function createSession(accountId: string, email: string): Promise<s
     expiresAt,
   };
 
-  sessions.set(sessionId, session);
-  await saveSessions();
-
+  const encryptedSession = encryptSessionData(session);
   const cookieStore = await cookies();
   const secureCookie = process.env.USE_HTTPS === 'true';
-  cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
+  cookieStore.set(SESSION_COOKIE_NAME, encryptedSession, {
     httpOnly: true,
     secure: secureCookie,
     sameSite: 'lax',
@@ -83,23 +92,17 @@ export async function createSession(accountId: string, email: string): Promise<s
 
 export async function getSession(): Promise<SessionData | null> {
   const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const encryptedSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
-  if (!sessionId) {
+  if (!encryptedSession) {
     return null;
   }
 
-  let session = sessions.get(sessionId);
-
-  if (!session) {
-    await loadSessions();
-    session = sessions.get(sessionId);
-  }
+  const session = decryptSessionData(encryptedSession);
 
   if (!session || session.expiresAt < Date.now()) {
     if (session) {
-      sessions.delete(sessionId);
-      await saveSessions();
+      await deleteSession();
     }
     return null;
   }
@@ -109,28 +112,5 @@ export async function getSession(): Promise<SessionData | null> {
 
 export async function deleteSession(): Promise<void> {
   const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-  if (sessionId) {
-    sessions.delete(sessionId);
-    await saveSessions();
-  }
-
   cookieStore.delete(SESSION_COOKIE_NAME);
 }
-
-export async function cleanupExpiredSessions(): Promise<void> {
-  const now = Date.now();
-  let changed = false;
-  for (const [sessionId, session] of sessions.entries()) {
-    if (session.expiresAt < now) {
-      sessions.delete(sessionId);
-      changed = true;
-    }
-  }
-  if (changed) {
-    await saveSessions();
-  }
-}
-
-setInterval(() => cleanupExpiredSessions().catch((error) => logger.error('Failed to cleanup expired sessions:', error)), 60 * 60 * 1000);

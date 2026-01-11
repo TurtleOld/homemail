@@ -26,8 +26,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-RUN touch /app/.sessions.json /app/.settings.json && \
-    chown nextjs:nodejs /app/.sessions.json /app/.settings.json
+RUN touch /app/.settings.json && \
+    chown nextjs:nodejs /app/.settings.json
 
 USER nextjs
 

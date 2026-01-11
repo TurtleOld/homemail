@@ -15,7 +15,6 @@ services:
       - STALWART_SMTP_SECURE=false
       - STALWART_AUTH_MODE=basic
     volumes:
-      - ./data/.sessions.json:/app/.sessions.json
       - ./data/.settings.json:/app/.settings.json
     networks:
       - homemail-network

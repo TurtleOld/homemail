@@ -15,7 +15,6 @@ services:
     env_file:
       - .env.production
     volumes:
-      - ./data/.sessions.json:/app/.sessions.json
       - ./data/.settings.json:/app/.settings.json
     networks:
       - homemail-network
