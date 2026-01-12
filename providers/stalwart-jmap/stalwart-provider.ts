@@ -134,17 +134,19 @@ export class StalwartJMAPProvider implements MailProvider {
       // Получаем credentials
       let creds = await getUserCredentials(accountId);
       if (!creds) {
+        const { logger } = await import('@/lib/logger');
+        logger.warn(`No credentials found for accountId: ${accountId}`);
         return null;
       }
 
       // Создаём client с текущими credentials (может быть логином при первой авторизации)
       const client = await this.getClient(accountId);
-
+      
       try {
         const session = await client.getSession();
-
+        
         let account: JMAPAccount | undefined;
-
+        
         if (session.primaryAccounts?.mail) {
           account = session.accounts[session.primaryAccounts.mail];
         } else {
@@ -155,12 +157,14 @@ export class StalwartJMAPProvider implements MailProvider {
         }
 
         if (!account) {
+          const { logger } = await import('@/lib/logger');
+          logger.warn(`No account found in session for accountId: ${accountId}`);
           return null;
         }
 
         // Нормализуем email из session/identities
         const normalizedEmail = await normalizeEmailFromSession(client, accountId, creds);
-
+        
         // Если email был нормализован, обновляем credentials
         if (normalizedEmail !== creds.email && normalizedEmail.includes('@')) {
           await setUserCredentials(accountId, normalizedEmail, creds.password);
@@ -187,16 +191,17 @@ export class StalwartJMAPProvider implements MailProvider {
         // Если не удалось получить session, логируем детали для отладки
         const { logger } = await import('@/lib/logger');
         const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
-        logger.error(`Failed to get JMAP session for account ${accountId} (login: ${creds.email}):`, errorMessage);
-
-        // Возвращаем null, чтобы login endpoint мог вернуть правильный статус
-        return null;
+        const errorStack = sessionError instanceof Error ? sessionError.stack : undefined;
+        logger.error(`Failed to get JMAP session for account ${accountId} (login: ${creds.email}):`, errorMessage, errorStack ? `\n${errorStack}` : '');
+        
+        // Пробрасываем ошибку дальше, чтобы вызывающий код мог понять, что произошло
+        throw sessionError;
       }
     } catch (error) {
       const { logger } = await import('@/lib/logger');
       logger.error('Failed to get account:', error instanceof Error ? error.message : error);
-      // Возвращаем null, чтобы login endpoint мог обработать это правильно
-      return null;
+      // Пробрасываем ошибку дальше, чтобы вызывающий код мог понять, что произошло
+      throw error;
     }
   }
 
