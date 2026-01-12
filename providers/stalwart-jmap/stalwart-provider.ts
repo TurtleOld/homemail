@@ -125,81 +125,77 @@ export class StalwartJMAPProvider implements MailProvider {
       throw new Error('User credentials not found');
     }
 
-    // Если creds.email не является email (не содержит '@'), нужно нормализовать его
-    if (!creds.email.includes('@')) {
-      // Создаём временный client с логином для получения session
-      const tempClient = new JMAPClient(config.baseUrl, creds.email, creds.password, accountId, config.authMode);
-      const normalizedEmail = await normalizeEmailFromSession(tempClient, accountId, creds);
-
-      // Если email был нормализован, обновляем credentials
-      if (normalizedEmail !== creds.email && normalizedEmail.includes('@')) {
-        await setUserCredentials(accountId, normalizedEmail, creds.password);
-        // Обновляем creds в памяти
-        const store = await getCredentialsStore();
-        store.set(accountId, { email: normalizedEmail, password: creds.password });
-        // Создаём client с нормализованным email
-        return new JMAPClient(config.baseUrl, normalizedEmail, creds.password, accountId, config.authMode);
-      }
-    }
-
+    // Используем creds.email как есть (может быть логином при первой авторизации или email после нормализации)
     return new JMAPClient(config.baseUrl, creds.email, creds.password, accountId, config.authMode);
   }
 
   async getAccount(accountId: string): Promise<Account | null> {
     try {
-      // Получаем client (он может обновить credentials, если email был нормализован)
-      const client = await this.getClient(accountId);
-      const session = await client.getSession();
-      
-      let account: JMAPAccount | undefined;
-      
-      if (session.primaryAccounts?.mail) {
-        account = session.accounts[session.primaryAccounts.mail];
-      } else {
-        const accountKeys = Object.keys(session.accounts);
-        if (accountKeys.length > 0) {
-          account = session.accounts[accountKeys[0]];
-        }
-      }
-
-      if (!account) {
-        return null;
-      }
-
-      // Получаем credentials после getClient, чтобы использовать обновлённые (если они были обновлены)
+      // Получаем credentials
       let creds = await getUserCredentials(accountId);
       if (!creds) {
         return null;
       }
 
-      // Нормализуем email из session/identities (на случай, если getClient не обновил)
-      const normalizedEmail = await normalizeEmailFromSession(client, accountId, creds);
+      // Создаём client с текущими credentials (может быть логином при первой авторизации)
+      const client = await this.getClient(accountId);
 
-      // Если email был нормализован, обновляем credentials
-      if (normalizedEmail !== creds.email && normalizedEmail.includes('@')) {
-        await setUserCredentials(accountId, normalizedEmail, creds.password);
-        // Обновляем creds в памяти и локально
-        const store = await getCredentialsStore();
-        store.set(accountId, { email: normalizedEmail, password: creds.password });
-        creds = { email: normalizedEmail, password: creds.password };
-      }
+      try {
+        const session = await client.getSession();
 
-      // Используем нормализованный email
-      const email = normalizedEmail.includes('@') ? normalizedEmail : (account.name && account.name.includes('@') ? account.name : creds.email);
+        let account: JMAPAccount | undefined;
 
-      if (!email.includes('@')) {
+        if (session.primaryAccounts?.mail) {
+          account = session.accounts[session.primaryAccounts.mail];
+        } else {
+          const accountKeys = Object.keys(session.accounts);
+          if (accountKeys.length > 0) {
+            account = session.accounts[accountKeys[0]];
+          }
+        }
+
+        if (!account) {
+          return null;
+        }
+
+        // Нормализуем email из session/identities
+        const normalizedEmail = await normalizeEmailFromSession(client, accountId, creds);
+
+        // Если email был нормализован, обновляем credentials
+        if (normalizedEmail !== creds.email && normalizedEmail.includes('@')) {
+          await setUserCredentials(accountId, normalizedEmail, creds.password);
+          // Обновляем creds в памяти и локально
+          const store = await getCredentialsStore();
+          store.set(accountId, { email: normalizedEmail, password: creds.password });
+          creds = { email: normalizedEmail, password: creds.password };
+        }
+
+        // Используем нормализованный email
+        const email = normalizedEmail.includes('@') ? normalizedEmail : (account.name && account.name.includes('@') ? account.name : creds.email);
+
+        if (!email.includes('@')) {
+          const { logger } = await import('@/lib/logger');
+          logger.warn(`Could not determine email for account ${accountId}. Using login: ${creds.email}`);
+        }
+
+        return {
+          id: account.id || accountId,
+          email: email,
+          displayName: account.name || email.split('@')[0],
+        };
+      } catch (sessionError) {
+        // Если не удалось получить session, логируем детали для отладки
         const { logger } = await import('@/lib/logger');
-        logger.warn(`Could not determine email for account ${accountId}. Using login: ${creds.email}`);
-      }
+        const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
+        logger.error(`Failed to get JMAP session for account ${accountId} (login: ${creds.email}):`, errorMessage);
 
-      return {
-        id: account.id || accountId,
-        email: email,
-        displayName: account.name || email.split('@')[0],
-      };
+        // Возвращаем null, чтобы login endpoint мог вернуть правильный статус
+        return null;
+      }
     } catch (error) {
       const { logger } = await import('@/lib/logger');
       logger.error('Failed to get account:', error instanceof Error ? error.message : error);
+      // Возвращаем null, чтобы login endpoint мог обработать это правильно
       return null;
     }
   }
