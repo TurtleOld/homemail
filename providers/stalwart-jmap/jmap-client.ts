@@ -1,3 +1,8 @@
+import * as dns from 'dns';
+import { promisify } from 'util';
+
+const lookup = promisify(dns.lookup);
+
 interface JMAPSession {
   apiUrl: string;
   downloadUrl: string;
@@ -148,7 +153,20 @@ export class JMAPClient {
       return cached.session;
     }
 
+    const baseUrlObj = new URL(this.baseUrl);
+    const hostname = baseUrlObj.hostname;
+    
+    try {
+      console.log(`[JMAPClient] Attempting to resolve hostname: ${hostname} for baseUrl: ${this.baseUrl}`);
+      const addresses = await lookup(hostname, { family: 4, all: true });
+      console.log(`[JMAPClient] Resolved ${hostname} to:`, addresses.map((a: { address: string; family: number }) => `${a.address} (family: ${a.family})`).join(', '));
+    } catch (dnsError) {
+      console.error(`[JMAPClient] DNS lookup failed for ${hostname}:`, dnsError);
+    }
+
     const directSessionUrl = `${this.baseUrl}/jmap/session`;
+    console.log(`[JMAPClient] Attempting to connect to: ${directSessionUrl}`);
+    
     try {
       const directRes = await fetch(directSessionUrl, {
         headers: {
@@ -168,10 +186,24 @@ export class JMAPClient {
           return directSession;
         }
       }
-    } catch {
+    } catch (error) {
+      console.error(`[JMAPClient] Connection error to ${directSessionUrl}:`, error);
+      if (error instanceof TypeError && error.message.includes('fetch failed')) {
+        const cause = (error as any).cause;
+        if (cause) {
+          console.error(`[JMAPClient] Fetch error cause:`, {
+            code: cause.code,
+            errno: cause.errno,
+            syscall: cause.syscall,
+            address: cause.address,
+            port: cause.port,
+          });
+        }
+      }
     }
 
     const discoveryUrl = `${this.baseUrl}/.well-known/jmap`;
+    console.log(`[JMAPClient] Attempting discovery at: ${discoveryUrl}`);
     
     try {
       const discoveryRes = await fetch(discoveryUrl, {
@@ -212,6 +244,7 @@ export class JMAPClient {
         sessionUrl = sessionUrl.slice(0, -1);
       }
       
+      console.log(`[JMAPClient] Attempting session request to: ${sessionUrl}`);
       const sessionRes = await fetch(sessionUrl, {
         method: 'POST',
         headers: {
@@ -258,10 +291,27 @@ export class JMAPClient {
 
       return session;
     } catch (error) {
+      console.error(`[JMAPClient] Error in getSession for baseUrl ${this.baseUrl}:`, error);
+      
       if (error instanceof TypeError && error.message.includes('fetch failed')) {
         const cause = (error as any).cause;
-        if (cause && cause.code === 'ECONNREFUSED') {
-          throw new Error(`Cannot connect to Stalwart server at ${this.baseUrl}. Please check that Stalwart is running and STALWART_BASE_URL is correct.`);
+        if (cause) {
+          console.error(`[JMAPClient] Fetch error details:`, {
+            code: cause.code,
+            errno: cause.errno,
+            syscall: cause.syscall,
+            address: cause.address,
+            port: cause.port,
+            message: cause.message,
+          });
+          
+          if (cause.code === 'ECONNREFUSED') {
+            throw new Error(`Cannot connect to Stalwart server at ${this.baseUrl}. Please check that Stalwart is running and STALWART_BASE_URL is correct. DNS resolved to: ${cause.address}:${cause.port}`);
+          }
+          
+          if (cause.code === 'ENOTFOUND' || cause.code === 'EAI_AGAIN') {
+            throw new Error(`DNS resolution failed for ${this.baseUrl}. Hostname ${new URL(this.baseUrl).hostname} could not be resolved. Please check network configuration and ensure containers are in the same Docker network.`);
+          }
         }
       }
       throw error;
