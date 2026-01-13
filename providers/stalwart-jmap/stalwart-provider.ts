@@ -195,7 +195,12 @@ export class StalwartJMAPProvider implements MailProvider {
         };
       });
     } catch (error) {
-      console.error(`[StalwartProvider] Error in getFolders for accountId ${accountId}:`, error);
+      const stalwartUrl = config.baseUrl;
+      if (error instanceof Error && (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed'))) {
+        console.error(`[StalwartProvider] Connection error in getFolders for accountId ${accountId}. Cannot connect to Stalwart at ${stalwartUrl}:`, error);
+      } else {
+        console.error(`[StalwartProvider] Error in getFolders for accountId ${accountId}:`, error);
+      }
       throw error;
     }
   }
@@ -315,7 +320,12 @@ export class StalwartJMAPProvider implements MailProvider {
 
       return { messages, nextCursor };
     } catch (error) {
-      console.error(`[StalwartProvider] Error in getMessages for accountId ${accountId}, folderId ${folderId}:`, error);
+      const stalwartUrl = config.baseUrl;
+      if (error instanceof Error && (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed'))) {
+        console.error(`[StalwartProvider] Connection error in getMessages for accountId ${accountId}, folderId ${folderId}. Cannot connect to Stalwart at ${stalwartUrl}:`, error);
+      } else {
+        console.error(`[StalwartProvider] Error in getMessages for accountId ${accountId}, folderId ${folderId}:`, error);
+      }
       throw error;
     }
   }

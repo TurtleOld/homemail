@@ -50,6 +50,26 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid query parameters', details: error.errors }, { status: 400 });
       }
       console.error('[messages] Error fetching messages:', error);
+      
+      const isConnectionError = error instanceof Error && (
+        error.message.includes('ECONNREFUSED') ||
+        error.message.includes('fetch failed') ||
+        error.message.includes('connect')
+      );
+
+      if (isConnectionError) {
+        const stalwartUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
+        console.error(`[messages] Cannot connect to Stalwart server at ${stalwartUrl}`);
+        return NextResponse.json(
+          { 
+            error: 'Mail server unavailable', 
+            message: `Cannot connect to mail server. Please check that Stalwart is running and accessible at ${stalwartUrl}`,
+            code: 'CONNECTION_ERROR'
+          },
+          { status: 503 }
+        );
+      }
+
       return NextResponse.json(
         { error: 'Failed to fetch messages', message: error instanceof Error ? error.message : 'Unknown error' },
         { status: 500 }
@@ -57,6 +77,26 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     console.error('[messages] Unexpected error:', error);
+    
+    const isConnectionError = error instanceof Error && (
+      error.message.includes('ECONNREFUSED') ||
+      error.message.includes('fetch failed') ||
+      error.message.includes('connect')
+    );
+
+    if (isConnectionError) {
+      const stalwartUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
+      console.error(`[messages] Cannot connect to Stalwart server at ${stalwartUrl}`);
+      return NextResponse.json(
+        { 
+          error: 'Mail server unavailable', 
+          message: `Cannot connect to mail server. Please check that Stalwart is running and accessible at ${stalwartUrl}`,
+          code: 'CONNECTION_ERROR'
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Internal server error', message: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
