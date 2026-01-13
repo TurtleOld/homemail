@@ -156,13 +156,27 @@ export class JMAPClient {
     const baseUrlObj = new URL(this.baseUrl);
     const hostname = baseUrlObj.hostname;
     
+    console.log(`[JMAPClient] ===== DNS Resolution Debug =====`);
+    console.log(`[JMAPClient] Base URL: ${this.baseUrl}`);
+    console.log(`[JMAPClient] Hostname to resolve: ${hostname}`);
+    
     try {
-      console.log(`[JMAPClient] Attempting to resolve hostname: ${hostname} for baseUrl: ${this.baseUrl}`);
       const addresses = await lookup(hostname, { family: 4, all: true });
-      console.log(`[JMAPClient] Resolved ${hostname} to:`, addresses.map((a: { address: string; family: number }) => `${a.address} (family: ${a.family})`).join(', '));
+      const resolvedIps = addresses.map((a: { address: string; family: number }) => `${a.address} (family: ${a.family})`).join(', ');
+      console.log(`[JMAPClient] DNS lookup SUCCESS: ${hostname} resolved to: ${resolvedIps}`);
+      
+      const firstAddress = addresses[0]?.address;
+      if (firstAddress && (firstAddress.startsWith('172.') || firstAddress.startsWith('10.') || firstAddress.startsWith('192.168.'))) {
+        console.log(`[JMAPClient] ✓ Resolved to Docker internal IP: ${firstAddress}`);
+      } else if (firstAddress) {
+        console.error(`[JMAPClient] ✗ WARNING: Resolved to external/public IP: ${firstAddress}. This indicates DNS is using external resolver instead of Docker DNS!`);
+        console.error(`[JMAPClient] ✗ Expected: Docker internal IP (172.x.x.x, 10.x.x.x, or 192.168.x.x)`);
+        console.error(`[JMAPClient] ✗ Solution: Use container IP directly or configure extra_hosts in docker-compose.yml`);
+      }
     } catch (dnsError) {
-      console.error(`[JMAPClient] DNS lookup failed for ${hostname}:`, dnsError);
+      console.error(`[JMAPClient] DNS lookup FAILED for ${hostname}:`, dnsError);
     }
+    console.log(`[JMAPClient] =================================`);
 
     const directSessionUrl = `${this.baseUrl}/jmap/session`;
     console.log(`[JMAPClient] Attempting to connect to: ${directSessionUrl}`);
