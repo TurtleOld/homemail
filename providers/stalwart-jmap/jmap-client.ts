@@ -257,14 +257,27 @@ export class JMAPClient {
 
   private normalizeSessionUrls(session: JMAPSession): JMAPSession {
     const baseUrlObj = new URL(this.baseUrl);
+    const baseHostname = baseUrlObj.hostname;
+    
     const rewrite = (raw?: string): string | undefined => {
       if (!raw) return raw;
       try {
         const u = new URL(raw);
-        if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
-          u.hostname = baseUrlObj.hostname;
-          u.port = baseUrlObj.port;
+        const urlHostname = u.hostname;
+        
+        if (urlHostname === 'localhost' || urlHostname === '127.0.0.1') {
+          console.log(`[JMAPClient] Normalizing localhost URL: ${raw} -> replacing hostname with ${baseHostname}`);
+          u.hostname = baseHostname;
+          u.port = baseUrlObj.port || u.port;
+        } else if (urlHostname.includes('.') && urlHostname !== baseHostname) {
+          console.warn(`[JMAPClient] ⚠ Session URL contains domain name (${urlHostname}) instead of container name (${baseHostname})`);
+          console.warn(`[JMAPClient] ⚠ This happens when Stalwart server.hostname differs from STALWART_BASE_URL`);
+          console.warn(`[JMAPClient] ⚠ Replacing domain hostname with container hostname for Docker communication`);
+          u.hostname = baseHostname;
+          u.port = baseUrlObj.port || u.port;
+          console.log(`[JMAPClient] ✓ Normalized URL: ${raw} -> ${u.toString()}`);
         }
+        
         return u.toString().replace(/\/$/, '');
       } catch {
         return raw;
@@ -383,14 +396,24 @@ export class JMAPClient {
       
       let sessionUrl = discovery.apiUrl || `${this.baseUrl}/jmap`;
       
-      if (sessionUrl.includes('localhost') || sessionUrl.includes('127.0.0.1')) {
-        const { logger } = await import('@/lib/logger');
-        logger.warn('Discovery returned localhost URL, replacing with baseUrl:', sessionUrl);
-        const url = new URL(sessionUrl);
-        const baseUrlObj = new URL(this.baseUrl);
-        url.hostname = baseUrlObj.hostname;
-        url.port = baseUrlObj.port;
-        sessionUrl = url.toString();
+      const baseUrlObj = new URL(this.baseUrl);
+      const baseHostname = baseUrlObj.hostname;
+      
+      try {
+        const discoveryUrlObj = new URL(sessionUrl);
+        const discoveryHostname = discoveryUrlObj.hostname;
+        
+        if (discoveryHostname !== baseHostname && (discoveryHostname.includes('.') || discoveryHostname === 'localhost' || discoveryHostname === '127.0.0.1')) {
+          console.warn(`[JMAPClient] ⚠ Discovery returned URL with different hostname: ${discoveryHostname} (expected: ${baseHostname})`);
+          console.warn(`[JMAPClient] ⚠ Stalwart server.hostname (${discoveryHostname}) differs from STALWART_BASE_URL hostname (${baseHostname})`);
+          console.warn(`[JMAPClient] ⚠ Replacing discovery hostname with baseUrl hostname for Docker container communication`);
+          discoveryUrlObj.hostname = baseHostname;
+          discoveryUrlObj.port = baseUrlObj.port || discoveryUrlObj.port;
+          sessionUrl = discoveryUrlObj.toString();
+          console.log(`[JMAPClient] ✓ Normalized sessionUrl: ${sessionUrl}`);
+        }
+      } catch (urlError) {
+        console.warn(`[JMAPClient] Could not parse discovery URL ${sessionUrl}, using as-is:`, urlError);
       }
       
       if (sessionUrl.endsWith('/')) {
