@@ -172,6 +172,11 @@ export class StalwartJMAPProvider implements MailProvider {
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       const mailboxes = await client.getMailboxes(actualAccountId);
 
+      if (!mailboxes || mailboxes.length === 0) {
+        console.warn(`[StalwartProvider] No mailboxes found for accountId: ${accountId}, actualAccountId: ${actualAccountId}`);
+        return [];
+      }
+
       return mailboxes.map((mb) => {
         let role: Folder['role'] = 'custom';
         if (mb.role) {
@@ -190,7 +195,8 @@ export class StalwartJMAPProvider implements MailProvider {
         };
       });
     } catch (error) {
-      return [];
+      console.error(`[StalwartProvider] Error in getFolders for accountId ${accountId}:`, error);
+      throw error;
     }
   }
 
@@ -309,7 +315,8 @@ export class StalwartJMAPProvider implements MailProvider {
 
       return { messages, nextCursor };
     } catch (error) {
-      return { messages: [] };
+      console.error(`[StalwartProvider] Error in getMessages for accountId ${accountId}, folderId ${folderId}:`, error);
+      throw error;
     }
   }
 
