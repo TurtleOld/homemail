@@ -2,6 +2,14 @@ import * as dns from 'dns';
 import { promisify } from 'util';
 
 const lookup = promisify(dns.lookup);
+const resolve4 = promisify(dns.resolve4);
+
+try {
+  dns.setServers(['127.0.0.11', '8.8.8.8']);
+  console.log('[JMAPClient] DNS servers configured to use Docker DNS (127.0.0.11)');
+} catch (error) {
+  console.warn('[JMAPClient] Failed to set DNS servers, using system default:', error);
+}
 
 interface JMAPSession {
   apiUrl: string;
@@ -120,6 +128,63 @@ export class JMAPClient {
     return this.authHeader;
   }
 
+  private async resolveHostnameToIp(hostname: string): Promise<string | null> {
+    try {
+      console.log(`[JMAPClient] Resolving hostname ${hostname} using Docker DNS...`);
+      
+      const ips = await resolve4(hostname);
+      if (ips && ips.length > 0) {
+        const ip = ips[0];
+        console.log(`[JMAPClient] Resolved ${hostname} to IP: ${ip}`);
+        
+        if (ip.startsWith('172.') || ip.startsWith('10.') || ip.startsWith('192.168.')) {
+          console.log(`[JMAPClient] ✓ Using Docker internal IP: ${ip}`);
+          return ip;
+        } else {
+          console.warn(`[JMAPClient] ⚠ Resolved to external IP: ${ip}, trying lookup as fallback...`);
+        }
+      }
+    } catch (resolveError) {
+      console.warn(`[JMAPClient] resolve4 failed for ${hostname}, trying lookup:`, resolveError);
+    }
+    
+    try {
+      const addresses = await lookup(hostname, { family: 4, all: true });
+      if (addresses && addresses.length > 0) {
+        const ip = addresses[0].address;
+        console.log(`[JMAPClient] Lookup resolved ${hostname} to IP: ${ip}`);
+        return ip;
+      }
+    } catch (lookupError) {
+      console.error(`[JMAPClient] Both resolve4 and lookup failed for ${hostname}:`, lookupError);
+    }
+    
+    return null;
+  }
+
+  private async resolveUrlToIp(url: string): Promise<string> {
+    try {
+      const urlObj = new URL(url);
+      const hostname = urlObj.hostname;
+      
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+        return url;
+      }
+      
+      const ip = await this.resolveHostnameToIp(hostname);
+      if (ip) {
+        urlObj.hostname = ip;
+        const resolvedUrl = urlObj.toString();
+        console.log(`[JMAPClient] Resolved URL: ${url} -> ${resolvedUrl}`);
+        return resolvedUrl;
+      }
+    } catch (error) {
+      console.error(`[JMAPClient] Error resolving URL ${url}:`, error);
+    }
+    
+    return url;
+  }
+
   private normalizeSessionUrls(session: JMAPSession): JMAPSession {
     const baseUrlObj = new URL(this.baseUrl);
     const rewrite = (raw?: string): string | undefined => {
@@ -181,8 +246,10 @@ export class JMAPClient {
     const directSessionUrl = `${this.baseUrl}/jmap/session`;
     console.log(`[JMAPClient] Attempting to connect to: ${directSessionUrl}`);
     
+    const resolvedDirectUrl = await this.resolveUrlToIp(directSessionUrl);
+    
     try {
-      const directRes = await fetch(directSessionUrl, {
+      const directRes = await fetch(resolvedDirectUrl, {
         headers: {
           'Accept': 'application/json',
           'Authorization': this.authHeader,
@@ -201,7 +268,7 @@ export class JMAPClient {
         }
       }
     } catch (error) {
-      console.error(`[JMAPClient] Connection error to ${directSessionUrl}:`, error);
+      console.error(`[JMAPClient] Connection error to ${resolvedDirectUrl} (original: ${directSessionUrl}):`, error);
       if (error instanceof TypeError && error.message.includes('fetch failed')) {
         const cause = (error as any).cause;
         if (cause) {
@@ -219,8 +286,10 @@ export class JMAPClient {
     const discoveryUrl = `${this.baseUrl}/.well-known/jmap`;
     console.log(`[JMAPClient] Attempting discovery at: ${discoveryUrl}`);
     
+    const resolvedDiscoveryUrl = await this.resolveUrlToIp(discoveryUrl);
+    
     try {
-      const discoveryRes = await fetch(discoveryUrl, {
+      const discoveryRes = await fetch(resolvedDiscoveryUrl, {
         headers: {
           'Accept': 'application/json',
           'Authorization': this.authHeader,
@@ -259,7 +328,8 @@ export class JMAPClient {
       }
       
       console.log(`[JMAPClient] Attempting session request to: ${sessionUrl}`);
-      const sessionRes = await fetch(sessionUrl, {
+      const resolvedSessionUrl = await this.resolveUrlToIp(sessionUrl);
+      const sessionRes = await fetch(resolvedSessionUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -342,7 +412,8 @@ export class JMAPClient {
       methodCalls,
     };
 
-    const response = await fetch(apiUrl, {
+    const resolvedApiUrl = await this.resolveUrlToIp(apiUrl);
+    const response = await fetch(resolvedApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -370,7 +441,8 @@ export class JMAPClient {
       methodCalls,
     };
 
-    const response = await fetch(apiUrl, {
+    const resolvedApiUrl = await this.resolveUrlToIp(apiUrl);
+    const response = await fetch(resolvedApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
