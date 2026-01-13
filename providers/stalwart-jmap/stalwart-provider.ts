@@ -78,44 +78,15 @@ export async function getUserCredentials(accountId: string): Promise<UserCredent
 }
 
 /**
- * Нормализует email из JMAP session и identities.
- * Если creds.email не является email (не содержит '@'), получает полный email из Stalwart.
+ * Проверяет, что email является валидным адресом электронной почты (содержит '@').
+ * Выбрасывает ошибку, если это не email.
  */
-async function normalizeEmailFromSession(
-  client: JMAPClient,
-  accountId: string,
-  creds: UserCredentials
-): Promise<string> {
-  // Если creds.email уже является email, возвращаем его
-  if (creds.email.includes('@')) {
-    return creds.email;
+function validateEmail(email: string, context: string = 'credentials'): void {
+  if (!email || !email.includes('@')) {
+    throw new Error(
+      `Invalid email address in ${context}. Expected full email address (e.g., user@example.com), got: ${email}`
+    );
   }
-
-  try {
-    const session = await client.getSession();
-    const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-
-    // Пробуем получить email из identities
-    try {
-      const identities = await client.getIdentities(actualAccountId);
-      const identity = identities.find((i) => typeof i.email === 'string' && i.email.includes('@'));
-      if (identity?.email) {
-        return identity.email;
-      }
-    } catch {
-      // Игнорируем ошибки получения identities
-    }
-
-    // Пробуем получить email из account.name
-    const account = session.accounts[actualAccountId];
-    if (account?.name && account.name.includes('@')) {
-      return account.name;
-    }
-  } catch {
-    // Если не удалось получить session, возвращаем исходный creds.email
-  }
-
-  return creds.email;
 }
 
 export class StalwartJMAPProvider implements MailProvider {
@@ -125,28 +96,34 @@ export class StalwartJMAPProvider implements MailProvider {
       throw new Error('User credentials not found');
     }
 
-    // Используем creds.email как есть (может быть логином при первой авторизации или email после нормализации)
+    // Проверяем, что creds.email является валидным email адресом
+    validateEmail(creds.email, 'credentials');
+
+    // Используем creds.email (теперь всегда должен быть полным email адресом)
     return new JMAPClient(config.baseUrl, creds.email, creds.password, accountId, config.authMode);
   }
 
   async getAccount(accountId: string): Promise<Account | null> {
     try {
       // Получаем credentials
-      let creds = await getUserCredentials(accountId);
+      const creds = await getUserCredentials(accountId);
       if (!creds) {
         const { logger } = await import('@/lib/logger');
         logger.warn(`No credentials found for accountId: ${accountId}`);
         return null;
       }
 
-      // Создаём client с текущими credentials (может быть логином при первой авторизации)
+      // Проверяем, что creds.email является валидным email адресом
+      validateEmail(creds.email, 'credentials');
+
+      // Создаём client с email адресом
       const client = await this.getClient(accountId);
-      
+
       try {
         const session = await client.getSession();
-        
+
         let account: JMAPAccount | undefined;
-        
+
         if (session.primaryAccounts?.mail) {
           account = session.accounts[session.primaryAccounts.mail];
         } else {
@@ -162,25 +139,8 @@ export class StalwartJMAPProvider implements MailProvider {
           return null;
         }
 
-        // Нормализуем email из session/identities
-        const normalizedEmail = await normalizeEmailFromSession(client, accountId, creds);
-        
-        // Если email был нормализован, обновляем credentials
-        if (normalizedEmail !== creds.email && normalizedEmail.includes('@')) {
-          await setUserCredentials(accountId, normalizedEmail, creds.password);
-          // Обновляем creds в памяти и локально
-          const store = await getCredentialsStore();
-          store.set(accountId, { email: normalizedEmail, password: creds.password });
-          creds = { email: normalizedEmail, password: creds.password };
-        }
-
-        // Используем нормализованный email
-        const email = normalizedEmail.includes('@') ? normalizedEmail : (account.name && account.name.includes('@') ? account.name : creds.email);
-
-        if (!email.includes('@')) {
-          const { logger } = await import('@/lib/logger');
-          logger.warn(`Could not determine email for account ${accountId}. Using login: ${creds.email}`);
-        }
+        // Используем email из credentials (теперь всегда должен быть полным email адресом)
+        const email = creds.email;
 
         return {
           id: account.id || accountId,
@@ -192,8 +152,8 @@ export class StalwartJMAPProvider implements MailProvider {
         const { logger } = await import('@/lib/logger');
         const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
         const errorStack = sessionError instanceof Error ? sessionError.stack : undefined;
-        logger.error(`Failed to get JMAP session for account ${accountId} (login: ${creds.email}):`, errorMessage, errorStack ? `\n${errorStack}` : '');
-        
+        logger.error(`Failed to get JMAP session for account ${accountId} (email: ${creds.email}):`, errorMessage, errorStack ? `\n${errorStack}` : '');
+
         // Пробрасываем ошибку дальше, чтобы вызывающий код мог понять, что произошло
         throw sessionError;
       }
@@ -621,39 +581,20 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   ): Promise<string> {
     try {
-      // Получаем client (он может обновить credentials, если email был нормализован)
-      const client = await this.getClient(accountId);
-
-      // Получаем credentials после getClient, чтобы использовать обновлённые (если они были обновлены)
-      let creds = await getUserCredentials(accountId);
+      // Получаем credentials
+      const creds = await getUserCredentials(accountId);
       if (!creds) {
         throw new Error('User credentials not found');
       }
 
-      // Нормализуем email из session/identities (на случай, если getClient не обновил)
-      const normalizedEmail = await normalizeEmailFromSession(client, accountId, creds);
-      
-      // Если email был нормализован, обновляем credentials
-      if (normalizedEmail !== creds.email && normalizedEmail.includes('@')) {
-        await setUserCredentials(accountId, normalizedEmail, creds.password);
-        // Обновляем creds в памяти и локально
-        const store = await getCredentialsStore();
-        store.set(accountId, { email: normalizedEmail, password: creds.password });
-        creds = { email: normalizedEmail, password: creds.password };
-      }
+      // Проверяем, что creds.email является валидным email адресом
+      validateEmail(creds.email, 'credentials');
 
-      // Используем нормализованный email
-      const fromEmail = normalizedEmail.includes('@') ? normalizedEmail : creds.email;
+      // Получаем client (теперь всегда использует email адрес)
+      const client = await this.getClient(accountId);
 
-      // Проверяем, что email валидный (содержит '@')
-      if (!fromEmail.includes('@')) {
-        throw new Error(
-          `Не удалось определить email для отправки. ` +
-          `В Stalwart у пользователя должен быть настроен email адрес. ` +
-          `Текущий логин: ${creds.email}. ` +
-          `Пожалуйста, убедитесь, что в Stalwart для пользователя настроен email адрес.`
-        );
-      }
+      // Используем email из credentials (теперь всегда должен быть полным email адресом)
+      const fromEmail = creds.email;
 
       const transporter = nodemailer.createTransport({
         host: config.smtpHost,
@@ -706,8 +647,14 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error('User credentials not found');
       }
 
+      // Проверяем, что creds.email является валидным email адресом
+      validateEmail(creds.email, 'credentials');
+
       const account = await this.getAccount(accountId);
       const fromEmail = account?.email || creds.email;
+      
+      // Проверяем, что fromEmail является валидным email адресом
+      validateEmail(fromEmail, 'fromEmail');
       const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
       const to = draft.to?.map((email) => ({ email })) || [];
       const cc = draft.cc?.map((email) => ({ email }));
