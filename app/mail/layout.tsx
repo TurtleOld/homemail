@@ -185,18 +185,62 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   });
 
   useEffect(() => {
-    const eventSource = new EventSource('/api/mail/realtime');
-    eventSource.addEventListener('message.new', () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
-    });
-    eventSource.addEventListener('mailbox.counts', () => {
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
-    });
-    eventSource.addEventListener('message.updated', () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-    });
-    return () => eventSource.close();
+    let eventSource: EventSource | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    const baseReconnectDelay = 1000;
+
+    const connect = () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource('/api/mail/realtime');
+
+      eventSource.addEventListener('connected', () => {
+        reconnectAttempts = 0;
+      });
+
+      eventSource.addEventListener('message.new', () => {
+        queryClient.invalidateQueries({ queryKey: ['messages'] });
+        queryClient.invalidateQueries({ queryKey: ['folders'] });
+      });
+
+      eventSource.addEventListener('mailbox.counts', () => {
+        queryClient.invalidateQueries({ queryKey: ['folders'] });
+      });
+
+      eventSource.addEventListener('message.updated', () => {
+        queryClient.invalidateQueries({ queryKey: ['messages'] });
+      });
+
+      eventSource.addEventListener('ping', () => {
+      });
+
+      eventSource.onerror = () => {
+        if (eventSource?.readyState === EventSource.CLOSED) {
+          if (reconnectAttempts < maxReconnectAttempts) {
+            const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
+            reconnectAttempts++;
+            reconnectTimeout = setTimeout(() => {
+              connect();
+            }, delay);
+          }
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
   }, [queryClient]);
 
   const handleBulkAction = async (action: string) => {
