@@ -34,6 +34,18 @@ const config: StalwartConfig = {
   authMode: (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer') || 'basic',
 };
 
+if (config.baseUrl.includes('://') && !config.baseUrl.includes('localhost') && !config.baseUrl.includes('127.0.0.1')) {
+  try {
+    const url = new URL(config.baseUrl);
+    if (url.hostname.includes('.')) {
+      console.warn(`[StalwartProvider] ⚠ WARNING: STALWART_BASE_URL contains domain name (${url.hostname}) instead of container name!`);
+      console.warn(`[StalwartProvider] ⚠ Domain names resolve to external IPs and won't work for Docker container communication.`);
+      console.warn(`[StalwartProvider] ⚠ Please use container name (e.g., 'stalwart' or 'homemail-stalwart') instead: STALWART_BASE_URL=http://stalwart:8080`);
+    }
+  } catch {
+  }
+}
+
 import { getCredentials, setCredentials as saveCredentials, loadCredentials } from '@/lib/storage';
 
 interface UserCredentials {
