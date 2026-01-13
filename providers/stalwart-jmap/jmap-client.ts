@@ -7,8 +7,24 @@ const resolve4 = promisify(dns.resolve4);
 try {
   dns.setServers(['127.0.0.11', '8.8.8.8']);
   console.log('[JMAPClient] DNS servers configured to use Docker DNS (127.0.0.11)');
+  console.log('[JMAPClient] Active DNS servers:', dns.getServers());
 } catch (error) {
   console.warn('[JMAPClient] Failed to set DNS servers, using system default:', error);
+}
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+try {
+  const resolvConf = fs.readFileSync('/etc/resolv.conf', 'utf-8');
+  console.log('[JMAPClient] /etc/resolv.conf contents:');
+  console.log(resolvConf);
+  if (!resolvConf.includes('127.0.0.11')) {
+    console.warn('[JMAPClient] ⚠ WARNING: /etc/resolv.conf does not contain Docker DNS (127.0.0.11)');
+    console.warn('[JMAPClient] This may cause DNS resolution to use external DNS instead of Docker DNS');
+  }
+} catch (error) {
+  console.warn('[JMAPClient] Could not read /etc/resolv.conf:', error);
 }
 
 interface JMAPSession {
