@@ -128,36 +128,62 @@ export class JMAPClient {
     return this.authHeader;
   }
 
+  private isDockerInternalIp(ip: string): boolean {
+    return ip.startsWith('172.') || 
+           ip.startsWith('10.') || 
+           ip.startsWith('192.168.') ||
+           ip.startsWith('169.254.');
+  }
+
   private async resolveHostnameToIp(hostname: string): Promise<string | null> {
+    console.log(`[JMAPClient] ===== Resolving ${hostname} =====`);
+    console.log(`[JMAPClient] Current DNS servers:`, dns.getServers());
+    
     try {
-      console.log(`[JMAPClient] Resolving hostname ${hostname} using Docker DNS...`);
-      
+      console.log(`[JMAPClient] Attempting resolve4 through Docker DNS...`);
       const ips = await resolve4(hostname);
       if (ips && ips.length > 0) {
-        const ip = ips[0];
-        console.log(`[JMAPClient] Resolved ${hostname} to IP: ${ip}`);
-        
-        if (ip.startsWith('172.') || ip.startsWith('10.') || ip.startsWith('192.168.')) {
-          console.log(`[JMAPClient] ✓ Using Docker internal IP: ${ip}`);
-          return ip;
-        } else {
-          console.warn(`[JMAPClient] ⚠ Resolved to external IP: ${ip}, trying lookup as fallback...`);
+        for (const ip of ips) {
+          console.log(`[JMAPClient] resolve4 result: ${ip}`);
+          if (this.isDockerInternalIp(ip)) {
+            console.log(`[JMAPClient] ✓ Found Docker internal IP via resolve4: ${ip}`);
+            return ip;
+          } else {
+            console.warn(`[JMAPClient] ✗ resolve4 returned external IP: ${ip}`);
+          }
         }
       }
     } catch (resolveError) {
-      console.warn(`[JMAPClient] resolve4 failed for ${hostname}, trying lookup:`, resolveError);
+      console.warn(`[JMAPClient] resolve4 failed for ${hostname}:`, resolveError);
     }
     
     try {
+      console.log(`[JMAPClient] Attempting lookup as fallback...`);
       const addresses = await lookup(hostname, { family: 4, all: true });
       if (addresses && addresses.length > 0) {
-        const ip = addresses[0].address;
-        console.log(`[JMAPClient] Lookup resolved ${hostname} to IP: ${ip}`);
-        return ip;
+        for (const addr of addresses) {
+          const ip = addr.address;
+          console.log(`[JMAPClient] lookup result: ${ip}`);
+          if (this.isDockerInternalIp(ip)) {
+            console.log(`[JMAPClient] ✓ Found Docker internal IP via lookup: ${ip}`);
+            return ip;
+          } else {
+            console.warn(`[JMAPClient] ✗ lookup returned external IP: ${ip}`);
+          }
+        }
       }
     } catch (lookupError) {
-      console.error(`[JMAPClient] Both resolve4 and lookup failed for ${hostname}:`, lookupError);
+      console.error(`[JMAPClient] lookup failed for ${hostname}:`, lookupError);
     }
+    
+    console.error(`[JMAPClient] ===== FAILED: Could not resolve ${hostname} to Docker internal IP =====`);
+    console.error(`[JMAPClient] All DNS resolutions returned external/public IPs or failed`);
+    console.error(`[JMAPClient] This indicates Docker DNS is not working properly`);
+    console.error(`[JMAPClient] Possible solutions:`);
+    console.error(`[JMAPClient] 1. Ensure containers are in the same Docker network`);
+    console.error(`[JMAPClient] 2. Check /etc/resolv.conf in container (should contain 127.0.0.11)`);
+    console.error(`[JMAPClient] 3. Use container IP directly in STALWART_BASE_URL`);
+    console.error(`[JMAPClient] 4. Configure extra_hosts in docker-compose.yml`);
     
     return null;
   }
@@ -168,6 +194,9 @@ export class JMAPClient {
       const hostname = urlObj.hostname;
       
       if (hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+        if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) && !this.isDockerInternalIp(hostname)) {
+          throw new Error(`URL contains external IP address ${hostname}. This will not work for Docker container communication. Please use container hostname or internal IP.`);
+        }
         return url;
       }
       
@@ -175,14 +204,15 @@ export class JMAPClient {
       if (ip) {
         urlObj.hostname = ip;
         const resolvedUrl = urlObj.toString();
-        console.log(`[JMAPClient] Resolved URL: ${url} -> ${resolvedUrl}`);
+        console.log(`[JMAPClient] ✓ Successfully resolved URL: ${url} -> ${resolvedUrl}`);
         return resolvedUrl;
+      } else {
+        throw new Error(`Failed to resolve ${hostname} to Docker internal IP. DNS is resolving to external IP, which indicates Docker DNS is not working. Please check network configuration.`);
       }
     } catch (error) {
       console.error(`[JMAPClient] Error resolving URL ${url}:`, error);
+      throw error;
     }
-    
-    return url;
   }
 
   private normalizeSessionUrls(session: JMAPSession): JMAPSession {
