@@ -746,7 +746,9 @@ export class StalwartJMAPProvider implements MailProvider {
         from,
         to,
         subject: message.subject,
-        keywords: {},
+        keywords: {
+          '$seen': true,
+        },
         bodyStructure: {
           partId: 'body',
           type: 'text/html',
