@@ -996,6 +996,105 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   }
 
+  async createFolder(accountId: string, name: string, parentId?: string): Promise<Folder> {
+    try {
+      const client = await this.getClient(accountId);
+      const session = await client.getSession();
+      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+
+      const response = await client.request([
+        [
+          'Mailbox/set',
+          {
+            accountId: actualAccountId,
+            create: {
+              newFolder: {
+                name,
+                parentId: parentId || null,
+                role: null,
+              },
+            },
+          },
+          '0',
+        ],
+      ]);
+
+      const setResponse = response.methodResponses[0];
+      if (setResponse[0] !== 'Mailbox/set') {
+        throw new Error('Invalid mailbox create response');
+      }
+
+      if ('type' in setResponse[1] && setResponse[1].type === 'error') {
+        const errorDesc = (setResponse[1] as any).description || 'Unknown error';
+        throw new Error(`JMAP mailbox create error: ${errorDesc}`);
+      }
+
+      const data = setResponse[1] as { created?: Record<string, { id: string }> };
+      if (!data.created || Object.keys(data.created).length === 0) {
+        throw new Error('Failed to create mailbox');
+      }
+
+      const mailboxId = Object.values(data.created)[0].id;
+      const mailboxes = await client.getMailboxes(actualAccountId);
+      const newMailbox = mailboxes.find((mb) => mb.id === mailboxId);
+
+      if (!newMailbox) {
+        throw new Error('Created mailbox not found');
+      }
+
+      return {
+        id: newMailbox.id,
+        name: newMailbox.name,
+        role: 'custom',
+        unreadCount: newMailbox.unreadEmails || 0,
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async deleteFolder(accountId: string, folderId: string): Promise<void> {
+    try {
+      const client = await this.getClient(accountId);
+      const session = await client.getSession();
+      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+
+      const mailboxes = await client.getMailboxes(actualAccountId);
+      const folder = mailboxes.find((mb) => mb.id === folderId);
+
+      if (!folder) {
+        throw new Error('Folder not found');
+      }
+
+      if (folder.role && ['inbox', 'sent', 'drafts', 'trash', 'spam', 'junk'].includes(folder.role)) {
+        throw new Error('Cannot delete system folder');
+      }
+
+      const response = await client.request([
+        [
+          'Mailbox/set',
+          {
+            accountId: actualAccountId,
+            destroy: [folderId],
+          },
+          '0',
+        ],
+      ]);
+
+      const setResponse = response.methodResponses[0];
+      if (setResponse[0] !== 'Mailbox/set') {
+        throw new Error('Invalid mailbox delete response');
+      }
+
+      if ('type' in setResponse[1] && setResponse[1].type === 'error') {
+        const errorDesc = (setResponse[1] as any).description || 'Unknown error';
+        throw new Error(`JMAP mailbox delete error: ${errorDesc}`);
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
   subscribeToUpdates(
     accountId: string,
     callback: (event: { type: string; data: any }) => void

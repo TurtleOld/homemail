@@ -76,6 +76,14 @@ export class ImapMailProvider implements MailProvider {
     throw new Error('IMAP provider not implemented');
   }
 
+  async createFolder(accountId: string, name: string, parentId?: string): Promise<Folder> {
+    throw new Error('IMAP provider not implemented');
+  }
+
+  async deleteFolder(accountId: string, folderId: string): Promise<void> {
+    throw new Error('IMAP provider not implemented');
+  }
+
   subscribeToUpdates(
     accountId: string,
     callback: (event: { type: string; data: any }) => void

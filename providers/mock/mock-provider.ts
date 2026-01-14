@@ -478,6 +478,58 @@ export class MockMailProvider implements MailProvider {
       data: {},
     });
   }
+
+  async createFolder(accountId: string, name: string, parentId?: string): Promise<Folder> {
+    const folders = MOCK_FOLDERS.get(accountId) || [];
+    const folderId = `custom_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    
+    const newFolder: Folder = {
+      id: folderId,
+      name,
+      role: 'custom',
+      unreadCount: 0,
+    };
+
+    folders.push(newFolder);
+    MOCK_FOLDERS.set(accountId, folders);
+
+    this.notifySubscribers(accountId, {
+      type: 'mailbox.counts',
+      data: {},
+    });
+
+    return newFolder;
+  }
+
+  async deleteFolder(accountId: string, folderId: string): Promise<void> {
+    const folders = MOCK_FOLDERS.get(accountId) || [];
+    const folder = folders.find((f) => f.id === folderId);
+
+    if (!folder) {
+      throw new Error('Folder not found');
+    }
+
+    if (folder.role !== 'custom') {
+      throw new Error('Cannot delete system folder');
+    }
+
+    const updatedFolders = folders.filter((f) => f.id !== folderId);
+    MOCK_FOLDERS.set(accountId, updatedFolders);
+
+    const messageMap = MOCK_MESSAGES.get(accountId);
+    if (messageMap) {
+      for (const [messageId, message] of messageMap.entries()) {
+        if (messageId.startsWith(`${folderId}_`)) {
+          messageMap.delete(messageId);
+        }
+      }
+    }
+
+    this.notifySubscribers(accountId, {
+      type: 'mailbox.counts',
+      data: {},
+    });
+  }
 }
 
 export function getMockProvider(): MockMailProvider {
