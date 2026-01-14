@@ -32,13 +32,18 @@ export function MessageViewer({
   const queryClient = useQueryClient();
   const markedAsReadRef = useRef<Set<string>>(new Set());
 
+
   const sanitizedHtml = useMemo(() => {
     if (!message) return '';
-    if (message.body.html) {
-      return sanitizeHtml(message.body.html, allowRemoteImages);
+    
+    const htmlBody = message.body?.html;
+    const textBody = message.body?.text;
+    
+    if (htmlBody && typeof htmlBody === 'string' && htmlBody.trim().length > 0) {
+      return sanitizeHtml(htmlBody, allowRemoteImages);
     }
-    if (message.body.text) {
-      const escaped = message.body.text
+    if (textBody && typeof textBody === 'string' && textBody.trim().length > 0) {
+      const escaped = textBody
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -47,6 +52,7 @@ export function MessageViewer({
         .replace(/\n/g, '<br>');
       return `<p>${escaped}</p>`;
     }
+    
     return '';
   }, [message, allowRemoteImages]);
 

@@ -15,4 +15,9 @@ export const logger = {
   info: (...args: any[]) => {
     console.info(`[${getTimestamp()}]`, ...args);
   },
+  debug: (...args: any[]) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') {
+      console.log(`[${getTimestamp()}] [DEBUG]`, ...args);
+    }
+  },
 };

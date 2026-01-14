@@ -368,6 +368,15 @@ export class StalwartJMAPProvider implements MailProvider {
           'hasAttachment',
           'size',
         ],
+        fetchTextBodyValues: true,
+        fetchHTMLBodyValues: true,
+      });
+      
+      logger.info('Email fetched from JMAP', {
+        messageId,
+        emailsCount: emails.length,
+        hasBodyValues: emails[0]?.bodyValues ? Object.keys(emails[0].bodyValues).length : 0,
+        hasBodyStructure: !!emails[0]?.bodyStructure,
       });
 
       if (emails.length === 0) {
@@ -401,14 +410,103 @@ export class StalwartJMAPProvider implements MailProvider {
       let textBody: string | undefined;
       let htmlBody: string | undefined;
 
-      if (email.bodyValues) {
-        for (const [partId, bodyValue] of Object.entries(email.bodyValues)) {
-          const value = bodyValue as { value: string; isEncodingProblem?: boolean; isTruncated?: boolean };
-          if (email.textBody?.some((tb) => tb.partId === partId)) {
-            textBody = value.value;
+      if (email.bodyValues && Object.keys(email.bodyValues).length > 0) {
+        const hasTextBodyParts = email.textBody && email.textBody.length > 0;
+        const hasHtmlBodyParts = email.htmlBody && email.htmlBody.length > 0;
+
+        if (hasTextBodyParts || hasHtmlBodyParts) {
+          for (const [partId, bodyValue] of Object.entries(email.bodyValues)) {
+            const value = bodyValue as { value: string; isEncodingProblem?: boolean; isTruncated?: boolean };
+            if (value.value) {
+              if (hasTextBodyParts && email.textBody?.some((tb) => tb.partId === partId)) {
+                textBody = value.value;
+              }
+              if (hasHtmlBodyParts && email.htmlBody?.some((hb) => hb.partId === partId)) {
+                htmlBody = value.value;
+              }
+            }
           }
-          if (email.htmlBody?.some((hb) => hb.partId === partId)) {
-            htmlBody = value.value;
+        }
+
+        if (!textBody && !htmlBody) {
+          for (const bodyValue of Object.values(email.bodyValues)) {
+            const value = bodyValue as { value: string; isEncodingProblem?: boolean; isTruncated?: boolean };
+            if (value?.value && value.value.trim().length > 0) {
+              const content = value.value.trim();
+              const looksLikeHtml = content.startsWith('<') && (content.includes('<html') || content.includes('<body') || content.includes('<div') || content.includes('<p'));
+              
+              if (looksLikeHtml && !htmlBody) {
+                htmlBody = value.value;
+              } else if (!looksLikeHtml && !textBody) {
+                textBody = value.value;
+              }
+            }
+          }
+        }
+      }
+
+      if ((!textBody || !htmlBody) && email.bodyStructure) {
+        const extractBodyFromStructure = (part: any, targetType: 'text' | 'html'): string | undefined => {
+          if (!part) return undefined;
+
+          const partType = part.type || '';
+          if (partType.includes('text/plain') && targetType === 'text' && part.blobId) {
+            return part.blobId;
+          }
+          if (partType.includes('text/html') && targetType === 'html' && part.blobId) {
+            return part.blobId;
+          }
+
+          if (part.subParts && Array.isArray(part.subParts)) {
+            for (const subPart of part.subParts) {
+              const result = extractBodyFromStructure(subPart, targetType);
+              if (result) return result;
+            }
+          }
+
+          if (part.parts && Array.isArray(part.parts)) {
+            for (const subPart of part.parts) {
+              const result = extractBodyFromStructure(subPart, targetType);
+              if (result) return result;
+            }
+          }
+
+          return undefined;
+        };
+
+        if (!textBody) {
+          const textBlobId = extractBodyFromStructure(email.bodyStructure, 'text');
+          if (textBlobId && typeof textBlobId === 'string') {
+            try {
+              const downloadUrl = await client.getBlobDownloadUrl(textBlobId, actualAccountId);
+              const response = await fetch(downloadUrl, {
+                headers: {
+                  'Authorization': client.getAuthHeader(),
+                },
+              });
+              if (response.ok) {
+                textBody = await response.text();
+              }
+            } catch {
+            }
+          }
+        }
+
+        if (!htmlBody) {
+          const htmlBlobId = extractBodyFromStructure(email.bodyStructure, 'html');
+          if (htmlBlobId && typeof htmlBlobId === 'string') {
+            try {
+              const downloadUrl = await client.getBlobDownloadUrl(htmlBlobId, actualAccountId);
+              const response = await fetch(downloadUrl, {
+                headers: {
+                  'Authorization': client.getAuthHeader(),
+                },
+              });
+              if (response.ok) {
+                htmlBody = await response.text();
+              }
+            } catch {
+            }
           }
         }
       }

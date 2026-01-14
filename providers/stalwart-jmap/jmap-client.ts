@@ -652,36 +652,47 @@ export class JMAPClient {
     options?: {
       accountId?: string;
       properties?: string[];
+      fetchTextBodyValues?: boolean;
+      fetchHTMLBodyValues?: boolean;
     }
   ): Promise<JMAPEmail[]> {
     const targetAccountId = options?.accountId || this.accountId;
     const properties = options?.properties;
+    const requestBody: any = {
+      accountId: targetAccountId,
+      ids,
+      properties: properties || [
+        'id',
+        'threadId',
+        'mailboxIds',
+        'keywords',
+        'size',
+        'receivedAt',
+        'hasAttachment',
+        'preview',
+        'subject',
+        'from',
+        'to',
+        'cc',
+        'bcc',
+        'bodyStructure',
+        'bodyValues',
+        'textBody',
+        'htmlBody',
+      ],
+    };
+
+    if (options?.fetchTextBodyValues !== undefined) {
+      requestBody.fetchTextBodyValues = options.fetchTextBodyValues;
+    }
+    if (options?.fetchHTMLBodyValues !== undefined) {
+      requestBody.fetchHTMLBodyValues = options.fetchHTMLBodyValues;
+    }
+
     const response = await this.request([
       [
         'Email/get',
-        {
-          accountId: targetAccountId,
-          ids,
-          properties: properties || [
-            'id',
-            'threadId',
-            'mailboxIds',
-            'keywords',
-            'size',
-            'receivedAt',
-            'hasAttachment',
-            'preview',
-            'subject',
-            'from',
-            'to',
-            'cc',
-            'bcc',
-            'bodyStructure',
-            'bodyValues',
-            'textBody',
-            'htmlBody',
-          ],
-        },
+        requestBody,
         '0',
       ],
     ]);
