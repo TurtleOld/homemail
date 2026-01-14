@@ -8,7 +8,6 @@ import type {
   Attachment,
 } from '@/lib/types';
 import { JMAPClient } from './jmap-client';
-import * as nodemailer from 'nodemailer';
 
 interface JMAPAccount {
   id: string;
@@ -701,50 +700,107 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   ): Promise<string> {
     try {
-      // Получаем credentials
       const creds = await getUserCredentials(accountId);
       if (!creds) {
         throw new Error('User credentials not found');
       }
 
-      // Проверяем, что creds.email является валидным email адресом
       validateEmail(creds.email, 'credentials');
 
-      // Получаем client (теперь всегда использует email адрес)
       const client = await this.getClient(accountId);
+      const session = await client.getSession();
+      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      
+      const mailboxes = await client.getMailboxes(actualAccountId);
+      const sentMailbox = mailboxes.find((mb) => mb.role === 'sent');
+      
+      if (!sentMailbox) {
+        throw new Error('Sent mailbox not found');
+      }
 
-      // Используем email из credentials (теперь всегда должен быть полным email адресом)
-      const fromEmail = creds.email;
+      const account = await this.getAccount(accountId);
+      const fromEmail = account?.email || creds.email;
+      validateEmail(fromEmail, 'fromEmail');
 
-      const transporter = nodemailer.createTransport({
-        host: config.smtpHost,
-        port: config.smtpPort,
-        secure: config.smtpSecure,
-        auth: {
-          user: fromEmail,
-          pass: creds.password,
-        },
-        tls: {
-          rejectUnauthorized: false,
-        },
-      });
+      const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
+      const to = message.to.map((email) => ({ email }));
+      const cc = message.cc?.map((email) => ({ email }));
+      const bcc = message.bcc?.map((email) => ({ email }));
 
-      const mailOptions = {
-        from: fromEmail,
-        to: message.to.join(', '),
-        cc: message.cc?.join(', '),
-        bcc: message.bcc?.join(', '),
+      const emailAttachments: Array<{ blobId: string; type: string; name: string; size: number }> = [];
+      
+      if (message.attachments && message.attachments.length > 0) {
+        for (const att of message.attachments) {
+          const blobId = await client.uploadBlob(att.data, actualAccountId, att.mime);
+          emailAttachments.push({
+            blobId,
+            type: att.mime,
+            name: att.filename,
+            size: att.data.length,
+          });
+        }
+      }
+
+      const emailBody: any = {
+        mailboxIds: { [sentMailbox.id]: true },
+        from,
+        to,
         subject: message.subject,
-        html: message.html,
-        attachments: message.attachments?.map((att) => ({
-          filename: att.filename,
-          content: att.data,
-          contentType: att.mime,
-        })),
+        keywords: {},
+        bodyStructure: {
+          partId: 'body',
+          type: 'text/html',
+        },
+        bodyValues: {
+          body: {
+            value: message.html,
+          },
+        },
       };
 
-      const info = await transporter.sendMail(mailOptions);
-      return info.messageId || `sent_${Date.now()}`;
+      if (cc && cc.length > 0) {
+        emailBody.cc = cc;
+      }
+      if (bcc && bcc.length > 0) {
+        emailBody.bcc = bcc;
+      }
+
+      if (emailAttachments.length > 0) {
+        emailBody.attachments = emailAttachments;
+      }
+
+      const response = await client.request([
+        [
+          'Email/set',
+          {
+            accountId: actualAccountId,
+            create: {
+              message1: emailBody,
+            },
+          },
+          '0',
+        ],
+      ]);
+
+      const setResponse = response.methodResponses[0];
+      if (setResponse[0] !== 'Email/set') {
+        throw new Error('Invalid email create response');
+      }
+
+      if ('type' in setResponse[1] && setResponse[1].type === 'error') {
+        const errorDesc = (setResponse[1] as any).description || 'Unknown error';
+        throw new Error(`JMAP email create error: ${errorDesc}`);
+      }
+
+      const data = setResponse[1] as { created?: Record<string, { id: string }> };
+      if (!data.created || Object.keys(data.created).length === 0) {
+        throw new Error('Failed to create email');
+      }
+
+      const emailId = Object.values(data.created)[0].id;
+      const submissionId = await client.sendEmail(emailId, actualAccountId);
+
+      return emailId;
     } catch (error) {
       throw error;
     }

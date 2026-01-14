@@ -800,4 +800,95 @@ export class JMAPClient {
       .replace('{blobId}', blobId)
       .replace('{name}', name || 'attachment');
   }
+
+  async uploadBlob(blob: Buffer, accountId?: string, contentType?: string): Promise<string> {
+    const targetAccountId = accountId || this.accountId;
+    const session = await this.getSession();
+    const uploadUrl = session.uploadUrl || `${this.baseUrl}/upload/{accountId}`;
+    const resolvedUploadUrl = uploadUrl.replace('{accountId}', targetAccountId);
+    
+    const resolvedUrl = await this.resolveUrlToIp(resolvedUploadUrl);
+    const headers: Record<string, string> = {
+      'Authorization': this.authHeader,
+    };
+    
+    if (contentType) {
+      headers['Content-Type'] = contentType;
+    } else {
+      headers['Content-Type'] = 'application/octet-stream';
+    }
+    
+    const response = await fetch(resolvedUrl, {
+      method: 'POST',
+      headers,
+      body: blob,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`Blob upload failed: ${response.statusText} - ${errorText}`);
+    }
+
+    const uploadData = await response.json();
+    if (!uploadData || !uploadData.blobId) {
+      throw new Error('Invalid blob upload response');
+    }
+
+    return uploadData.blobId;
+  }
+
+  async sendEmail(
+    emailId: string,
+    accountId?: string,
+    identityId?: string
+  ): Promise<string> {
+    const targetAccountId = accountId || this.accountId;
+    const session = await this.getSession();
+    
+    let actualIdentityId = identityId;
+    if (!actualIdentityId) {
+      const identities = await this.getIdentities(targetAccountId);
+      if (identities.length === 0) {
+        throw new Error('No identity found for account');
+      }
+      actualIdentityId = identities[0].id;
+    }
+
+    const response = await this.requestWithUsing(
+      [
+        [
+          'EmailSubmission/set',
+          {
+            accountId: targetAccountId,
+            create: {
+              submission1: {
+                emailId,
+                identityId: actualIdentityId,
+                envelope: null,
+              },
+            },
+          },
+          '0',
+        ],
+      ],
+      ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'urn:ietf:params:jmap:submission']
+    );
+
+    const submissionResponse = response.methodResponses[0];
+    if (submissionResponse[0] !== 'EmailSubmission/set') {
+      throw new Error('Invalid email submission response');
+    }
+
+    if ('type' in submissionResponse[1] && submissionResponse[1].type === 'error') {
+      const errorDesc = (submissionResponse[1] as any).description || 'Unknown error';
+      throw new Error(`JMAP email submission error: ${errorDesc}`);
+    }
+
+    const data = submissionResponse[1] as { created?: Record<string, { id: string }> };
+    if (!data.created || Object.keys(data.created).length === 0) {
+      throw new Error('Failed to create email submission');
+    }
+
+    return Object.values(data.created)[0].id;
+  }
 }
