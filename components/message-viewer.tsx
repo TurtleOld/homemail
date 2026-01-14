@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import type { MessageDetail } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitize';
@@ -31,7 +31,22 @@ export function MessageViewer({
 }: MessageViewerProps) {
   const queryClient = useQueryClient();
   const markedAsReadRef = useRef<Set<string>>(new Set());
+  const [localAllowImages, setLocalAllowImages] = useState(false);
 
+  useEffect(() => {
+    if (message) {
+      setLocalAllowImages(false);
+    }
+  }, [message?.id]);
+
+  const hasRemoteImages = useMemo(() => {
+    if (!message) return false;
+    const htmlBody = message.body?.html;
+    if (!htmlBody || typeof htmlBody !== 'string') return false;
+    return /<img[^>]+src=["'](https?:\/\/[^"']+)["'][^>]*>/gi.test(htmlBody);
+  }, [message]);
+
+  const effectiveAllowImages = allowRemoteImages || localAllowImages;
 
   const sanitizedHtml = useMemo(() => {
     if (!message) return '';
@@ -40,7 +55,7 @@ export function MessageViewer({
     const textBody = message.body?.text;
     
     if (htmlBody && typeof htmlBody === 'string' && htmlBody.trim().length > 0) {
-      return sanitizeHtml(htmlBody, allowRemoteImages);
+      return sanitizeHtml(htmlBody, effectiveAllowImages);
     }
     if (textBody && typeof textBody === 'string' && textBody.trim().length > 0) {
       const escaped = textBody
@@ -54,7 +69,7 @@ export function MessageViewer({
     }
     
     return '';
-  }, [message, allowRemoteImages]);
+  }, [message, effectiveAllowImages]);
 
   const iframeSrcDoc = useMemo(() => {
     if (!sanitizedHtml) return '';
@@ -121,6 +136,7 @@ export function MessageViewer({
       });
       onStar?.(newStarred);
       queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['message', message.id] });
     } catch (error) {
       console.error('Failed to update star:', error);
     }
@@ -206,6 +222,18 @@ export function MessageViewer({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+        {hasRemoteImages && !effectiveAllowImages && (
+          <div className="border-b bg-muted/30 p-4 flex-shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocalAllowImages(true)}
+              className="w-full"
+            >
+              Изображения по умолчанию не отображаются. Нажмите здесь, чтобы их загрузить
+            </Button>
           </div>
         )}
         {iframeSrcDoc ? (
