@@ -821,7 +821,7 @@ export class JMAPClient {
     const response = await fetch(resolvedUrl, {
       method: 'POST',
       headers,
-      body: blob,
+      body: new Uint8Array(blob),
     });
 
     if (!response.ok) {
