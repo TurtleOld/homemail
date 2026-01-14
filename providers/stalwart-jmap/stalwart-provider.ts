@@ -371,13 +371,6 @@ export class StalwartJMAPProvider implements MailProvider {
         fetchTextBodyValues: true,
         fetchHTMLBodyValues: true,
       });
-      
-      logger.info('Email fetched from JMAP', {
-        messageId,
-        emailsCount: emails.length,
-        hasBodyValues: emails[0]?.bodyValues ? Object.keys(emails[0].bodyValues).length : 0,
-        hasBodyStructure: !!emails[0]?.bodyStructure,
-      });
 
       if (emails.length === 0) {
         return null;
