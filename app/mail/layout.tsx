@@ -590,7 +590,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               isMobile={isMobile}
               onClose={() => setSidebarOpen(false)}
             />
-          </div>
+            </div>
+          </>
         )}
         {isMobile && selectedMessageId ? null : (
           <div className={`
