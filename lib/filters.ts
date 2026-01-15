@@ -1,66 +1,4 @@
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import type { FilterRule, FilterGroup, FilterCondition, MessageListItem } from '@/lib/types';
-import { logger } from '@/lib/logger';
-
-const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : process.cwd());
-const FILTERS_FILE = path.join(DATA_DIR, '.filters.json');
-const filtersStore = new Map<string, FilterRule[]>();
-let isLoaded = false;
-
-async function loadFilters(): Promise<void> {
-  if (isLoaded) {
-    return;
-  }
-  isLoaded = true;
-
-  try {
-    const data = await fs.readFile(FILTERS_FILE, 'utf-8');
-    const trimmed = data.trim();
-    if (!trimmed) {
-      return;
-    }
-    const parsed = JSON.parse(trimmed) as Record<string, FilterRule[]>;
-    for (const [accountId, rules] of Object.entries(parsed)) {
-      filtersStore.set(accountId, Array.isArray(rules) ? rules : []);
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.error('Failed to load filters:', error);
-    }
-  }
-}
-
-async function saveFilters(): Promise<void> {
-  try {
-    const data = Object.fromEntries(filtersStore);
-    await fs.writeFile(FILTERS_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (error) {
-    logger.error('Failed to save filters:', error);
-  }
-}
-
-export async function getFilterRules(accountId: string): Promise<FilterRule[]> {
-  await loadFilters();
-  return filtersStore.get(accountId) || [];
-}
-
-export async function saveFilterRule(accountId: string, rule: FilterRule): Promise<void> {
-  await loadFilters();
-  const existing = filtersStore.get(accountId) || [];
-  const next = existing.filter((item) => item.id !== rule.id);
-  next.push(rule);
-  filtersStore.set(accountId, next);
-  await saveFilters();
-}
-
-export async function deleteFilterRule(accountId: string, ruleId: string): Promise<void> {
-  await loadFilters();
-  const existing = filtersStore.get(accountId) || [];
-  const next = existing.filter((item) => item.id !== ruleId);
-  filtersStore.set(accountId, next);
-  await saveFilters();
-}
+import type { FilterGroup, FilterCondition, MessageListItem, AutoSortRule } from '@/lib/types';
 
 function normalizeValue(value: string, caseSensitive?: boolean): string {
   return caseSensitive ? value : value.toLowerCase();
@@ -120,20 +58,22 @@ function matchPattern(text: string, pattern: string, caseSensitive?: boolean): b
 function matchCondition(message: MessageListItem, condition: FilterCondition): boolean {
   const { field, operator, value, caseSensitive } = condition;
 
-  if (field === 'hasAttachments' || field === 'unread' || field === 'starred') {
+  if (field === 'status') {
     const expected = toBoolean(value);
     if (expected === null) {
       return false;
     }
-    let actual = false;
-    if (field === 'hasAttachments') {
-      actual = message.flags.hasAttachments;
-    } else if (field === 'unread') {
-      actual = message.flags.unread;
-    } else {
-      actual = message.flags.starred;
+    if (typeof value === 'string') {
+      const normalized = value.toLowerCase();
+      if (normalized === 'unread' || normalized === 'read') {
+        const isUnread = normalized === 'unread';
+        return message.flags.unread === isUnread;
+      }
+      if (normalized === 'starred' || normalized === 'important') {
+        return message.flags.starred === true;
+      }
     }
-    return actual === expected;
+    return false;
   }
 
   if (field === 'size') {
@@ -141,11 +81,17 @@ function matchCondition(message: MessageListItem, condition: FilterCondition): b
     if (expected === null) {
       return false;
     }
-    if (operator === 'greaterThan') {
+    if (operator === 'gt') {
       return message.size > expected;
     }
-    if (operator === 'lessThan') {
+    if (operator === 'gte') {
+      return message.size >= expected;
+    }
+    if (operator === 'lt') {
       return message.size < expected;
+    }
+    if (operator === 'lte') {
+      return message.size <= expected;
     }
     if (operator === 'equals') {
       return message.size === expected;
@@ -160,32 +106,54 @@ function matchCondition(message: MessageListItem, condition: FilterCondition): b
     }
     const timestamp = message.date.getTime();
     const expectedTimestamp = expected.getTime();
-    if (operator === 'before') {
+    if (operator === 'lt') {
       return timestamp < expectedTimestamp;
     }
-    if (operator === 'after') {
+    if (operator === 'gt') {
       return timestamp > expectedTimestamp;
     }
     if (operator === 'equals') {
       return timestamp === expectedTimestamp;
     }
+    if (operator === 'between' && typeof value === 'object' && 'from' in value && 'to' in value) {
+      const from = toDate(value.from);
+      const to = toDate(value.to);
+      if (from && to) {
+        return timestamp >= from.getTime() && timestamp <= to.getTime();
+      }
+    }
     return false;
   }
 
-  if (typeof value !== 'string') {
+  if (typeof value !== 'string' && !Array.isArray(value)) {
     return false;
   }
 
   const target = field === 'subject'
     ? message.subject || ''
-    : field === 'snippet'
-      ? message.snippet || ''
-      : field === 'text'
-        ? `${message.from.name || ''} ${message.from.email || ''} ${message.subject || ''} ${message.snippet || ''}`
-        : message.from.email || '';
+    : field === 'body'
+      ? `${message.from.name || ''} ${message.from.email || ''} ${message.subject || ''} ${message.snippet || ''}`
+      : message.from.email || '';
   const candidates = field === 'from'
     ? [message.from.email || '', message.from.name || ''].filter(Boolean)
     : [target];
+
+  if (Array.isArray(value)) {
+    return candidates.some((text) => {
+      const normalizedText = normalizeValue(text, caseSensitive);
+      return value.some((v) => {
+        if (typeof v !== 'string') return false;
+        const normalizedValue = normalizeValue(v, caseSensitive);
+        if (operator === 'in') {
+          return normalizedText.includes(normalizedValue) || normalizedValue.includes(normalizedText);
+        }
+        if (operator === 'notIn') {
+          return !normalizedText.includes(normalizedValue) && !normalizedValue.includes(normalizedText);
+        }
+        return false;
+      });
+    });
+  }
 
   return candidates.some((text) => {
     const normalizedText = normalizeValue(text, caseSensitive);
@@ -196,36 +164,61 @@ function matchCondition(message: MessageListItem, condition: FilterCondition): b
     if (operator === 'equals') {
       return normalizedText === normalizedValue;
     }
-    return matchPattern(text, value, caseSensitive);
+    if (operator === 'startsWith') {
+      return normalizedText.startsWith(normalizedValue);
+    }
+    if (operator === 'endsWith') {
+      return normalizedText.endsWith(normalizedValue);
+    }
+    if (operator === 'matches') {
+      return matchPattern(text, value, caseSensitive);
+    }
+    return false;
   });
 }
 
 export function matchFilterGroup(message: MessageListItem, group: FilterGroup): boolean {
   if (!group.conditions || group.conditions.length === 0) {
+    if (!group.groups || group.groups.length === 0) {
+      return false;
+    }
+  }
+
+  const conditionResults = (group.conditions || []).map((condition) => matchCondition(message, condition));
+  const groupResults = (group.groups || []).map((subGroup) => matchFilterGroup(message, subGroup));
+  const allResults = [...conditionResults, ...groupResults];
+
+  if (allResults.length === 0) {
     return false;
   }
 
-  const results = group.conditions.map((condition) => matchCondition(message, condition));
-  return group.logic === 'OR' ? results.some(Boolean) : results.every(Boolean);
+  return group.logic === 'OR' ? allResults.some(Boolean) : allResults.every(Boolean);
 }
 
 export function applyRulesToMessages(
   messages: MessageListItem[],
-  rules: FilterRule[],
+  rules: AutoSortRule[],
   sourceFolderId?: string
 ): { remaining: MessageListItem[]; moves: Record<string, string[]>; total: number; applied: number } {
   const moves: Record<string, string[]> = {};
   const remaining: MessageListItem[] = [];
   let applied = 0;
 
+  const enabledRules = rules.filter((rule) => rule.enabled);
+
   for (const message of messages) {
-    const matchedRule = rules.find((rule) => matchFilterGroup(message, rule.filterGroup));
-    if (matchedRule?.folderId && matchedRule.folderId !== sourceFolderId) {
-      if (!moves[matchedRule.folderId]) {
-        moves[matchedRule.folderId] = [];
+    const matchedRule = enabledRules.find((rule) => matchFilterGroup(message, rule.filterGroup));
+    if (matchedRule) {
+      const moveAction = matchedRule.actions.find((action) => action.type === 'moveToFolder');
+      if (moveAction && moveAction.type === 'moveToFolder' && moveAction.folderId !== sourceFolderId) {
+        if (!moves[moveAction.folderId]) {
+          moves[moveAction.folderId] = [];
+        }
+        moves[moveAction.folderId].push(message.id);
+        applied += 1;
+      } else {
+        remaining.push(message);
       }
-      moves[matchedRule.folderId].push(message.id);
-      applied += 1;
     } else {
       remaining.push(message);
     }
