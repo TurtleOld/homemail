@@ -37,6 +37,12 @@ interface ServerStatus {
   updatedAt: string;
 }
 
+interface StatusItem {
+  label: string;
+  status: ServiceStatus;
+  value?: string;
+}
+
 const folderIcons: Record<string, React.ReactNode> = {
   inbox: <Inbox className="h-4 w-4" />,
   sent: <Send className="h-4 w-4" />,
@@ -70,7 +76,7 @@ export function Sidebar({
     refetchInterval: 30000,
   });
 
-  const statusItems = useMemo(() => {
+  const statusItems = useMemo<StatusItem[]>(() => {
     if (!serverStatus) {
       return [];
     }
@@ -79,12 +85,12 @@ export function Sidebar({
       { label: 'IMAP/JMAP', status: serverStatus.imapJmap },
       {
         label: 'Очередь',
-        status: serverStatus.queueSize === null ? 'unknown' : serverStatus.queueSize > 0 ? 'down' : 'up',
+        status: (serverStatus.queueSize === null ? 'unknown' : serverStatus.queueSize > 0 ? 'down' : 'up') as ServiceStatus,
         value: serverStatus.queueSize === null ? 'н/д' : serverStatus.queueSize.toString(),
       },
       {
         label: 'Ошибки',
-        status: serverStatus.deliveryErrors === null ? 'unknown' : serverStatus.deliveryErrors > 0 ? 'down' : 'up',
+        status: (serverStatus.deliveryErrors === null ? 'unknown' : serverStatus.deliveryErrors > 0 ? 'down' : 'up') as ServiceStatus,
         value: serverStatus.deliveryErrors === null ? 'н/д' : serverStatus.deliveryErrors.toString(),
       },
     ];
