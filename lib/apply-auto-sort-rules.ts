@@ -9,11 +9,20 @@ export async function checkMessageMatchesRule(
   folderId: string
 ): Promise<boolean> {
   if (!rule.enabled) {
+    console.error('[apply-auto-sort-rules] Rule disabled:', rule.name);
     return false;
   }
 
+  console.error('[apply-auto-sort-rules] Starting rule check:', {
+    ruleName: rule.name,
+    messageId: message.id,
+    from: 'from' in message ? message.from.email : 'N/A',
+    filterGroup: JSON.stringify(rule.filterGroup),
+  });
+
   const matches = checkMessageMatchesFilterGroup(message, rule.filterGroup, provider, accountId, folderId);
-  console.error('[apply-auto-sort-rules] Rule check:', {
+  
+  console.error('[apply-auto-sort-rules] Rule check result:', {
     ruleName: rule.name,
     messageId: message.id,
     from: 'from' in message ? message.from.email : 'N/A',
@@ -62,8 +71,22 @@ function checkMessageMatchesCondition(
 
   switch (field) {
     case 'from':
-      return checkStringMatch(message.from.email, operator, value as string) ||
-        checkStringMatch(message.from.name || '', operator, value as string);
+      const fromEmail = message.from.email;
+      const fromName = message.from.name || '';
+      const emailMatch = checkStringMatch(fromEmail, operator, value as string);
+      const nameMatch = checkStringMatch(fromName, operator, value as string);
+      const result = emailMatch || nameMatch;
+      console.error('[apply-auto-sort-rules] Checking from condition:', {
+        field,
+        operator,
+        value,
+        fromEmail,
+        fromName,
+        emailMatch,
+        nameMatch,
+        result,
+      });
+      return result;
     case 'to':
       if ('to' in message) {
         return message.to.some((t) =>

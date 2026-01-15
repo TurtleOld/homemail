@@ -48,13 +48,29 @@ export async function POST(request: NextRequest) {
       ? getMailProviderForAccount(session.accountId)
       : getMailProvider();
 
-    const targetFolderId = folderId || 'inbox';
+    let targetFolderId = folderId || 'inbox';
+    
+    if (targetFolderId === 'inbox' || targetFolderId === 'sent' || targetFolderId === 'drafts' || targetFolderId === 'trash' || targetFolderId === 'spam') {
+      const folders = await provider.getFolders(session.accountId);
+      const targetFolder = folders.find((f) => f.role === targetFolderId);
+      if (targetFolder) {
+        targetFolderId = targetFolder.id;
+        console.error('[filter-rules/apply] Resolved folder role to ID:', {
+          role: folderId || 'inbox',
+          id: targetFolderId,
+        });
+      } else {
+        console.error('[filter-rules/apply] Warning: Could not find folder with role:', targetFolderId);
+      }
+    }
     
     console.error('[filter-rules/apply] Starting rule application:', {
       ruleId,
       ruleName: rule.name,
+      originalFolderId: folderId,
       targetFolderId,
       limit,
+      filterGroup: JSON.stringify(rule.filterGroup),
     });
     
     const result = await provider.getMessages(session.accountId, targetFolderId, {
