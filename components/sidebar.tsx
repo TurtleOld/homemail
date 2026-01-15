@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { Folder, Account } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,9 +12,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, Search, MailPlus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
 
 interface SidebarProps {
   folders: Folder[];
@@ -24,6 +25,16 @@ interface SidebarProps {
   onCompose: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+}
+
+type ServiceStatus = 'up' | 'down' | 'unknown';
+
+interface ServerStatus {
+  smtp: ServiceStatus;
+  imapJmap: ServiceStatus;
+  queueSize: number | null;
+  deliveryErrors: number | null;
+  updatedAt: string;
 }
 
 const folderIcons: Record<string, React.ReactNode> = {
@@ -46,19 +57,55 @@ export function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { data: serverStatus, isLoading: isStatusLoading } = useQuery<ServerStatus>({
+    queryKey: ['server-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/mail/status');
+      if (!res.ok) {
+        throw new Error('Failed to load server status');
+      }
+      return res.json();
+    },
+    staleTime: 15000,
+    refetchInterval: 30000,
+  });
+
+  const statusItems = useMemo(() => {
+    if (!serverStatus) {
+      return [];
+    }
+    return [
+      { label: 'SMTP', status: serverStatus.smtp },
+      { label: 'IMAP/JMAP', status: serverStatus.imapJmap },
+      {
+        label: 'Очередь',
+        status: serverStatus.queueSize === null ? 'unknown' : serverStatus.queueSize > 0 ? 'down' : 'up',
+        value: serverStatus.queueSize === null ? 'н/д' : serverStatus.queueSize.toString(),
+      },
+      {
+        label: 'Ошибки',
+        status: serverStatus.deliveryErrors === null ? 'unknown' : serverStatus.deliveryErrors > 0 ? 'down' : 'up',
+        value: serverStatus.deliveryErrors === null ? 'н/д' : serverStatus.deliveryErrors.toString(),
+      },
+    ];
+  }, [serverStatus]);
+
+  const getStatusStyle = (status: ServiceStatus) => {
+    if (status === 'up') return 'bg-emerald-500';
+    if (status === 'down') return 'bg-rose-500';
+    return 'bg-amber-400';
+  };
+
+  const getStatusText = (status: ServiceStatus) => {
+    if (status === 'up') return 'доступен';
+    if (status === 'down') return 'недоступен';
+    return 'н/д';
+  };
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
     router.refresh();
-  };
-
-  const handleSimulateNewMessage = async () => {
-    try {
-      await fetch('/api/mail/debug/newMessage', { method: 'POST' });
-    } catch (error) {
-      console.error('Failed to simulate new message:', error);
-    }
   };
 
   const handleSettings = () => {
@@ -102,8 +149,27 @@ export function Sidebar({
   return (
     <div className="flex h-full w-64 flex-col border-r bg-muted/30">
       <div className="border-b p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-lg font-bold">Почта</h1>
+        <div className="mb-4 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold">Почта</h1>
+              {isStatusLoading && (
+                <span className="text-xs text-muted-foreground">Статус...</span>
+              )}
+            </div>
+            {statusItems.length > 0 && (
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                {statusItems.map((item) => (
+                  <div key={item.label} className="flex items-center gap-1">
+                    <span className={`h-2 w-2 rounded-full ${getStatusStyle(item.status)}`} />
+                    <span className="truncate">
+                      {item.label} {item.value ? item.value : getStatusText(item.status)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(true)} title="Скрыть меню">
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -167,12 +233,6 @@ export function Sidebar({
               <Settings className="mr-2 h-4 w-4" />
               Настройки
             </DropdownMenuItem>
-            {process.env.NODE_ENV === 'development' && (
-              <DropdownMenuItem onClick={handleSimulateNewMessage}>
-                <MailPlus className="mr-2 h-4 w-4" />
-                Симулировать новое письмо
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               Выйти

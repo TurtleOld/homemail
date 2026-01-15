@@ -1,9 +1,8 @@
-import { getMockProvider, getOrCreateAccount } from '@/providers/mock/mock-provider';
 import { StalwartJMAPProvider, setUserCredentials } from '@/providers/stalwart-jmap/stalwart-provider';
 import type { MailProvider } from '@/providers/mail-provider';
 
 const USE_STALWART = process.env.MAIL_PROVIDER === 'stalwart';
-const USE_MOCK = !USE_STALWART && process.env.MAIL_PROVIDER !== 'imap';
+const USE_IMAP = process.env.MAIL_PROVIDER === 'imap';
 
 const stalwartProviders = new Map<string, StalwartJMAPProvider>();
 
@@ -11,10 +10,10 @@ export function getMailProvider(): MailProvider {
   if (USE_STALWART) {
     throw new Error('Stalwart provider requires account context. Use getMailProviderForAccount() instead.');
   }
-  if (USE_MOCK) {
-    return getMockProvider();
+  if (USE_IMAP) {
+    throw new Error('IMAP provider not yet implemented');
   }
-  throw new Error('IMAP provider not yet implemented');
+  throw new Error('MAIL_PROVIDER must be set to "stalwart" or "imap"');
 }
 
 export function getMailProviderForAccount(accountId: string): MailProvider {
@@ -30,7 +29,9 @@ export function getMailProviderForAccount(accountId: string): MailProvider {
 export async function ensureAccount(accountId: string, email: string, password?: string): Promise<void> {
   if (USE_STALWART && password) {
     await setUserCredentials(accountId, email, password);
-  } else if (USE_MOCK) {
-    getOrCreateAccount(accountId, email);
+    return;
+  }
+  if (!USE_IMAP) {
+    throw new Error('MAIL_PROVIDER must be set to "stalwart" or "imap"');
   }
 }

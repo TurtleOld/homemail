@@ -96,9 +96,9 @@ npm run test:e2e:ui
 
 ### Mail Provider интерфейс
 
-Система построена на абстракции `MailProvider`, что позволяет легко переключаться между реализациями:
+Система построена на абстракции `MailProvider`, что позволяет использовать реальные реализации:
 
-- **Mock Provider** (`providers/mock/`): полностью реализован, генерирует тестовые данные
+- **Stalwart JMAP Provider** (`providers/stalwart-jmap/`): реализация для JMAP + SMTP
 - **IMAP Provider** (`providers/imap/`): заглушка с инструкциями по реализации
 
 ### Безопасность

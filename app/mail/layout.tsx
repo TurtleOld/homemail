@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from '@/components/sidebar';
 import { MessageList } from '@/components/message-list';
 import { MessageViewer } from '@/components/message-viewer';
-import { Compose } from '@/components/compose';
 import type { Folder, Account, MessageListItem, MessageDetail, Draft } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Trash2, Star, Mail, FileText, X } from 'lucide-react';
@@ -20,6 +20,16 @@ interface MinimizedDraft {
   html: string;
 }
 
+interface UserSettings {
+  signature: string;
+  theme: 'light' | 'dark';
+}
+
+const Compose = dynamic(
+  () => import('@/components/compose').then((mod) => mod.Compose),
+  { ssr: false, loading: () => null }
+);
+
 export default function MailLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>('inbox');
@@ -30,6 +40,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [forwardFrom, setForwardFrom] = useState<{ subject: string; body: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [allowRemoteImages, setAllowRemoteImages] = useState(false);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [minimizedDrafts, setMinimizedDrafts] = useState<MinimizedDraft[]>([]);
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [loadedDraft, setLoadedDraft] = useState<Draft | null>(null);
@@ -45,6 +56,26 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [isResizing, setIsResizing] = useState(false);
   const debouncedSearch = useDebounce(searchQuery, 400);
   const queryClient = useQueryClient();
+
+  const { data: settings } = useQuery<UserSettings>({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const res = await fetch('/api/settings');
+      if (res.status === 401) {
+        router.push('/login?redirect=/mail');
+        throw new Error('Unauthorized');
+      }
+      if (!res.ok) throw new Error('Failed to fetch settings');
+      return res.json();
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message === 'Unauthorized') {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    staleTime: 60 * 1000,
+  });
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -99,7 +130,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     },
   });
 
-  const { data: folders = [], refetch: refetchFolders } = useQuery<Folder[]>({
+  const { data: folders = [] } = useQuery<Folder[]>({
     queryKey: ['folders'],
     queryFn: async () => {
       const res = await fetch('/api/mail/folders');
@@ -116,19 +147,17 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
       return failureCount < 2;
     },
-    refetchInterval: 15000,
-    refetchOnWindowFocus: true,
+    refetchInterval: realtimeConnected ? false : 15000,
+    refetchOnWindowFocus: !realtimeConnected,
   });
 
-  useEffect(() => {
-    const handleFocus = () => {
-      refetchFolders();
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [refetchFolders]);
-
-  const { data: messagesData, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery<{
+  const {
+    data: messagesData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: isMessagesLoading,
+  } = useInfiniteQuery<{
     messages: MessageListItem[];
     nextCursor?: string;
   }>({
@@ -153,7 +182,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: !!selectedFolderId,
     initialPageParam: undefined,
-    refetchInterval: 10000,
+    refetchInterval: realtimeConnected ? false : 10000,
+    refetchOnWindowFocus: !realtimeConnected,
     retry: (failureCount, error) => {
       if (error instanceof Error && error.message === 'Unauthorized') {
         return false;
@@ -162,9 +192,12 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     },
   });
 
-  const messages = messagesData?.pages.flatMap((p) => p.messages) || [];
+  const messages = useMemo(
+    () => messagesData?.pages.flatMap((p) => p.messages) || [],
+    [messagesData]
+  );
 
-  const { data: selectedMessage } = useQuery<MessageDetail>({
+  const { data: selectedMessage, isLoading: isMessageLoading } = useQuery<MessageDetail>({
     queryKey: ['message', selectedMessageId],
     queryFn: async () => {
       if (!selectedMessageId) return null;
@@ -186,27 +219,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   });
 
   useEffect(() => {
-    const applyTheme = async () => {
-      try {
-        const res = await fetch('/api/settings');
-        if (res.ok) {
-          const settings = await res.json();
-          const theme = settings.theme || 'light';
-          if (theme === 'dark') {
-            document.documentElement.classList.add('dark');
-          } else {
-            document.documentElement.classList.remove('dark');
-          }
-        }
-      } catch (error) {
-        document.documentElement.classList.remove('dark');
-      }
-    };
-
-    applyTheme();
-  }, []);
-
-  useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
     let reconnectAttempts = 0;
@@ -222,6 +234,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
 
       eventSource.addEventListener('connected', () => {
         reconnectAttempts = 0;
+        setRealtimeConnected(true);
       });
 
       eventSource.addEventListener('message.new', () => {
@@ -241,6 +254,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       });
 
       eventSource.onerror = () => {
+        setRealtimeConnected(false);
         if (eventSource?.readyState === EventSource.CLOSED) {
           if (reconnectAttempts < maxReconnectAttempts) {
             const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
@@ -262,8 +276,34 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       if (eventSource) {
         eventSource.close();
       }
+      setRealtimeConnected(false);
     };
   }, [queryClient]);
+
+  const updateMessageInList = useCallback(
+    (messageId: string, updater: (message: MessageListItem) => MessageListItem) => {
+      queryClient.setQueriesData({ queryKey: ['messages'] }, (oldData) => {
+        if (!oldData || typeof oldData !== 'object') return oldData;
+        const data = oldData as { pages: { messages: MessageListItem[]; nextCursor?: string }[]; pageParams: unknown[] };
+        const pages = data.pages.map((page) => ({
+          ...page,
+          messages: page.messages.map((message) => (message.id === messageId ? updater(message) : message)),
+        }));
+        return { ...data, pages };
+      });
+    },
+    [queryClient]
+  );
+
+  const updateMessageDetail = useCallback(
+    (messageId: string, updater: (message: MessageDetail) => MessageDetail) => {
+      queryClient.setQueryData(['message', messageId], (oldData) => {
+        if (!oldData) return oldData;
+        return updater(oldData as MessageDetail);
+      });
+    },
+    [queryClient]
+  );
 
   const handleBulkAction = async (action: string) => {
     if (selectedIds.size === 0) {
@@ -466,6 +506,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               }
             }}
             hasMore={hasNextPage}
+            isLoading={isMessagesLoading}
+            isFetchingMore={isFetchingNextPage}
+            isSearching={debouncedSearch.length > 0}
           />
         </div>
         <div
@@ -482,13 +525,31 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           onForward={handleForward}
           onDelete={handleDelete}
           onStar={(starred) => {
-            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            if (!selectedMessageId) return;
+            updateMessageInList(selectedMessageId, (message) => ({
+              ...message,
+              flags: { ...message.flags, starred },
+            }));
+            updateMessageDetail(selectedMessageId, (message) => ({
+              ...message,
+              flags: { ...message.flags, starred },
+            }));
           }}
           onMarkRead={(read) => {
-            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            if (!selectedMessageId) return;
+            updateMessageInList(selectedMessageId, (message) => ({
+              ...message,
+              flags: { ...message.flags, unread: !read },
+            }));
+            updateMessageDetail(selectedMessageId, (message) => ({
+              ...message,
+              flags: { ...message.flags, unread: !read },
+            }));
             queryClient.invalidateQueries({ queryKey: ['folders'] });
           }}
           allowRemoteImages={allowRemoteImages}
+          isLoading={isMessageLoading}
+          hasSelection={!!selectedMessageId}
           />
         </div>
       </div>
@@ -521,6 +582,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         replyTo={replyTo || undefined}
         forwardFrom={forwardFrom || undefined}
         initialDraft={composeDraft}
+        signature={settings?.signature}
       />
       {minimizedDrafts.length > 0 && (
         <div className="fixed bottom-0 right-4 flex gap-2 z-50">

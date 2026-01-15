@@ -6,7 +6,6 @@ import { formatDate } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { Button } from '@/components/ui/button';
 import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 interface MessageViewerProps {
@@ -18,6 +17,8 @@ interface MessageViewerProps {
   onStar?: (starred: boolean) => void;
   onMarkRead?: (read: boolean) => void;
   allowRemoteImages?: boolean;
+  isLoading?: boolean;
+  hasSelection?: boolean;
 }
 
 export function MessageViewer({
@@ -29,8 +30,9 @@ export function MessageViewer({
   onStar,
   onMarkRead,
   allowRemoteImages = false,
+  isLoading = false,
+  hasSelection = false,
 }: MessageViewerProps) {
-  const queryClient = useQueryClient();
   const markedAsReadRef = useRef<Set<string>>(new Set());
   const [localAllowImages, setLocalAllowImages] = useState(false);
 
@@ -168,12 +170,10 @@ export function MessageViewer({
         body: JSON.stringify({ unread: false }),
       });
       onMarkRead?.(true);
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
     } catch (error) {
       console.error('Failed to update read status:', error);
     }
-  }, [message, onMarkRead, queryClient]);
+  }, [message, onMarkRead]);
 
   useEffect(() => {
     if (!message) return;
@@ -182,6 +182,17 @@ export function MessageViewer({
       handleMarkRead();
     }
   }, [message, handleMarkRead]);
+
+  if (isLoading && hasSelection) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p>Загрузка письма...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!message) {
     return (
@@ -203,8 +214,6 @@ export function MessageViewer({
         body: JSON.stringify({ starred: newStarred }),
       });
       onStar?.(newStarred);
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-      queryClient.invalidateQueries({ queryKey: ['message', message.id] });
     } catch (error) {
       console.error('Failed to update star:', error);
     }
