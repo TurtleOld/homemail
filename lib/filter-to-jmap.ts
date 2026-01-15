@@ -42,6 +42,7 @@ export function convertFilterToJMAP(
     applySecurityFilter(jmapFilter, securityFilter);
   }
 
+  console.log('[filter-to-jmap] Converted filter:', JSON.stringify(jmapFilter, null, 2));
   return jmapFilter;
 }
 

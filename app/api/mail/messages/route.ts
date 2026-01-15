@@ -37,7 +37,9 @@ export async function GET(request: NextRequest) {
       if (params.messageFilter) {
         try {
           messageFilter = JSON.parse(params.messageFilter) as MessageFilter;
-        } catch {
+          console.log('[messages] Parsed messageFilter:', JSON.stringify(messageFilter, null, 2));
+        } catch (error) {
+          console.warn('[messages] Failed to parse messageFilter as JSON, trying as query:', error);
           const parsed = FilterQueryParser.parse(params.messageFilter);
           messageFilter = {
             quickFilter: parsed.quickFilter,
@@ -52,6 +54,9 @@ export async function GET(request: NextRequest) {
         };
       }
 
+      console.log('[messages] Final messageFilter:', JSON.stringify(messageFilter, null, 2));
+      console.log('[messages] Query params:', { folderId: params.folderId, q: params.q, filter: params.filter });
+
       const provider = process.env.MAIL_PROVIDER === 'stalwart'
         ? getMailProviderForAccount(session.accountId)
         : getMailProvider();
@@ -63,6 +68,8 @@ export async function GET(request: NextRequest) {
         filter: params.filter,
         messageFilter,
       });
+      
+      console.log('[messages] Result:', { messagesCount: result?.messages?.length || 0, hasNextCursor: !!result?.nextCursor });
 
       if (!result || !result.messages || result.messages.length === 0) {
         console.warn(`[messages] Empty messages array for accountId: ${session.accountId}, folderId: ${params.folderId}`);

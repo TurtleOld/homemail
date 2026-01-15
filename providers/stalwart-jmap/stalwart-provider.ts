@@ -275,13 +275,43 @@ export class StalwartJMAPProvider implements MailProvider {
         filter.hasAttachment = true;
       }
 
+      const mailboxIdToQuery = filter.inMailbox || folderId;
       const limit = options.limit || 50;
-      const queryResult = await client.queryEmails(folderId, {
+      
+      const cleanFilter: any = {};
+      if (filter.inMailbox) cleanFilter.inMailbox = filter.inMailbox;
+      if (filter.text) cleanFilter.text = filter.text;
+      if (filter.hasAttachment !== undefined) cleanFilter.hasAttachment = filter.hasAttachment;
+      if (filter.isUnread !== undefined) cleanFilter.isUnread = filter.isUnread;
+      if (filter.isFlagged !== undefined) cleanFilter.isFlagged = filter.isFlagged;
+      if (filter.from) cleanFilter.from = filter.from;
+      if (filter.to) cleanFilter.to = filter.to;
+      if (filter.cc) cleanFilter.cc = filter.cc;
+      if (filter.bcc) cleanFilter.bcc = filter.bcc;
+      if (filter.subject) cleanFilter.subject = filter.subject;
+      if (filter.after) cleanFilter.after = filter.after;
+      if (filter.before) cleanFilter.before = filter.before;
+      if (filter.minSize !== undefined) cleanFilter.minSize = filter.minSize;
+      if (filter.maxSize !== undefined) cleanFilter.maxSize = filter.maxSize;
+      if (filter.header && filter.header.length > 0) cleanFilter.header = filter.header;
+      
+      console.log('[StalwartProvider] Querying emails:', {
+        mailboxId: mailboxIdToQuery,
+        filter: JSON.stringify(cleanFilter, null, 2),
+      });
+      
+      const queryResult = await client.queryEmails(mailboxIdToQuery, {
         accountId: actualAccountId,
         position,
         limit: limit + 1,
-        filter,
+        filter: cleanFilter,
         sort: [{ property: 'receivedAt', isAscending: false }],
+      });
+      
+      console.log('[StalwartProvider] Query result:', { 
+        idsCount: queryResult.ids.length, 
+        total: queryResult.total,
+        position: queryResult.position 
       });
 
       const emailIds = queryResult.ids.slice(0, limit);
