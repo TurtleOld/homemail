@@ -31,7 +31,7 @@ export function convertFilterToJMAP(
   }
 
   if (quickFilter) {
-    applyQuickFilter(jmapFilter, quickFilter);
+    applyQuickFilter(jmapFilter, quickFilter, folderId);
   }
 
   if (filterGroup) {
@@ -45,7 +45,7 @@ export function convertFilterToJMAP(
   return jmapFilter;
 }
 
-function applyQuickFilter(filter: JMAPEmailFilter, quickFilter: QuickFilterType): void {
+function applyQuickFilter(filter: JMAPEmailFilter, quickFilter: QuickFilterType, folderId?: string): void {
   switch (quickFilter) {
     case 'unread':
       filter.isUnread = true;
@@ -56,29 +56,32 @@ function applyQuickFilter(filter: JMAPEmailFilter, quickFilter: QuickFilterType)
     case 'hasAttachments':
       filter.hasAttachment = true;
       break;
+    case 'attachmentsImages':
+      filter.hasAttachment = true;
+      break;
+    case 'attachmentsDocuments':
+      filter.hasAttachment = true;
+      break;
+    case 'attachmentsArchives':
+      filter.hasAttachment = true;
+      break;
     case 'starred':
       filter.isFlagged = true;
       break;
+    case 'important':
+      filter.isFlagged = true;
+      break;
     case 'drafts':
-      filter.header = filter.header || [];
-      filter.header.push('X-Draft: true');
       break;
     case 'sent':
-      filter.header = filter.header || [];
-      filter.header.push('X-Sent: true');
       break;
     case 'incoming':
-      filter.header = filter.header || [];
-      filter.header.push('X-Incoming: true');
       break;
     case 'bounce':
-      filter.header = filter.header || [];
-      filter.header.push('X-Bounce: true');
+      filter.text = 'bounce delivery-status notification';
       break;
     case 'bulk':
-      filter.header = filter.header || [];
-      filter.header.push('List-Id: *');
-      filter.header.push('Precedence: bulk');
+      filter.text = 'List-Id Precedence: bulk unsubscribe';
       break;
   }
 }

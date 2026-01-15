@@ -258,9 +258,12 @@ export class StalwartJMAPProvider implements MailProvider {
           folderId
         );
         filter = { ...filter, ...jmapFilter };
+        if (jmapFilter.inMailbox && jmapFilter.inMailbox !== folderId) {
+          filter.inMailbox = jmapFilter.inMailbox;
+        }
       }
 
-      if (options.q) {
+      if (options.q && !filter.text) {
         filter.text = options.q;
       }
 

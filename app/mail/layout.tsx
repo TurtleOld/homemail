@@ -203,10 +203,25 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     },
   });
 
-  const messages = useMemo(
-    () => messagesData?.pages.flatMap((p) => p.messages) || [],
-    [messagesData]
-  );
+  const messages = useMemo(() => {
+    let allMessages = messagesData?.pages.flatMap((p) => p.messages) || [];
+    
+    if (quickFilter === 'attachmentsImages') {
+      allMessages = allMessages.filter((msg) => {
+        return msg.flags.hasAttachments;
+      });
+    } else if (quickFilter === 'attachmentsDocuments') {
+      allMessages = allMessages.filter((msg) => {
+        return msg.flags.hasAttachments;
+      });
+    } else if (quickFilter === 'attachmentsArchives') {
+      allMessages = allMessages.filter((msg) => {
+        return msg.flags.hasAttachments;
+      });
+    }
+    
+    return allMessages;
+  }, [messagesData, quickFilter]);
 
   const { data: selectedMessage, isLoading: isMessageLoading } = useQuery<MessageDetail>({
     queryKey: ['message', selectedMessageId],
@@ -496,6 +511,17 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               activeFilter={quickFilter}
               onFilterChange={(filter) => {
                 setQuickFilter(filter);
+                if (filter === 'drafts') {
+                  const draftsFolder = folders.find((f) => f.role === 'drafts');
+                  if (draftsFolder) {
+                    setSelectedFolderId(draftsFolder.id);
+                  }
+                } else if (filter === 'sent') {
+                  const sentFolder = folders.find((f) => f.role === 'sent');
+                  if (sentFolder) {
+                    setSelectedFolderId(sentFolder.id);
+                  }
+                }
                 queryClient.invalidateQueries({ queryKey: ['messages'] });
               }}
             />
