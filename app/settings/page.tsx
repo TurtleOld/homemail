@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon } from 'lucide-react';
-import type { Folder } from '@/lib/types';
+import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter } from 'lucide-react';
+import type { Folder, SavedFilter, AutoSortRule } from '@/lib/types';
 
 interface UserSettings {
   signature: string;
@@ -69,7 +69,7 @@ async function deleteFolder(folderId: string): Promise<void> {
   }
 }
 
-type TabId = 'signature' | 'theme' | 'autoReply' | 'folders';
+type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters';
 
 interface Tab {
   id: TabId;
@@ -83,6 +83,7 @@ function getTabs(theme: 'light' | 'dark'): Tab[] {
     { id: 'theme', label: 'Тема', icon: theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" /> },
     { id: 'autoReply', label: 'Автоответ', icon: <Mail className="h-4 w-4" /> },
     { id: 'folders', label: 'Папки', icon: <FolderPlus className="h-4 w-4" /> },
+    { id: 'filters', label: 'Фильтры', icon: <Filter className="h-4 w-4" /> },
   ];
 }
 
@@ -295,6 +296,225 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
   );
 }
 
+async function getSavedFilters(): Promise<SavedFilter[]> {
+  const res = await fetch('/api/mail/filters');
+  if (!res.ok) {
+    throw new Error('Failed to load filters');
+  }
+  return res.json();
+}
+
+async function saveFilter(filter: { id?: string; name: string; query: string; isPinned?: boolean }): Promise<SavedFilter> {
+  const res = await fetch('/api/mail/filters', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(filter),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to save filter');
+  }
+  return res.json();
+}
+
+async function deleteFilter(filterId: string): Promise<void> {
+  const res = await fetch(`/api/mail/filters?id=${encodeURIComponent(filterId)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to delete filter');
+  }
+}
+
+async function getFilterRules(): Promise<AutoSortRule[]> {
+  const res = await fetch('/api/mail/filters/rules');
+  if (!res.ok) {
+    throw new Error('Failed to load rules');
+  }
+  return res.json();
+}
+
+async function saveFilterRule(rule: { id?: string; name: string; enabled: boolean; filterGroup: any; actions: any[]; applyToExisting?: boolean }): Promise<AutoSortRule> {
+  const res = await fetch('/api/mail/filters/rules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rule),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to save rule');
+  }
+  return res.json();
+}
+
+async function deleteFilterRule(ruleId: string): Promise<void> {
+  const res = await fetch(`/api/mail/filters/rules?id=${encodeURIComponent(ruleId)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to delete rule');
+  }
+}
+
+function FiltersTab() {
+  const queryClient = useQueryClient();
+  const [newFilterName, setNewFilterName] = useState('');
+  const [newFilterQuery, setNewFilterQuery] = useState('');
+  const { data: filters = [], isLoading: filtersLoading } = useQuery({
+    queryKey: ['saved-filters'],
+    queryFn: getSavedFilters,
+  });
+
+  const { data: rules = [], isLoading: rulesLoading } = useQuery({
+    queryKey: ['filter-rules'],
+    queryFn: getFilterRules,
+  });
+
+  const createFilterMutation = useMutation({
+    mutationFn: saveFilter,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['saved-filters'] });
+      setNewFilterName('');
+      setNewFilterQuery('');
+      toast.success('Фильтр сохранён');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Ошибка сохранения фильтра');
+    },
+  });
+
+  const deleteFilterMutation = useMutation({
+    mutationFn: deleteFilter,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['saved-filters'] });
+      toast.success('Фильтр удалён');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Ошибка удаления фильтра');
+    },
+  });
+
+  const handleCreateFilter = () => {
+    if (!newFilterName.trim() || !newFilterQuery.trim()) {
+      toast.error('Введите название и запрос фильтра');
+      return;
+    }
+    createFilterMutation.mutate({
+      name: newFilterName.trim(),
+      query: newFilterQuery.trim(),
+      isPinned: false,
+    });
+  };
+
+  const handleDeleteFilter = (filterId: string, filterName: string) => {
+    if (confirm(`Вы уверены, что хотите удалить фильтр "${filterName}"?`)) {
+      deleteFilterMutation.mutate(filterId);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Сохранённые фильтры</h2>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Input
+              value={newFilterName}
+              onChange={(e) => setNewFilterName(e.target.value)}
+              placeholder="Название фильтра"
+            />
+            <Input
+              value={newFilterQuery}
+              onChange={(e) => setNewFilterQuery(e.target.value)}
+              placeholder="Запрос фильтра (например: from:amazon has:attachment)"
+            />
+            <Button onClick={handleCreateFilter} disabled={createFilterMutation.isPending}>
+              {createFilterMutation.isPending ? 'Создание...' : 'Создать фильтр'}
+            </Button>
+          </div>
+
+          {filtersLoading && <p className="text-sm text-muted-foreground">Загрузка фильтров...</p>}
+          {!filtersLoading && filters.length === 0 && (
+            <p className="text-sm text-muted-foreground">Нет сохранённых фильтров</p>
+          )}
+          {!filtersLoading && filters.length > 0 && (
+            <div className="space-y-2">
+              {filters.map((filter) => (
+                <div
+                  key={filter.id}
+                  className="flex items-center justify-between rounded-md border bg-card p-3"
+                >
+                  <div className="flex-1">
+                    <div className="font-medium">{filter.name}</div>
+                    <div className="text-sm text-muted-foreground">{filter.query}</div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteFilter(filter.id, filter.name)}
+                    disabled={deleteFilterMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Правила авто-сортировки</h2>
+        <div className="space-y-4">
+          {rulesLoading && <p className="text-sm text-muted-foreground">Загрузка правил...</p>}
+          {!rulesLoading && rules.length === 0 && (
+            <p className="text-sm text-muted-foreground">Нет правил авто-сортировки</p>
+          )}
+          {!rulesLoading && rules.length > 0 && (
+            <div className="space-y-2">
+              {rules.map((rule) => (
+                <div
+                  key={rule.id}
+                  className="flex items-center justify-between rounded-md border bg-card p-3"
+                >
+                  <div className="flex-1">
+                    <div className="font-medium">{rule.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {rule.enabled ? 'Включено' : 'Выключено'}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm(`Вы уверены, что хотите удалить правило "${rule.name}"?`)) {
+                        deleteFilterRule(rule.id).then(() => {
+                          queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
+                          toast.success('Правило удалено');
+                        }).catch((error: Error) => {
+                          toast.error(error.message || 'Ошибка удаления правила');
+                        });
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Правила авто-сортировки позволяют автоматически выполнять действия с письмами на основе условий.
+            Создание правил будет доступно в следующей версии.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FoldersTab() {
   const queryClient = useQueryClient();
   const [newFolderName, setNewFolderName] = useState('');
@@ -454,6 +674,7 @@ export default function SettingsPage() {
             {activeTab === 'theme' && <ThemeTab initialSettings={settings} />}
             {activeTab === 'autoReply' && <AutoReplyTab initialSettings={settings} />}
             {activeTab === 'folders' && <FoldersTab />}
+            {activeTab === 'filters' && <FiltersTab />}
           </div>
         </div>
       </div>

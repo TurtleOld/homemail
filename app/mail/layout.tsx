@@ -7,11 +7,13 @@ import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-quer
 import { Sidebar } from '@/components/sidebar';
 import { MessageList } from '@/components/message-list';
 import { MessageViewer } from '@/components/message-viewer';
-import type { Folder, Account, MessageListItem, MessageDetail, Draft } from '@/lib/types';
+import { QuickFilters } from '@/components/quick-filters';
+import type { Folder, Account, MessageListItem, MessageDetail, Draft, QuickFilterType, FilterGroup } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Trash2, Star, Mail, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks';
+import { FilterQueryParser } from '@/lib/filter-parser';
 
 interface MinimizedDraft {
   id: string;
@@ -39,6 +41,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [replyTo, setReplyTo] = useState<{ subject: string; from: { email: string; name?: string }; body: string } | null>(null);
   const [forwardFrom, setForwardFrom] = useState<{ subject: string; body: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilterType | undefined>();
+  const [filterGroup, setFilterGroup] = useState<FilterGroup | undefined>();
   const [allowRemoteImages, setAllowRemoteImages] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [minimizedDrafts, setMinimizedDrafts] = useState<MinimizedDraft[]>([]);
@@ -161,7 +165,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     messages: MessageListItem[];
     nextCursor?: string;
   }>({
-    queryKey: ['messages', selectedFolderId, debouncedSearch],
+    queryKey: ['messages', selectedFolderId, debouncedSearch, quickFilter],
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
       params.set('folderId', selectedFolderId || 'inbox');
@@ -170,6 +174,13 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
       if (debouncedSearch) {
         params.set('q', debouncedSearch);
+      }
+      if (quickFilter || filterGroup) {
+        const messageFilter = {
+          quickFilter,
+          filterGroup,
+        };
+        params.set('messageFilter', JSON.stringify(messageFilter));
       }
       const res = await fetch(`/api/mail/messages?${params}`);
       if (res.status === 401) {
@@ -467,10 +478,30 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             setComposeOpen(true);
           }}
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          onSearchChange={(query) => {
+            setSearchQuery(query);
+            const parsed = FilterQueryParser.parse(query);
+            setQuickFilter(parsed.quickFilter);
+            setFilterGroup(parsed.filterGroup);
+          }}
+          onFilterChange={(quickFilter, filterGroup) => {
+            setQuickFilter(quickFilter);
+            setFilterGroup(filterGroup);
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+          }}
         />
-        <div className="relative flex-shrink-0" style={{ width: `${messageListWidth}px` }} suppressHydrationWarning>
-          <MessageList
+        <div className="relative flex flex-col flex-shrink-0" style={{ width: `${messageListWidth}px` }} suppressHydrationWarning>
+          <div className="border-b bg-muted/50 p-2 flex-shrink-0">
+            <QuickFilters
+              activeFilter={quickFilter}
+              onFilterChange={(filter) => {
+                setQuickFilter(filter);
+                queryClient.invalidateQueries({ queryKey: ['messages'] });
+              }}
+            />
+          </div>
+          <div className="flex-1 min-h-0">
+            <MessageList
             messages={messages}
             selectedIds={selectedIds}
             onSelect={(id, multi) => {
@@ -510,6 +541,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             isFetchingMore={isFetchingNextPage}
             isSearching={debouncedSearch.length > 0}
           />
+          </div>
         </div>
         <div
           className="group relative w-1 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-primary/30 transition-colors"

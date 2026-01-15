@@ -63,6 +63,10 @@ data/credentials.enc
 .settings.json
 data/.settings.json
 
+# Filters
+data/filters.json
+data/filter-rules.json
+
 # Production configs (sensitive data, not tracked)
 config/stalwart/config.toml
 config/nginx/default.conf

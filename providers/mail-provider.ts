@@ -5,6 +5,7 @@ import type {
   MessageDetail,
   Draft,
   Attachment,
+  MessageFilter,
 } from '@/lib/types';
 
 export interface MailProvider {
@@ -18,6 +19,7 @@ export interface MailProvider {
       limit?: number;
       q?: string;
       filter?: 'unread' | 'starred' | 'attachments';
+      messageFilter?: MessageFilter;
     }
   ): Promise<{ messages: MessageListItem[]; nextCursor?: string }>;
   getMessage(accountId: string, messageId: string): Promise<MessageDetail | null>;

@@ -616,6 +616,16 @@ export class JMAPClient {
         hasAttachment?: boolean;
         isUnread?: boolean;
         isFlagged?: boolean;
+        from?: string;
+        to?: string;
+        cc?: string;
+        bcc?: string;
+        subject?: string;
+        header?: string[];
+        after?: string;
+        before?: string;
+        minSize?: number;
+        maxSize?: number;
       };
       sort?: Array<{ property: string; isAscending?: boolean }>;
     }

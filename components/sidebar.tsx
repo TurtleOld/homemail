@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react';
 import type { Folder, Account } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,10 +11,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
+import { SearchBar } from './search-bar';
 
 interface SidebarProps {
   folders: Folder[];
@@ -25,6 +25,7 @@ interface SidebarProps {
   onCompose: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onFilterChange?: (quickFilter?: import('@/lib/types').QuickFilterType, filterGroup?: import('@/lib/types').FilterGroup) => void;
 }
 
 type ServiceStatus = 'up' | 'down' | 'unknown';
@@ -60,6 +61,7 @@ export function Sidebar({
   onCompose,
   searchQuery,
   onSearchChange,
+  onFilterChange,
 }: SidebarProps) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -186,16 +188,12 @@ export function Sidebar({
           Написать
         </Button>
         <div className="mt-3">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Поиск..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="pl-8"
-            />
-          </div>
+          <SearchBar
+            value={searchQuery}
+            onChange={onSearchChange}
+            onFilterChange={onFilterChange}
+            placeholder="Поиск..."
+          />
         </div>
       </div>
       <div className="flex-1 overflow-auto">

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { FilterQueryParser } from '@/lib/filter-parser';
+import type { MessageFilter } from '@/lib/types';
 
 const querySchema = z.object({
   folderId: z.string(),
@@ -9,6 +11,7 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   q: z.string().optional(),
   filter: z.enum(['unread', 'starred', 'attachments']).optional(),
+  messageFilter: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -27,7 +30,27 @@ export async function GET(request: NextRequest) {
         limit: searchParams.get('limit') || undefined,
         q: searchParams.get('q') || undefined,
         filter: searchParams.get('filter') || undefined,
+        messageFilter: searchParams.get('messageFilter') || undefined,
       });
+
+      let messageFilter: MessageFilter | undefined;
+      if (params.messageFilter) {
+        try {
+          messageFilter = JSON.parse(params.messageFilter) as MessageFilter;
+        } catch {
+          const parsed = FilterQueryParser.parse(params.messageFilter);
+          messageFilter = {
+            quickFilter: parsed.quickFilter,
+            filterGroup: parsed.filterGroup,
+          };
+        }
+      } else if (params.q) {
+        const parsed = FilterQueryParser.parse(params.q);
+        messageFilter = {
+          quickFilter: parsed.quickFilter,
+          filterGroup: parsed.filterGroup,
+        };
+      }
 
       const provider = process.env.MAIL_PROVIDER === 'stalwart'
         ? getMailProviderForAccount(session.accountId)
@@ -38,6 +61,7 @@ export async function GET(request: NextRequest) {
         limit: params.limit,
         q: params.q,
         filter: params.filter,
+        messageFilter,
       });
 
       if (!result || !result.messages || result.messages.length === 0) {

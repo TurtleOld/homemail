@@ -8,6 +8,7 @@ import type {
   Attachment,
 } from '@/lib/types';
 import { JMAPClient } from './jmap-client';
+import { convertFilterToJMAP } from '@/lib/filter-to-jmap';
 
 interface JMAPAccount {
   id: string;
@@ -224,6 +225,7 @@ export class StalwartJMAPProvider implements MailProvider {
       limit?: number;
       q?: string;
       filter?: 'unread' | 'starred' | 'attachments';
+      messageFilter?: import('@/lib/types').MessageFilter;
     }
   ): Promise<{ messages: MessageListItem[]; nextCursor?: string }> {
     try {
@@ -244,9 +246,19 @@ export class StalwartJMAPProvider implements MailProvider {
         }
       }
 
-      const filter: any = {
+      let filter: any = {
         inMailbox: folderId,
       };
+
+      if (options.messageFilter) {
+        const jmapFilter = convertFilterToJMAP(
+          options.messageFilter.filterGroup,
+          options.messageFilter.quickFilter,
+          options.messageFilter.securityFilter,
+          folderId
+        );
+        filter = { ...filter, ...jmapFilter };
+      }
 
       if (options.q) {
         filter.text = options.q;
