@@ -13,6 +13,7 @@ interface MessageListProps {
   onSelect: (id: string, multi: boolean) => void;
   onSelectAll: () => void;
   onMessageClick: (message: MessageListItem) => void;
+  onMessageDoubleClick?: (message: MessageListItem) => void;
   onLoadMore?: () => void;
   hasMore?: boolean;
 }
@@ -23,6 +24,7 @@ export function MessageList({
   onSelect,
   onSelectAll,
   onMessageClick,
+  onMessageDoubleClick,
   onLoadMore,
   hasMore,
 }: MessageListProps) {
@@ -87,6 +89,12 @@ export function MessageList({
             } else {
               onSelect(message.id, false);
               onMessageClick(message);
+            }
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            if (onMessageDoubleClick) {
+              onMessageDoubleClick(message);
             }
           }}
         >

@@ -7,7 +7,7 @@ import { Sidebar } from '@/components/sidebar';
 import { MessageList } from '@/components/message-list';
 import { MessageViewer } from '@/components/message-viewer';
 import { Compose } from '@/components/compose';
-import type { Folder, Account, MessageListItem, MessageDetail } from '@/lib/types';
+import type { Folder, Account, MessageListItem, MessageDetail, Draft } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Trash2, Star, Mail, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -32,6 +32,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [allowRemoteImages, setAllowRemoteImages] = useState(false);
   const [minimizedDrafts, setMinimizedDrafts] = useState<MinimizedDraft[]>([]);
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [loadedDraft, setLoadedDraft] = useState<Draft | null>(null);
   const [messageListWidth, setMessageListWidth] = useState(() => {
     if (typeof window === 'undefined') return 400;
     const saved = window.localStorage.getItem('messageListWidth');
@@ -281,6 +282,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       body: selectedMessage.body.html || selectedMessage.body.text || '',
     });
     setForwardFrom(null);
+    setLoadedDraft(null);
+    setActiveDraftId(null);
     setComposeOpen(true);
   };
 
@@ -295,6 +298,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       body: selectedMessage.body.html || selectedMessage.body.text || '',
     });
     setReplyTo(null);
+    setLoadedDraft(null);
+    setActiveDraftId(null);
     setComposeOpen(true);
   };
 
@@ -320,6 +325,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const handleRestoreDraft = useCallback((draftId: string) => {
     const draft = minimizedDrafts.find((d) => d.id === draftId);
     if (draft) {
+      setLoadedDraft(null);
       setActiveDraftId(draftId);
       setReplyTo(null);
       setForwardFrom(null);
@@ -336,9 +342,48 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     setReplyTo(null);
     setForwardFrom(null);
     setActiveDraftId(null);
+    setLoadedDraft(null);
   }, []);
 
+  const handleMessageDoubleClick = useCallback(async (message: MessageListItem) => {
+    const isDraft = selectedFolderId === 'drafts';
+    
+    if (isDraft) {
+      try {
+        const res = await fetch(`/api/mail/messages/${message.id}`);
+        if (!res.ok) {
+          toast.error('Не удалось загрузить черновик');
+          return;
+        }
+        
+        const messageDetail: MessageDetail = await res.json();
+        
+        const draft: Draft = {
+          id: messageDetail.id,
+          to: messageDetail.to.map((t) => t.email),
+          cc: messageDetail.cc?.map((c) => c.email),
+          bcc: messageDetail.bcc?.map((b) => b.email),
+          subject: messageDetail.subject,
+          html: messageDetail.body.html || messageDetail.body.text?.replace(/\n/g, '<br>') || '',
+        };
+        
+        setLoadedDraft(draft);
+        setActiveDraftId(draft.id);
+        setReplyTo(null);
+        setForwardFrom(null);
+        setComposeOpen(true);
+      } catch (error) {
+        console.error('Failed to load draft:', error);
+        toast.error('Ошибка загрузки черновика');
+      }
+    } else {
+      setSelectedMessageId(message.id);
+      setSelectedIds(new Set([message.id]));
+    }
+  }, [selectedFolderId]);
+
   const activeDraft = activeDraftId ? minimizedDrafts.find((d) => d.id === activeDraftId) : null;
+  const composeDraft = loadedDraft || (activeDraft ? { id: activeDraft.id, to: activeDraft.to ? [activeDraft.to] : [], subject: activeDraft.subject, html: activeDraft.html } : undefined);
 
   return (
     <div className="flex h-screen flex-col">
@@ -355,6 +400,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           onCompose={() => {
             setReplyTo(null);
             setForwardFrom(null);
+            setLoadedDraft(null);
+            setActiveDraftId(null);
             setComposeOpen(true);
           }}
           searchQuery={searchQuery}
@@ -390,6 +437,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               setSelectedMessageId(message.id);
               setSelectedIds(new Set([message.id]));
             }}
+            onMessageDoubleClick={handleMessageDoubleClick}
             onLoadMore={() => {
               if (hasNextPage && !isFetchingNextPage) {
                 fetchNextPage();
@@ -450,7 +498,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         onMinimize={handleMinimizeDraft}
         replyTo={replyTo || undefined}
         forwardFrom={forwardFrom || undefined}
-        initialDraft={activeDraft ? { id: activeDraft.id, to: activeDraft.to ? [activeDraft.to] : [], subject: activeDraft.subject, html: activeDraft.html } : undefined}
+        initialDraft={composeDraft}
       />
       {minimizedDrafts.length > 0 && (
         <div className="fixed bottom-0 right-4 flex gap-2 z-50">
