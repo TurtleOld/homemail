@@ -133,8 +133,7 @@ export class FilterQueryParser {
       if (char === ':' && !inField && current.trim()) {
         const fieldName = current.trim().toLowerCase();
         if (this.FIELD_PREFIXES[fieldName] || fieldName === 'after' || fieldName === 'before') {
-          tokens.push(current.trim());
-          current = '';
+          current += ':';
           inField = true;
           continue;
         }
@@ -144,6 +143,11 @@ export class FilterQueryParser {
         tokens.push(current.trim());
         current = '';
         inField = false;
+        continue;
+      }
+      
+      if (inField) {
+        current += char;
         continue;
       }
 

@@ -66,6 +66,10 @@ export function AutoSortRuleEditor({
     }
 
     const parsed = FilterQueryParser.parse(filterQuery);
+    console.error('[auto-sort-rule-editor] Parsed filter query:', {
+      original: filterQuery,
+      parsed: JSON.stringify(parsed),
+    });
     if (!parsed.filterGroup) {
       toast.error('Неверный формат условий фильтра');
       return;
