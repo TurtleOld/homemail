@@ -11,6 +11,7 @@ const sendSchema = z.object({
   bcc: z.array(z.string().email()).optional(),
   subject: z.string().min(1),
   html: z.string(),
+  draftId: z.string().optional(),
   attachments: z
     .array(
       z.object({
@@ -52,6 +53,17 @@ export async function POST(request: NextRequest) {
         data: Buffer.from(att.data, 'base64'),
       })),
     });
+
+    if (data.draftId) {
+      try {
+        await provider.bulkUpdateMessages(session.accountId, {
+          ids: [data.draftId],
+          action: 'delete',
+        });
+      } catch (error) {
+        logger.error('Failed to delete draft after sending:', error);
+      }
+    }
 
     return NextResponse.json({ success: true, messageId });
   } catch (error) {
