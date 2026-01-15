@@ -346,7 +346,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   }, []);
 
   const handleMessageDoubleClick = useCallback(async (message: MessageListItem) => {
-    const isDraft = selectedFolderId === 'drafts';
+    const selectedFolder = folders.find((f) => f.id === selectedFolderId);
+    const isDraft = selectedFolder?.role === 'drafts';
     
     if (isDraft) {
       try {
@@ -380,7 +381,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       setSelectedMessageId(message.id);
       setSelectedIds(new Set([message.id]));
     }
-  }, [selectedFolderId]);
+  }, [selectedFolderId, folders]);
 
   const activeDraft = activeDraftId ? minimizedDrafts.find((d) => d.id === activeDraftId) : null;
   const composeDraft = loadedDraft || (activeDraft ? { id: activeDraft.id, to: activeDraft.to ? [activeDraft.to] : [], subject: activeDraft.subject, html: activeDraft.html } : undefined);
