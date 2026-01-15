@@ -68,12 +68,13 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           const settings = await settingsRes.json();
           if (settings.signature && settings.signature.trim()) {
             const signatureHtml = settings.signature.replace(/\n/g, '<br>');
-            const signatureDiv = `<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">${signatureHtml}</div>`;
+            const signatureDiv = `<div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">${signatureHtml}</div>`;
+            const signatureWithBreaks = `<br><br>${signatureDiv}`;
             
             const currentContent = editor.getHTML();
             const trimmedContent = currentContent.trim();
             if (!currentContent.includes(signatureDiv) && trimmedContent !== '<p></p>' && trimmedContent !== '') {
-              editor.commands.insertContent(signatureDiv);
+              editor.commands.insertContent(signatureWithBreaks);
             } else if (trimmedContent === '' || trimmedContent === '<p></p>') {
               editor.commands.setContent(signatureDiv);
             }
@@ -185,10 +186,12 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         const settings = await settingsRes.json();
         if (settings.signature && settings.signature.trim()) {
           const signatureHtml = settings.signature.replace(/\n/g, '<br>');
-          const signatureDiv = `<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">${signatureHtml}</div>`;
+          const signatureDiv = `<div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">${signatureHtml}</div>`;
+          const trimmedHtml = html.trim();
+          const hasContent = trimmedHtml && trimmedHtml !== '<p></p>' && !trimmedHtml.match(/^<p>\s*<\/p>$/i);
           
           if (!html.includes(signatureDiv)) {
-            html += signatureDiv;
+            html += hasContent ? `<br><br>${signatureDiv}` : signatureDiv;
           }
         }
       }
@@ -202,6 +205,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           bcc: showBcc ? parseEmailList(bcc) : [],
           subject,
           html,
+          draftId: draftId,
         }),
       });
 
