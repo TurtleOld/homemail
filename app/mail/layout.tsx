@@ -368,7 +368,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         };
         
         setLoadedDraft(draft);
-        setActiveDraftId(draft.id);
+        setActiveDraftId(draft.id ?? null);
         setReplyTo(null);
         setForwardFrom(null);
         setComposeOpen(true);
