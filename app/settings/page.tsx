@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter } from 'lucide-react';
+import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2 } from 'lucide-react';
 import type { Folder, SavedFilter, AutoSortRule } from '@/lib/types';
+import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
 
 interface UserSettings {
   signature: string;
@@ -362,6 +363,8 @@ function FiltersTab() {
   const queryClient = useQueryClient();
   const [newFilterName, setNewFilterName] = useState('');
   const [newFilterQuery, setNewFilterQuery] = useState('');
+  const [ruleEditorOpen, setRuleEditorOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<AutoSortRule | undefined>();
   const { data: filters = [], isLoading: filtersLoading } = useQuery({
     queryKey: ['saved-filters'],
     queryFn: getSavedFilters,
@@ -370,6 +373,15 @@ function FiltersTab() {
   const { data: rules = [], isLoading: rulesLoading } = useQuery({
     queryKey: ['filter-rules'],
     queryFn: getFilterRules,
+  });
+
+  const { data: folders = [] } = useQuery<Folder[]>({
+    queryKey: ['folders'],
+    queryFn: async () => {
+      const res = await fetch('/api/mail/folders');
+      if (!res.ok) throw new Error('Failed to load folders');
+      return res.json();
+    },
   });
 
   const createFilterMutation = useMutation({
@@ -466,7 +478,19 @@ function FiltersTab() {
       </div>
 
       <div>
-        <h2 className="text-xl font-semibold mb-4">Правила авто-сортировки</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Правила авто-сортировки</h2>
+          <Button
+            onClick={() => {
+              setEditingRule(undefined);
+              setRuleEditorOpen(true);
+            }}
+            size="sm"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Создать правило
+          </Button>
+        </div>
         <div className="space-y-4">
           {rulesLoading && <p className="text-sm text-muted-foreground">Загрузка правил...</p>}
           {!rulesLoading && rules.length === 0 && (
@@ -480,37 +504,86 @@ function FiltersTab() {
                   className="flex items-center justify-between rounded-md border bg-card p-3"
                 >
                   <div className="flex-1">
-                    <div className="font-medium">{rule.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {rule.enabled ? 'Включено' : 'Выключено'}
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{rule.name}</span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded ${
+                          rule.enabled ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-600'
+                        }`}
+                      >
+                        {rule.enabled ? 'Включено' : 'Выключено'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      Действий: {rule.actions.length}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (confirm(`Вы уверены, что хотите удалить правило "${rule.name}"?`)) {
-                        deleteFilterRule(rule.id).then(() => {
-                          queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
-                          toast.success('Правило удалено');
-                        }).catch((error: Error) => {
-                          toast.error(error.message || 'Ошибка удаления правила');
-                        });
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setEditingRule(rule);
+                        setRuleEditorOpen(true);
+                      }}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm(`Вы уверены, что хотите удалить правило "${rule.name}"?`)) {
+                          deleteFilterRule(rule.id).then(() => {
+                            queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
+                            toast.success('Правило удалено');
+                          }).catch((error: Error) => {
+                            toast.error(error.message || 'Ошибка удаления правила');
+                          });
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
           <p className="text-xs text-muted-foreground">
             Правила авто-сортировки позволяют автоматически выполнять действия с письмами на основе условий.
-            Создание правил будет доступно в следующей версии.
           </p>
         </div>
       </div>
+      <AutoSortRuleEditor
+        open={ruleEditorOpen}
+        onClose={() => {
+          setRuleEditorOpen(false);
+          setEditingRule(undefined);
+        }}
+        onSave={async (ruleData) => {
+          const rule = editingRule
+            ? await saveFilterRule({ ...ruleData, id: editingRule.id })
+            : await saveFilterRule(ruleData);
+          queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
+          if (rule.applyToExisting) {
+            toast.info('Применение правила к существующим письмам...');
+            try {
+              const res = await fetch('/api/mail/filters/rules/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ruleId: rule.id }),
+              });
+              if (!res.ok) throw new Error('Failed to apply rule');
+              toast.success('Правило применено к существующим письмам');
+            } catch (error) {
+              toast.error('Ошибка применения правила к существующим письмам');
+            }
+          }
+        }}
+        folders={folders}
+        existingRule={editingRule}
+      />
     </div>
   );
 }

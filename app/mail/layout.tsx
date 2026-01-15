@@ -263,9 +263,22 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         setRealtimeConnected(true);
       });
 
-      eventSource.addEventListener('message.new', () => {
+      eventSource.addEventListener('message.new', async (event: MessageEvent) => {
         queryClient.invalidateQueries({ queryKey: ['messages'] });
         queryClient.invalidateQueries({ queryKey: ['folders'] });
+        
+        try {
+          const data = JSON.parse(event.data);
+          if (data.messageId) {
+            await fetch('/api/mail/filters/rules/process-message', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messageId: data.messageId, folderId: data.folderId }),
+            });
+          }
+        } catch (error) {
+          console.error('Error processing new message with rules:', error);
+        }
       });
 
       eventSource.addEventListener('mailbox.counts', () => {

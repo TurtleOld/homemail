@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { processNewMessage } from '@/lib/process-new-message';
 
 export async function GET(request: NextRequest) {
   const session = await getSession();

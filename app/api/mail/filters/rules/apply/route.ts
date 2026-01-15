@@ -1,0 +1,87 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSession } from '@/lib/session';
+import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import type { AutoSortRule } from '@/lib/types';
+import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort-rules';
+
+const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
+
+async function loadRules(accountId: string): Promise<AutoSortRule[]> {
+  try {
+    const data = await readFile(rulesFilePath, 'utf-8');
+    const allRules = JSON.parse(data) as Record<string, AutoSortRule[]>;
+    return allRules[accountId] || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { ruleId, folderId, limit = 1000 } = body;
+
+    if (!ruleId) {
+      return NextResponse.json({ error: 'Rule ID required' }, { status: 400 });
+    }
+
+    const rules = await loadRules(session.accountId);
+    const rule = rules.find((r) => r.id === ruleId);
+
+    if (!rule) {
+      return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
+    }
+
+    if (!rule.enabled) {
+      return NextResponse.json({ error: 'Rule is disabled' }, { status: 400 });
+    }
+
+    const provider = process.env.MAIL_PROVIDER === 'stalwart'
+      ? getMailProviderForAccount(session.accountId)
+      : getMailProvider();
+
+    const targetFolderId = folderId || 'inbox';
+    const result = await provider.getMessages(session.accountId, targetFolderId, {
+      limit,
+    });
+
+    if (!result || !result.messages || result.messages.length === 0) {
+      return NextResponse.json({ applied: 0, total: 0 });
+    }
+
+    let appliedCount = 0;
+    for (const message of result.messages) {
+      const matches = await checkMessageMatchesRule(
+        message,
+        rule,
+        provider,
+        session.accountId,
+        targetFolderId
+      );
+
+      if (matches) {
+        await applyRuleActions(message.id, rule, provider, session.accountId);
+        appliedCount++;
+      }
+    }
+
+    return NextResponse.json({
+      applied: appliedCount,
+      total: result.messages.length,
+    });
+  } catch (error) {
+    console.error('[filter-rules/apply] Error applying rule:', error);
+    return NextResponse.json(
+      { error: 'Failed to apply rule', message: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
