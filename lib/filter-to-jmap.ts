@@ -139,9 +139,21 @@ function applyCondition(filter: JMAPEmailFilter, condition: FilterCondition): vo
       break;
     case 'date':
       if (operator === 'gte' || operator === 'gt') {
-        filter.after = typeof value === 'string' ? value : new Date(value as string).toISOString();
+        if (typeof value === 'string') {
+          filter.after = value;
+        } else if (value instanceof Date) {
+          filter.after = value.toISOString();
+        } else if (typeof value === 'number') {
+          filter.after = new Date(value).toISOString();
+        }
       } else if (operator === 'lte' || operator === 'lt') {
-        filter.before = typeof value === 'string' ? value : new Date(value as string).toISOString();
+        if (typeof value === 'string') {
+          filter.before = value;
+        } else if (value instanceof Date) {
+          filter.before = value.toISOString();
+        } else if (typeof value === 'number') {
+          filter.before = new Date(value).toISOString();
+        }
       }
       break;
     case 'size':
