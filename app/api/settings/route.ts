@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 
 const settingsSchema = z.object({
   signature: z.string().optional(),
+  theme: z.enum(['light', 'dark']).optional(),
   autoReply: z.object({
     enabled: z.boolean(),
     subject: z.string().optional(),
@@ -59,6 +60,7 @@ export async function GET(request: NextRequest) {
 
     const settings = settingsStore.get(session.accountId) || {
       signature: '',
+      theme: 'light',
       autoReply: {
         enabled: false,
         subject: '',
@@ -83,13 +85,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = settingsSchema.parse(body);
 
-    settingsStore.set(session.accountId, {
-      signature: data.signature || '',
-      autoReply: data.autoReply || {
+    const currentSettings = settingsStore.get(session.accountId) || {
+      signature: '',
+      theme: 'light',
+      autoReply: {
         enabled: false,
         subject: '',
         message: '',
       },
+    };
+    
+    settingsStore.set(session.accountId, {
+      signature: data.signature !== undefined ? data.signature : currentSettings.signature,
+      theme: data.theme !== undefined ? data.theme : currentSettings.theme,
+      autoReply: data.autoReply || currentSettings.autoReply,
     });
 
     await saveSettings();

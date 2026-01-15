@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, FolderPlus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon } from 'lucide-react';
 import type { Folder } from '@/lib/types';
 
 interface UserSettings {
   signature: string;
+  theme: 'light' | 'dark';
   autoReply: {
     enabled: boolean;
     subject: string;
@@ -68,7 +69,7 @@ async function deleteFolder(folderId: string): Promise<void> {
   }
 }
 
-type TabId = 'signature' | 'autoReply' | 'folders';
+type TabId = 'signature' | 'theme' | 'autoReply' | 'folders';
 
 interface Tab {
   id: TabId;
@@ -76,11 +77,14 @@ interface Tab {
   icon: React.ReactNode;
 }
 
-const tabs: Tab[] = [
-  { id: 'signature', label: 'Подпись письма', icon: <Mail className="h-4 w-4" /> },
-  { id: 'autoReply', label: 'Автоответ', icon: <Mail className="h-4 w-4" /> },
-  { id: 'folders', label: 'Папки', icon: <FolderPlus className="h-4 w-4" /> },
-];
+function getTabs(theme: 'light' | 'dark'): Tab[] {
+  return [
+    { id: 'signature', label: 'Подпись письма', icon: <Mail className="h-4 w-4" /> },
+    { id: 'theme', label: 'Тема', icon: theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" /> },
+    { id: 'autoReply', label: 'Автоответ', icon: <Mail className="h-4 w-4" /> },
+    { id: 'folders', label: 'Папки', icon: <FolderPlus className="h-4 w-4" /> },
+  ];
+}
 
 function SignatureTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
@@ -217,6 +221,80 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
   );
 }
 
+function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
+  const queryClient = useQueryClient();
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => initialSettings.theme || 'light');
+
+  const saveMutation = useMutation({
+    mutationFn: (newTheme: 'light' | 'dark') => saveSettings({ ...initialSettings, theme: newTheme }),
+    onSuccess: (_, newTheme) => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      toast.success('Тема изменена');
+      const root = document.documentElement;
+      if (newTheme === 'dark') {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    },
+    onError: () => {
+      toast.error('Ошибка сохранения темы');
+    },
+  });
+
+  const handleThemeChange = (newTheme: 'light' | 'dark') => {
+    setTheme(newTheme);
+    const root = document.documentElement;
+    if (newTheme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    saveMutation.mutate(newTheme);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Тема оформления</h2>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => handleThemeChange('light')}
+              className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
+                theme === 'light'
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border hover:border-primary/50'
+              }`}
+            >
+              <Sun className={`h-8 w-8 ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`} />
+              <span className={`font-medium ${theme === 'light' ? 'text-primary' : 'text-foreground'}`}>
+                Светлая
+              </span>
+            </button>
+            <button
+              onClick={() => handleThemeChange('dark')}
+              className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
+                theme === 'dark'
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border hover:border-primary/50'
+              }`}
+            >
+              <Moon className={`h-8 w-8 ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`} />
+              <span className={`font-medium ${theme === 'dark' ? 'text-primary' : 'text-foreground'}`}>
+                Темная
+              </span>
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Выберите тему оформления интерфейса почты
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FoldersTab() {
   const queryClient = useQueryClient();
   const [newFolderName, setNewFolderName] = useState('');
@@ -326,6 +404,9 @@ export default function SettingsPage() {
     queryKey: ['settings'],
     queryFn: getSettings,
   });
+  
+  const currentTheme = settings?.theme || 'light';
+  const tabs = getTabs(currentTheme);
 
   if (isLoading || !settings) {
     return (
@@ -370,6 +451,7 @@ export default function SettingsPage() {
         <div className="flex-1 overflow-auto p-6">
           <div className="mx-auto max-w-2xl">
             {activeTab === 'signature' && <SignatureTab initialSettings={settings} />}
+            {activeTab === 'theme' && <ThemeTab initialSettings={settings} />}
             {activeTab === 'autoReply' && <AutoReplyTab initialSettings={settings} />}
             {activeTab === 'folders' && <FoldersTab />}
           </div>

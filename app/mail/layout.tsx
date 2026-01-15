@@ -186,6 +186,27 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   });
 
   useEffect(() => {
+    const applyTheme = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const settings = await res.json();
+          const theme = settings.theme || 'light';
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        }
+      } catch (error) {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+
+    applyTheme();
+  }, []);
+
+  useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
     let reconnectAttempts = 0;
