@@ -97,7 +97,7 @@ export function MessageList({
           key={message.id}
           data-testid="message-item"
           className={cn(
-            'flex cursor-pointer items-start gap-3 border-b p-3 transition-colors hover:bg-muted/50',
+            'flex cursor-pointer items-start gap-3 border-b p-3 max-md:p-2 max-md:gap-2 transition-colors hover:bg-muted/50',
             isSelected && 'bg-muted',
             isFocused && 'ring-2 ring-primary'
           )}
@@ -124,35 +124,35 @@ export function MessageList({
               onSelect(message.id, true);
             }}
             onClick={(e) => e.stopPropagation()}
-            className="mt-1"
+            className="mt-1 max-md:mt-0.5 max-md:scale-90"
           />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 max-md:gap-1">
               {message.flags.starred ? (
-                <Star className="h-4 w-4 flex-shrink-0 fill-yellow-500 text-yellow-500" />
+                <Star className="h-4 w-4 max-md:h-3 max-md:w-3 flex-shrink-0 fill-yellow-500 text-yellow-500" />
               ) : (
-                <StarOff className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                  <StarOff className="h-4 w-4 max-md:h-3 max-md:w-3 flex-shrink-0 text-muted-foreground" />
               )}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className={cn('truncate', message.flags.unread ? 'font-bold' : 'font-normal')}>
+                <div className="flex items-center gap-2 max-md:gap-1">
+                  <span className={cn('truncate max-md:text-sm', message.flags.unread ? 'font-bold' : 'font-normal')}>
                     {message.from.name || message.from.email}
                   </span>
                   {message.flags.hasAttachments && (
-                    <Paperclip className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                    <Paperclip className="h-3 w-3 max-md:h-2.5 max-md:w-2.5 flex-shrink-0 text-muted-foreground" />
                   )}
                 </div>
-                <div className="mt-1 flex items-center gap-2 text-sm">
+                <div className="mt-1 max-md:mt-0.5 flex items-center gap-2 text-sm max-md:text-xs">
                   <span className={cn('truncate', message.flags.unread ? 'font-semibold' : 'text-muted-foreground')}>
                     {message.subject || '(без темы)'}
                   </span>
-                  <span className="text-xs text-muted-foreground flex-shrink-0">{formatDate(message.date)}</span>
+                  <span className="text-xs max-md:text-[10px] text-muted-foreground flex-shrink-0">{formatDate(message.date)}</span>
                 </div>
                 {message.snippet && (
-                  <div className="mt-1 truncate text-xs text-muted-foreground">{message.snippet}</div>
+                  <div className="mt-1 max-md:mt-0.5 truncate text-xs max-md:text-[10px] text-muted-foreground">{message.snippet}</div>
                 )}
               </div>
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 max-md:hidden">
                 {message.flags.unread ? (
                   <Mail className="h-4 w-4 text-primary" />
                 ) : (
@@ -168,20 +168,20 @@ export function MessageList({
   );
 
   return (
-    <div className="flex h-full w-full flex-col border-r bg-background">
-      <div className="border-b bg-muted/50 p-2 sticky top-0 z-10">
-        <div className="flex items-center gap-2">
+    <div className="flex h-full w-full flex-col border-r bg-background max-md:border-r-0">
+      <div className="border-b bg-muted/50 p-2 max-md:p-1.5 sticky top-0 z-10">
+        <div className="flex items-center gap-2 max-md:gap-1">
           <input
             type="checkbox"
             checked={messages.length > 0 && messages.every((m) => selectedIds.has(m.id))}
             onChange={onSelectAll}
-            className="ml-1"
+            className="ml-1 max-md:ml-0.5 max-md:scale-90"
           />
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm max-md:text-xs text-muted-foreground">
             {selectedIds.size > 0 ? `Выбрано: ${selectedIds.size}` : `Всего: ${messages.length}`}
           </span>
           {isFetchingMore && (
-            <span className="ml-auto text-xs text-muted-foreground">Загрузка...</span>
+            <span className="ml-auto text-xs max-md:text-[10px] text-muted-foreground">Загрузка...</span>
           )}
         </div>
       </div>

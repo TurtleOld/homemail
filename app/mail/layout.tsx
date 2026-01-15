@@ -10,7 +10,7 @@ import { MessageViewer } from '@/components/message-viewer';
 import { QuickFilters } from '@/components/quick-filters';
 import type { Folder, Account, MessageListItem, MessageDetail, Draft, QuickFilterType, FilterGroup } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Trash2, Star, Mail, FileText, X } from 'lucide-react';
+import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks';
 import { FilterQueryParser } from '@/lib/filter-parser';
@@ -58,8 +58,22 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     return width;
   });
   const [isResizing, setIsResizing] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const debouncedSearch = useDebounce(searchQuery, 400);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth >= 768) {
+        setSidebarOpen(false);
+      }
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const { data: settings } = useQuery<UserSettings>({
     queryKey: ['settings'],
@@ -486,40 +500,104 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const activeDraft = activeDraftId ? minimizedDrafts.find((d) => d.id === activeDraftId) : null;
   const composeDraft = loadedDraft || (activeDraft ? { id: activeDraft.id, to: activeDraft.to ? [activeDraft.to] : [], subject: activeDraft.subject, html: activeDraft.html } : undefined);
 
+  const handleFolderSelect = (id: string) => {
+    setSelectedFolderId(id);
+    setSelectedMessageId(null);
+    setSelectedIds(new Set());
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const handleMessageClick = (message: MessageListItem) => {
+    setSelectedMessageId(message.id);
+    setSelectedIds(new Set([message.id]));
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col">
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          folders={folders}
-          account={account || null}
-          selectedFolderId={selectedFolderId}
-          onFolderSelect={(id) => {
-            setSelectedFolderId(id);
-            setSelectedMessageId(null);
-            setSelectedIds(new Set());
-          }}
-          onCompose={() => {
-            setReplyTo(null);
-            setForwardFrom(null);
-            setLoadedDraft(null);
-            setActiveDraftId(null);
-            setComposeOpen(true);
-          }}
-          searchQuery={searchQuery}
-          onSearchChange={(query) => {
-            setSearchQuery(query);
-            const parsed = FilterQueryParser.parse(query);
-            setQuickFilter(parsed.quickFilter);
-            setFilterGroup(parsed.filterGroup);
-          }}
-          onFilterChange={(quickFilter, filterGroup) => {
-            setQuickFilter(quickFilter);
-            setFilterGroup(filterGroup);
-            queryClient.invalidateQueries({ queryKey: ['messages'] });
-          }}
-        />
-        <div className="relative flex flex-col flex-shrink-0" style={{ width: `${messageListWidth}px` }} suppressHydrationWarning>
-          <div className="border-b bg-muted/50 p-2 flex-shrink-0">
+      {isMobile && (
+        <div className="flex items-center gap-2 border-b bg-muted/50 p-2 md:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <div className="flex-1">
+            <img src="/icons/mail-icon.png" alt="Почта" className="h-5 w-5 inline mr-2" />
+            <span className="text-lg font-bold">Почта</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setReplyTo(null);
+              setForwardFrom(null);
+              setLoadedDraft(null);
+              setActiveDraftId(null);
+              setComposeOpen(true);
+            }}
+          >
+            <FileText className="h-5 w-5" />
+          </Button>
+        </div>
+      )}
+      <div className="flex flex-1 overflow-hidden relative">
+        {(!isMobile || sidebarOpen) && (
+          <>
+            {isMobile && sidebarOpen && (
+              <div
+                className="fixed inset-0 z-40 bg-black/50"
+                onClick={() => setSidebarOpen(false)}
+              />
+            )}
+            <div className={`
+              ${isMobile ? 'fixed inset-y-0 left-0 z-50 w-64 bg-background shadow-lg' : 'relative'}
+              ${isMobile && !sidebarOpen ? 'hidden' : ''}
+            `}>
+              <Sidebar
+              folders={folders}
+              account={account || null}
+              selectedFolderId={selectedFolderId}
+              onFolderSelect={handleFolderSelect}
+              onCompose={() => {
+                setReplyTo(null);
+                setForwardFrom(null);
+                setLoadedDraft(null);
+                setActiveDraftId(null);
+                setComposeOpen(true);
+                if (isMobile) {
+                  setSidebarOpen(false);
+                }
+              }}
+              searchQuery={searchQuery}
+              onSearchChange={(query) => {
+                setSearchQuery(query);
+                const parsed = FilterQueryParser.parse(query);
+                setQuickFilter(parsed.quickFilter);
+                setFilterGroup(parsed.filterGroup);
+              }}
+              onFilterChange={(quickFilter, filterGroup) => {
+                setQuickFilter(quickFilter);
+                setFilterGroup(filterGroup);
+                queryClient.invalidateQueries({ queryKey: ['messages'] });
+              }}
+              isMobile={isMobile}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </div>
+        )}
+        {isMobile && selectedMessageId ? null : (
+          <div className={`
+            relative flex flex-col flex-shrink-0
+            ${isMobile ? 'w-full' : ''}
+          `} style={!isMobile ? { width: `${messageListWidth}px` } : {}} suppressHydrationWarning>
+          <div className="border-b bg-muted/50 p-2 max-md:p-1.5 flex-shrink-0">
             <QuickFilters
               activeFilter={quickFilter}
               onFilterChange={(filter) => {
@@ -565,10 +643,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 setSelectedIds(new Set(messages.map((m) => m.id)));
               }
             }}
-            onMessageClick={(message) => {
-              setSelectedMessageId(message.id);
-              setSelectedIds(new Set([message.id]));
-            }}
+            onMessageClick={handleMessageClick}
             onMessageDoubleClick={handleMessageDoubleClick}
             onLoadMore={() => {
               if (hasNextPage && !isFetchingNextPage) {
@@ -582,14 +657,37 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           />
           </div>
         </div>
-        <div
-          className="group relative w-1 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-primary/30 transition-colors"
-          onMouseDown={handleMouseDown}
-        >
-          <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-border group-hover:bg-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <MessageViewer
+        )}
+        {!isMobile && (
+          <div
+            className="group relative w-1 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-primary/30 transition-colors"
+            onMouseDown={handleMouseDown}
+          >
+            <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-border group-hover:bg-primary" />
+          </div>
+        )}
+        {isMobile && !selectedMessageId ? null : (
+          <div className={`
+            flex-1 min-w-0
+            ${isMobile ? 'fixed inset-0 z-40 bg-background' : ''}
+            ${isMobile && !selectedMessageId ? 'hidden' : ''}
+          `}>
+            {isMobile && (
+              <div className="flex items-center gap-2 border-b bg-muted/50 p-2 flex-shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setSelectedMessageId(null);
+                    setSelectedIds(new Set());
+                  }}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <span className="text-sm font-medium truncate flex-1">{selectedMessage?.subject || 'Письмо'}</span>
+              </div>
+            )}
+            <MessageViewer
           message={selectedMessage || null}
           onReply={handleReply}
           onReplyAll={handleReplyAll}
@@ -621,27 +719,29 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           allowRemoteImages={allowRemoteImages}
           isLoading={isMessageLoading}
           hasSelection={!!selectedMessageId}
+          isMobile={isMobile}
           />
-        </div>
+          </div>
+        )}
       </div>
       {selectedIds.size > 0 && (
-        <div className="border-t bg-muted/50 p-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">Выбрано: {selectedIds.size}</span>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('markRead')}>
-              <Mail className="mr-2 h-4 w-4" />
-              Прочитано
+        <div className="border-t bg-muted/50 p-2 max-md:p-1.5">
+          <div className="flex items-center gap-2 max-md:gap-1 max-md:flex-wrap">
+            <span className="text-sm max-md:text-xs">Выбрано: {selectedIds.size}</span>
+            <Button variant="outline" size="sm" onClick={() => handleBulkAction('markRead')} className="max-md:text-xs max-md:px-2 max-md:h-8">
+              <Mail className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+              <span className="max-md:hidden">Прочитано</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('markUnread')}>
-              Непрочитано
+            <Button variant="outline" size="sm" onClick={() => handleBulkAction('markUnread')} className="max-md:text-xs max-md:px-2 max-md:h-8">
+              <span className="max-md:hidden">Непрочитано</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('star')}>
-              <Star className="mr-2 h-4 w-4" />
-              В избранное
+            <Button variant="outline" size="sm" onClick={() => handleBulkAction('star')} className="max-md:text-xs max-md:px-2 max-md:h-8">
+              <Star className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+              <span className="max-md:hidden">В избранное</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('delete')}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Удалить
+            <Button variant="outline" size="sm" onClick={() => handleBulkAction('delete')} className="max-md:text-xs max-md:px-2 max-md:h-8">
+              <Trash2 className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+              <span className="max-md:hidden">Удалить</span>
             </Button>
           </div>
         </div>
@@ -656,7 +756,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         signature={settings?.signature}
       />
       {minimizedDrafts.length > 0 && (
-        <div className="fixed bottom-0 right-4 flex gap-2 z-50">
+        <div className="fixed bottom-0 right-4 flex gap-2 z-50 max-md:right-2 max-md:bottom-16">
           {minimizedDrafts.map((draft) => (
             <div
               key={draft.id}

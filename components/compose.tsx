@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { validateEmail, parseEmailList } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Draft } from '@/lib/types';
@@ -57,7 +58,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none min-h-[300px] p-4 focus:outline-none',
+        class: 'prose prose-sm max-w-none min-h-[300px] max-md:min-h-[200px] p-4 max-md:p-2 focus:outline-none',
       },
     },
   });
@@ -300,24 +301,24 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] max-md:max-w-full max-md:max-h-full max-md:h-full max-md:rounded-none max-md:m-0 flex flex-col">
         <DialogHeader>
-          <DialogTitle>{replyTo ? 'Ответить' : forwardFrom ? 'Переслать' : 'Новое письмо'}</DialogTitle>
+          <DialogTitle className="max-md:text-base">{replyTo ? 'Ответить' : forwardFrom ? 'Переслать' : 'Новое письмо'}</DialogTitle>
         </DialogHeader>
-        <div className="flex-1 overflow-auto space-y-4">
+        <div className="flex-1 overflow-auto space-y-4 max-md:space-y-2">
           <div>
             <Input
               placeholder="Кому"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="mb-2"
+              className="mb-2 max-md:text-sm"
             />
             {showCc && (
               <Input
                 placeholder="Копия"
                 value={cc}
                 onChange={(e) => setCc(e.target.value)}
-                className="mb-2"
+                className="mb-2 max-md:text-sm"
               />
             )}
             {showBcc && (
@@ -325,10 +326,10 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
                 placeholder="Скрытая копия"
                 value={bcc}
                 onChange={(e) => setBcc(e.target.value)}
-                className="mb-2"
+                className="mb-2 max-md:text-sm"
               />
             )}
-            <div className="flex gap-2 text-sm">
+            <div className="flex gap-2 text-sm max-md:text-xs">
               <button
                 type="button"
                 onClick={() => setShowCc(!showCc)}
@@ -349,81 +350,82 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             placeholder="Тема"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
+            className="max-md:text-sm"
           />
           <div className="border rounded-md">
-            <div className="border-b p-2 flex gap-2">
+            <div className="border-b p-2 max-md:p-1 flex gap-2 max-md:gap-1 flex-wrap">
               <Button
                 variant="ghost"
                 size="sm"
                 type="button"
                 onClick={() => editor.chain().focus().toggleBold().run()}
-                className={editor.isActive('bold') ? 'bg-muted' : ''}
+                className={cn(editor.isActive('bold') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
               >
-                <Bold className="h-4 w-4" />
+                <Bold className="h-4 w-4 max-md:h-3 max-md:w-3" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 type="button"
                 onClick={() => editor.chain().focus().toggleItalic().run()}
-                className={editor.isActive('italic') ? 'bg-muted' : ''}
+                className={cn(editor.isActive('italic') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
               >
-                <Italic className="h-4 w-4" />
+                <Italic className="h-4 w-4 max-md:h-3 max-md:w-3" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 type="button"
                 onClick={() => editor.chain().focus().toggleUnderline().run()}
-                className={editor.isActive('underline') ? 'bg-muted' : ''}
+                className={cn(editor.isActive('underline') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
               >
-                <UnderlineIcon className="h-4 w-4" />
+                <UnderlineIcon className="h-4 w-4 max-md:h-3 max-md:w-3" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 type="button"
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
-                className={editor.isActive('bulletList') ? 'bg-muted' : ''}
+                className={cn(editor.isActive('bulletList') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
               >
-                <List className="h-4 w-4" />
+                <List className="h-4 w-4 max-md:h-3 max-md:w-3" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 type="button"
                 onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                className={editor.isActive('orderedList') ? 'bg-muted' : ''}
+                className={cn(editor.isActive('orderedList') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
               >
-                <ListOrdered className="h-4 w-4" />
+                <ListOrdered className="h-4 w-4 max-md:h-3 max-md:w-3" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 type="button"
                 onClick={() => editor.chain().focus().toggleBlockquote().run()}
-                className={editor.isActive('blockquote') ? 'bg-muted' : ''}
+                className={cn(editor.isActive('blockquote') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
               >
-                <Quote className="h-4 w-4" />
+                <Quote className="h-4 w-4 max-md:h-3 max-md:w-3" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 type="button"
                 onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                className={editor.isActive('codeBlock') ? 'bg-muted' : ''}
+                className={cn(editor.isActive('codeBlock') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
               >
-                <Code className="h-4 w-4" />
+                <Code className="h-4 w-4 max-md:h-3 max-md:w-3" />
               </Button>
             </div>
             <EditorContent editor={editor} />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+        <DialogFooter className="max-md:flex-col max-md:gap-2">
+          <Button variant="outline" onClick={handleClose} className="max-md:w-full">
             Отмена
           </Button>
-          <Button onClick={handleSend} disabled={sending || saving}>
+          <Button onClick={handleSend} disabled={sending || saving} className="max-md:w-full">
             {sending ? 'Отправка...' : saving ? 'Сохранение...' : 'Отправить'}
           </Button>
         </DialogFooter>

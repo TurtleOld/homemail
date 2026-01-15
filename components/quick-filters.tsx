@@ -78,12 +78,12 @@ export function QuickFilters({ activeFilter, onFilterChange, className }: QuickF
   }, {} as Record<string, QuickFilter[]>);
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex items-center gap-2 max-md:gap-1', className)}>
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
-          <Button variant={activeFilter ? 'default' : 'outline'} size="sm" className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            <span>{activeFilterData ? activeFilterData.label : 'Фильтры'}</span>
+          <Button variant={activeFilter ? 'default' : 'outline'} size="sm" className="flex items-center gap-2 max-md:text-xs max-md:px-2 max-md:h-8">
+            <Filter className="h-4 w-4 max-md:h-3 max-md:w-3" />
+            <span className="max-md:text-xs">{activeFilterData ? activeFilterData.label : 'Фильтры'}</span>
             {activeFilter && (
               <X
                 className="h-3 w-3 ml-1"
@@ -129,9 +129,9 @@ export function QuickFilters({ activeFilter, onFilterChange, className }: QuickF
           variant="ghost"
           size="sm"
           onClick={() => onFilterChange(undefined)}
-          className="h-8 px-2"
+          className="h-8 px-2 max-md:h-7 max-md:px-1"
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4 max-md:h-3 max-md:w-3" />
         </Button>
       )}
     </div>

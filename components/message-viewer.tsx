@@ -5,7 +5,7 @@ import type { MessageDetail } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { Button } from '@/components/ui/button';
-import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download } from 'lucide-react';
+import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface MessageViewerProps {
@@ -19,6 +19,8 @@ interface MessageViewerProps {
   allowRemoteImages?: boolean;
   isLoading?: boolean;
   hasSelection?: boolean;
+  isMobile?: boolean;
+  onBack?: () => void;
 }
 
 export function MessageViewer({
@@ -32,6 +34,8 @@ export function MessageViewer({
   allowRemoteImages = false,
   isLoading = false,
   hasSelection = false,
+  isMobile = false,
+  onBack,
 }: MessageViewerProps) {
   const markedAsReadRef = useRef<Set<string>>(new Set());
   const [localAllowImages, setLocalAllowImages] = useState(false);
@@ -220,22 +224,22 @@ export function MessageViewer({
   };
 
   return (
-    <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden">
-      <div className="border-b bg-muted/50 p-4">
-        <div className="mb-2 flex items-start justify-between">
-          <div className="flex-1">
-            <h2 className="text-lg font-semibold">{message.subject || '(без темы)'}</h2>
-            <div className="mt-1 text-sm text-muted-foreground">
-              <div>
+    <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden max-md:border-l-0">
+      <div className="border-b bg-muted/50 p-4 max-md:p-2">
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold max-md:text-base break-words">{message.subject || '(без темы)'}</h2>
+            <div className="mt-1 text-sm text-muted-foreground max-md:text-xs">
+              <div className="break-words">
                 <strong>От:</strong> {message.from.name ? `${message.from.name} <${message.from.email}>` : message.from.email}
               </div>
               {message.to.length > 0 && (
-                <div>
+                <div className="break-words">
                   <strong>Кому:</strong> {message.to.map((t) => (t.name ? `${t.name} <${t.email}>` : t.email)).join(', ')}
                 </div>
               )}
               {message.cc && message.cc.length > 0 && (
-                <div>
+                <div className="break-words">
                   <strong>Копия:</strong> {message.cc.map((c) => (c.name ? `${c.name} <${c.email}>` : c.email)).join(', ')}
                 </div>
               )}
@@ -255,35 +259,35 @@ export function MessageViewer({
             )}
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={onReply}>
-            <Reply className="mr-2 h-4 w-4" />
-            Ответить
+        <div className="flex gap-2 max-md:flex-wrap max-md:gap-1">
+          <Button variant="outline" size="sm" onClick={onReply} className="max-md:text-xs max-md:px-2 max-md:h-8">
+            <Reply className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+            <span className="max-md:hidden">Ответить</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={onReplyAll}>
-            <ReplyAll className="mr-2 h-4 w-4" />
-            Ответить всем
+          <Button variant="outline" size="sm" onClick={onReplyAll} className="max-md:text-xs max-md:px-2 max-md:h-8">
+            <ReplyAll className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+            <span className="max-md:hidden">Ответить всем</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={onForward}>
-            <Forward className="mr-2 h-4 w-4" />
-            Переслать
+          <Button variant="outline" size="sm" onClick={onForward} className="max-md:text-xs max-md:px-2 max-md:h-8">
+            <Forward className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+            <span className="max-md:hidden">Переслать</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={onDelete}>
-            <Trash2 className="mr-2 h-4 w-4" />
-            Удалить
+          <Button variant="outline" size="sm" onClick={onDelete} className="max-md:text-xs max-md:px-2 max-md:h-8">
+            <Trash2 className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+            <span className="max-md:hidden">Удалить</span>
           </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-auto flex flex-col">
+      <div className="flex-1 overflow-auto flex flex-col max-md:pb-4">
         {message.attachments.length > 0 && (
-          <div className="border-b bg-muted/30 p-4 flex-shrink-0">
-            <h3 className="mb-2 text-sm font-semibold">Вложения ({message.attachments.length}):</h3>
+          <div className="border-b bg-muted/30 p-4 max-md:p-2 flex-shrink-0">
+            <h3 className="mb-2 text-sm font-semibold max-md:text-xs">Вложения ({message.attachments.length}):</h3>
             <div className="space-y-2">
               {message.attachments.map((att) => (
-                <div key={att.id} className="flex items-center justify-between rounded border bg-background p-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{att.filename}</div>
-                    <div className="text-xs text-muted-foreground">
+                <div key={att.id} className="flex items-center justify-between rounded border bg-background p-2 max-md:p-1.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium max-md:text-xs truncate">{att.filename}</div>
+                    <div className="text-xs text-muted-foreground max-md:text-[10px]">
                       {(att.size / 1024).toFixed(1)} KB • {att.mime}
                     </div>
                   </div>

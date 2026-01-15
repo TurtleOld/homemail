@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
@@ -26,6 +26,8 @@ interface SidebarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onFilterChange?: (quickFilter?: import('@/lib/types').QuickFilterType, filterGroup?: import('@/lib/types').FilterGroup) => void;
+  isMobile?: boolean;
+  onClose?: () => void;
 }
 
 type ServiceStatus = 'up' | 'down' | 'unknown';
@@ -62,6 +64,8 @@ export function Sidebar({
   searchQuery,
   onSearchChange,
   onFilterChange,
+  isMobile = false,
+  onClose,
 }: SidebarProps) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -120,7 +124,7 @@ export function Sidebar({
     router.push('/settings');
   };
 
-  if (isCollapsed) {
+  if (isCollapsed && !isMobile) {
     return (
       <div className="flex h-full w-16 flex-col border-r bg-muted/30">
         <div className="border-b p-2">
@@ -155,17 +159,30 @@ export function Sidebar({
   }
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-muted/30">
+    <div className={`
+      flex h-full flex-col border-r bg-muted/30
+      ${isMobile ? 'w-full' : 'w-64'}
+    `}>
+      {isMobile && (
+        <div className="border-b p-2 flex items-center justify-between">
+          <h1 className="text-lg font-bold">Меню</h1>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       <div className="border-b p-4">
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <img src="/icons/mail-icon.png" alt="Почта" className="h-5 w-5 flex-shrink-0" />
-              <h1 className="text-lg font-bold">Почта</h1>
-              {isStatusLoading && (
-                <span className="text-xs text-muted-foreground">Статус...</span>
-              )}
-            </div>
+            {!isMobile && (
+              <div className="flex items-center gap-2">
+                <img src="/icons/mail-icon.png" alt="Почта" className="h-5 w-5 flex-shrink-0" />
+                <h1 className="text-lg font-bold">Почта</h1>
+                {isStatusLoading && (
+                  <span className="text-xs text-muted-foreground">Статус...</span>
+                )}
+              </div>
+            )}
             {statusItems.length > 0 && (
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 {statusItems.map((item) => (
@@ -179,9 +196,11 @@ export function Sidebar({
               </div>
             )}
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(true)} title="Скрыть меню">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
+          {!isMobile && (
+            <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(true)} title="Скрыть меню">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <Button className="w-full" onClick={onCompose}>
           <Plus className="mr-2 h-4 w-4" />
