@@ -30,7 +30,10 @@ function toNumber(value: string | number | boolean | undefined): number | null {
   return null;
 }
 
-function toDate(value: string | number | boolean | undefined): Date | null {
+function toDate(value: string | number | boolean | Date | undefined): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
   if (typeof value === 'number') {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
@@ -59,10 +62,6 @@ function matchCondition(message: MessageListItem, condition: FilterCondition): b
   const { field, operator, value, caseSensitive } = condition;
 
   if (field === 'status') {
-    const expected = toBoolean(value);
-    if (expected === null) {
-      return false;
-    }
     if (typeof value === 'string') {
       const normalized = value.toLowerCase();
       if (normalized === 'unread' || normalized === 'read') {
@@ -72,35 +71,78 @@ function matchCondition(message: MessageListItem, condition: FilterCondition): b
       if (normalized === 'starred' || normalized === 'important') {
         return message.flags.starred === true;
       }
+      if (normalized === 'hasattachments' || normalized === 'has attachments') {
+        return message.flags.hasAttachments === true;
+      }
+    }
+    if (Array.isArray(value)) {
+      return value.some((v) => {
+        if (typeof v === 'string') {
+          const normalized = v.toLowerCase();
+          if (normalized === 'unread') return message.flags.unread;
+          if (normalized === 'read') return !message.flags.unread;
+          if (normalized === 'starred' || normalized === 'important') return message.flags.starred;
+          if (normalized === 'hasattachments' || normalized === 'has attachments') return message.flags.hasAttachments;
+        }
+        return false;
+      });
     }
     return false;
   }
 
   if (field === 'size') {
-    const expected = toNumber(value);
-    if (expected === null) {
-      return false;
+    if (typeof value === 'number') {
+      if (operator === 'gt') {
+        return message.size > value;
+      }
+      if (operator === 'gte') {
+        return message.size >= value;
+      }
+      if (operator === 'lt') {
+        return message.size < value;
+      }
+      if (operator === 'lte') {
+        return message.size <= value;
+      }
+      if (operator === 'equals') {
+        return message.size === value;
+      }
     }
-    if (operator === 'gt') {
-      return message.size > expected;
-    }
-    if (operator === 'gte') {
-      return message.size >= expected;
-    }
-    if (operator === 'lt') {
-      return message.size < expected;
-    }
-    if (operator === 'lte') {
-      return message.size <= expected;
-    }
-    if (operator === 'equals') {
-      return message.size === expected;
+    if (typeof value === 'string') {
+      const expected = toNumber(value);
+      if (expected === null) {
+        return false;
+      }
+      if (operator === 'gt') {
+        return message.size > expected;
+      }
+      if (operator === 'gte') {
+        return message.size >= expected;
+      }
+      if (operator === 'lt') {
+        return message.size < expected;
+      }
+      if (operator === 'lte') {
+        return message.size <= expected;
+      }
+      if (operator === 'equals') {
+        return message.size === expected;
+      }
     }
     return false;
   }
 
   if (field === 'date') {
-    const expected = toDate(value);
+    if (operator === 'between' && typeof value === 'object' && 'from' in value && 'to' in value) {
+      const from = toDate(value.from);
+      const to = toDate(value.to);
+      if (from && to) {
+        const timestamp = message.date.getTime();
+        return timestamp >= from.getTime() && timestamp <= to.getTime();
+      }
+      return false;
+    }
+    const expected = typeof value === 'string' || typeof value === 'number' ? toDate(value) : null;
     if (!expected) {
       return false;
     }
@@ -114,13 +156,6 @@ function matchCondition(message: MessageListItem, condition: FilterCondition): b
     }
     if (operator === 'equals') {
       return timestamp === expectedTimestamp;
-    }
-    if (operator === 'between' && typeof value === 'object' && 'from' in value && 'to' in value) {
-      const from = toDate(value.from);
-      const to = toDate(value.to);
-      if (from && to) {
-        return timestamp >= from.getTime() && timestamp <= to.getTime();
-      }
     }
     return false;
   }
