@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         );
 
         if (matches) {
-          console.log(`[process-message] Message ${messageId} matches rule ${rule.name}, applying actions...`);
+          console.error(`[process-message] Message ${messageId} matches rule ${rule.name}, applying actions...`);
           await applyRuleActions(messageId, rule, provider, session.accountId);
           appliedCount++;
         }
@@ -65,6 +65,14 @@ export async function POST(request: NextRequest) {
         console.error(`[process-message] Error processing rule ${rule.name} for message ${messageId}:`, error);
       }
     }
+    
+    console.error('[process-message] Processed message:', {
+      messageId,
+      folderId: targetFolderId,
+      rulesCount: rules.length,
+      appliedCount,
+      from: message.from.email,
+    });
 
     return NextResponse.json({ applied: appliedCount });
   } catch (error) {

@@ -146,7 +146,7 @@ export function AutoSortRuleEditor({
                         : { type: 'notify', service: 'telegram', target: '' };
                     handleActionChange(index, newAction);
                   }}
-                  className="flex-1 rounded border px-2 py-1 text-sm"
+                  className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm text-foreground dark:bg-background dark:text-foreground dark:border-border"
                 >
                   <option value="moveToFolder">Переместить в папку</option>
                   <option value="addLabel">Добавить метку</option>
@@ -164,7 +164,7 @@ export function AutoSortRuleEditor({
                     onChange={(e) =>
                       handleActionChange(index, { ...action, folderId: e.target.value })
                     }
-                    className="flex-1 rounded border px-2 py-1 text-sm"
+                    className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm text-foreground dark:bg-background dark:text-foreground dark:border-border"
                   >
                     {folders.map((folder) => (
                       <option key={folder.id} value={folder.id}>
@@ -215,7 +215,7 @@ export function AutoSortRuleEditor({
                           service: e.target.value as 'telegram' | 'matrix',
                         })
                       }
-                      className="rounded border px-2 py-1 text-sm"
+                      className="rounded border border-input bg-background px-2 py-1 text-sm text-foreground dark:bg-background dark:text-foreground dark:border-border"
                     >
                       <option value="telegram">Telegram</option>
                       <option value="matrix">Matrix</option>

@@ -283,15 +283,24 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         
         try {
           const data = JSON.parse(event.data);
-          if (data.messageId) {
-            await fetch('/api/mail/filters/rules/process-message', {
+          if (data.messageId || data.id) {
+            const messageId = data.messageId || data.id;
+            const folderId = data.folderId || data.mailboxId || selectedFolderId || 'inbox';
+            console.log('[mail/layout] Processing new message with rules:', { messageId, folderId });
+            const res = await fetch('/api/mail/filters/rules/process-message', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ messageId: data.messageId, folderId: data.folderId }),
+              body: JSON.stringify({ messageId, folderId }),
             });
+            if (!res.ok) {
+              console.error('[mail/layout] Failed to process message with rules:', await res.text());
+            } else {
+              const result = await res.json();
+              console.log('[mail/layout] Rules applied:', result);
+            }
           }
         } catch (error) {
-          console.error('Error processing new message with rules:', error);
+          console.error('[mail/layout] Error processing new message with rules:', error);
         }
       });
 

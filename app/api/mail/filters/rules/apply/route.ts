@@ -49,6 +49,14 @@ export async function POST(request: NextRequest) {
       : getMailProvider();
 
     const targetFolderId = folderId || 'inbox';
+    
+    console.error('[filter-rules/apply] Starting rule application:', {
+      ruleId,
+      ruleName: rule.name,
+      targetFolderId,
+      limit,
+    });
+    
     const result = await provider.getMessages(session.accountId, targetFolderId, {
       limit,
     });
@@ -59,19 +67,32 @@ export async function POST(request: NextRequest) {
 
     let appliedCount = 0;
     for (const message of result.messages) {
-      const matches = await checkMessageMatchesRule(
-        message,
-        rule,
-        provider,
-        session.accountId,
-        targetFolderId
-      );
+      try {
+        const matches = await checkMessageMatchesRule(
+          message,
+          rule,
+          provider,
+          session.accountId,
+          targetFolderId
+        );
 
-      if (matches) {
-        await applyRuleActions(message.id, rule, provider, session.accountId);
-        appliedCount++;
+        if (matches) {
+          console.error(`[filter-rules/apply] Message ${message.id} matches rule ${rule.name}, applying actions...`);
+          await applyRuleActions(message.id, rule, provider, session.accountId);
+          appliedCount++;
+        }
+      } catch (error) {
+        console.error(`[filter-rules/apply] Error processing message ${message.id}:`, error);
       }
     }
+    
+    console.error('[filter-rules/apply] Applied rule:', {
+      ruleId,
+      ruleName: rule.name,
+      folderId: targetFolderId,
+      total: result.messages.length,
+      applied: appliedCount,
+    });
 
     return NextResponse.json({
       applied: appliedCount,

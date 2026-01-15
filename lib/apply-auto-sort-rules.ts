@@ -12,7 +12,14 @@ export async function checkMessageMatchesRule(
     return false;
   }
 
-  return checkMessageMatchesFilterGroup(message, rule.filterGroup, provider, accountId, folderId);
+  const matches = checkMessageMatchesFilterGroup(message, rule.filterGroup, provider, accountId, folderId);
+  console.error('[apply-auto-sort-rules] Rule check:', {
+    ruleName: rule.name,
+    messageId: message.id,
+    from: 'from' in message ? message.from.email : 'N/A',
+    matches,
+  });
+  return matches;
 }
 
 function checkMessageMatchesFilterGroup(
@@ -130,9 +137,18 @@ function checkStringMatch(text: string, operator: string, value: string | string
       return lowerText.endsWith(lowerValue);
     case 'matches':
       try {
-        const regex = new RegExp(lowerValue.replace(/\*/g, '.*'), 'i');
-        return regex.test(text);
-      } catch {
+        const pattern = searchText.replace(/\*/g, '.*');
+        const regex = new RegExp(`^${pattern}$`, 'i');
+        const result = regex.test(text);
+        console.error('[apply-auto-sort-rules] Pattern match:', {
+          pattern: searchText,
+          regex: regex.toString(),
+          text,
+          result,
+        });
+        return result;
+      } catch (error) {
+        console.error('[apply-auto-sort-rules] Regex error:', error, { pattern: searchText, text });
         return false;
       }
     case 'in':
