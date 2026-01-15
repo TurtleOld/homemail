@@ -380,7 +380,7 @@ export class FilterQueryParser {
         value = `"${value}"`;
       }
 
-      if (operator === 'notIn' || operator === 'notIn') {
+      if (operator === 'notIn') {
         parts.push(`-${fieldName}:${value}`);
       } else {
         parts.push(`${fieldName}:${value}`);
