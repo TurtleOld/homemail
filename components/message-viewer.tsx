@@ -7,6 +7,7 @@ import { sanitizeHtml } from '@/lib/sanitize';
 import { Button } from '@/components/ui/button';
 import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface MessageViewerProps {
   message: MessageDetail | null;
@@ -104,12 +105,16 @@ export function MessageViewer({
       'img[align="left"] { float: left; margin: 0 16px 12px 0; }',
       'img[align="right"] { float: right; margin: 0 0 12px 16px; }',
       'img[align="center"] { display: block; margin: 12px auto; float: none; }',
-      'table { width: 100%; max-width: 100%; border-collapse: collapse; margin: 12px 0; }',
-      'table[width] { width: 100% !important; max-width: 100%; }',
-      'table td, table th { padding: 8px 12px; border: 1px solid #e5e7eb; word-wrap: break-word; }',
-      'table th { background: #f9fafb; font-weight: 600; }',
-      'table[role="presentation"] { width: 100% !important; }',
-      'table[role="presentation"] td { padding: 0; border: none; }',
+      'table { width: 100%; max-width: 100%; border-collapse: collapse; margin: 12px 0; border: none !important; }',
+      'table[width] { width: 100% !important; max-width: 100%; border: none !important; }',
+      'table td, table th { padding: 8px 12px; border: none !important; word-wrap: break-word; }',
+      'table th { background: #f9fafb; font-weight: 600; border: none !important; }',
+      'table[role="presentation"] { width: 100% !important; border: none !important; }',
+      'table[role="presentation"] td { padding: 0; border: none !important; }',
+      'table[style*="border"], table[style*="Border"] { border: none !important; }',
+      'td[style*="border"], td[style*="Border"], th[style*="border"], th[style*="Border"] { border: none !important; }',
+      'table[style*="border-color"], table[style*="Border-color"] { border: none !important; }',
+      'td[style*="border-color"], td[style*="Border-color"], th[style*="border-color"], th[style*="Border-color"] { border: none !important; }',
       'div { margin: 0; }',
       'div[align="center"] { text-align: center; }',
       'div[align="left"] { text-align: left; }',
@@ -276,8 +281,28 @@ export function MessageViewer({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      window.open(`/api/mail/attachments/${att.id}/download?messageId=${message.id}`, '_blank');
+                    onClick={async () => {
+                      try {
+                        const url = `/api/mail/attachments/${att.id}/download?messageId=${message.id}`;
+                        const response = await fetch(url);
+                        if (!response.ok) {
+                          const error = await response.json().catch(() => ({ error: 'Failed to download' }));
+                          toast.error(error.error || 'Ошибка скачивания');
+                          return;
+                        }
+                        const blob = await response.blob();
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = att.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(downloadUrl);
+                      } catch (error) {
+                        console.error('Download error:', error);
+                        toast.error('Ошибка скачивания');
+                      }
                     }}
                   >
                     <Download className="h-4 w-4" />
