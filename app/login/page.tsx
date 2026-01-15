@@ -43,15 +43,15 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-md space-y-8 rounded-lg border bg-card p-8 shadow-lg">
-        <div>
-          <h1 className="text-2xl font-bold">Вход в почту</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Введите логин и пароль для входа</p>
+    <div className="flex min-h-screen items-center justify-center bg-blue-50 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8 rounded-2xl border border-blue-200 bg-white p-6 shadow-xl sm:p-8 md:p-10">
+        <div className="text-center sm:text-left">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Вход в почту</h1>
+          <p className="mt-2 text-sm text-gray-600 sm:text-base">Введите логин и пароль для входа</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium">
+        <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+          <div className="space-y-2">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 sm:text-base">
               Логин
             </label>
             <Input
@@ -60,12 +60,12 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1"
+              className="h-11 border-blue-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-12"
               placeholder="например: username"
             />
           </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium">
+          <div className="space-y-2">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 sm:text-base">
               Пароль
             </label>
             <Input
@@ -74,15 +74,19 @@ function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="mt-1"
+              className="h-11 border-blue-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-12"
               placeholder="••••••••"
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button
+            type="submit"
+            className="h-11 w-full bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500 disabled:opacity-50 sm:h-12 sm:text-base"
+            disabled={loading}
+          >
             {loading ? 'Вход...' : 'Войти'}
           </Button>
         </form>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-center text-xs text-gray-500 sm:text-left sm:text-sm">
           Для демо используйте любой email и пароль. Данные генерируются автоматически.
         </p>
       </div>
@@ -92,7 +96,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div>Загрузка...</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-blue-50 text-gray-600">Загрузка...</div>}>
       <LoginForm />
     </Suspense>
   );
