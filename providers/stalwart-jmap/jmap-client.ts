@@ -631,12 +631,22 @@ export class JMAPClient {
     }
   ): Promise<{ ids: string[]; position: number; total?: number; queryState?: string }> {
     const targetAccountId = options.accountId || this.accountId;
+    const finalFilter = options.filter || { inMailbox: mailboxId };
+    
+    console.error('[JMAPClient] queryEmails called:', {
+      mailboxId,
+      accountId: targetAccountId,
+      filter: JSON.stringify(finalFilter, null, 2),
+      position: options.position,
+      limit: options.limit,
+    });
+    
     const response = await this.request([
       [
         'Email/query',
         {
           accountId: targetAccountId,
-          filter: options.filter || { inMailbox: mailboxId },
+          filter: finalFilter,
           sort: options.sort || [{ property: 'receivedAt', isAscending: false }],
           position: options.position || 0,
           limit: options.limit || 50,
@@ -651,10 +661,20 @@ export class JMAPClient {
     }
 
     if ('type' in queryResponse[1] && queryResponse[1].type === 'error') {
-      throw new Error(`JMAP email query error: ${(queryResponse[1] as any).description}`);
+      const errorDesc = (queryResponse[1] as any).description || 'Unknown error';
+      console.error('[JMAPClient] Email/query error:', errorDesc);
+      throw new Error(`JMAP email query error: ${errorDesc}`);
     }
 
-    return queryResponse[1] as { ids: string[]; position: number; total?: number; queryState?: string };
+    const result = queryResponse[1] as { ids: string[]; position: number; total?: number; queryState?: string };
+    console.error('[JMAPClient] Email/query result:', {
+      idsCount: result.ids?.length || 0,
+      total: result.total,
+      position: result.position,
+      firstFewIds: result.ids?.slice(0, 5),
+    });
+    
+    return result;
   }
 
   async getEmails(

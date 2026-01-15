@@ -54,8 +54,15 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      console.log('[messages] Final messageFilter:', JSON.stringify(messageFilter, null, 2));
-      console.log('[messages] Query params:', { folderId: params.folderId, q: params.q, filter: params.filter });
+      console.error('[messages] API called:', {
+        accountId: session.accountId,
+        folderId: params.folderId,
+        messageFilter: messageFilter ? JSON.stringify(messageFilter) : undefined,
+        q: params.q,
+        filter: params.filter,
+        cursor: params.cursor,
+        limit: params.limit,
+      });
 
       const provider = process.env.MAIL_PROVIDER === 'stalwart'
         ? getMailProviderForAccount(session.accountId)
@@ -69,7 +76,11 @@ export async function GET(request: NextRequest) {
         messageFilter,
       });
       
-      console.log('[messages] Result:', { messagesCount: result?.messages?.length || 0, hasNextCursor: !!result?.nextCursor });
+      console.error('[messages] API result:', { 
+        messagesCount: result?.messages?.length || 0, 
+        hasNextCursor: !!result?.nextCursor,
+        firstMessageId: result?.messages?.[0]?.id,
+      });
 
       if (!result || !result.messages || result.messages.length === 0) {
         console.warn(`[messages] Empty messages array for accountId: ${session.accountId}, folderId: ${params.folderId}`);

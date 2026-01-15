@@ -258,8 +258,8 @@ export class StalwartJMAPProvider implements MailProvider {
           folderId
         );
         filter = { ...filter, ...jmapFilter };
-        if (jmapFilter.inMailbox && jmapFilter.inMailbox !== folderId) {
-          filter.inMailbox = jmapFilter.inMailbox;
+        if (!filter.inMailbox) {
+          filter.inMailbox = folderId;
         }
       }
 
@@ -278,8 +278,9 @@ export class StalwartJMAPProvider implements MailProvider {
       const mailboxIdToQuery = filter.inMailbox || folderId;
       const limit = options.limit || 50;
       
-      const cleanFilter: any = {};
-      if (filter.inMailbox) cleanFilter.inMailbox = filter.inMailbox;
+      const cleanFilter: any = {
+        inMailbox: mailboxIdToQuery,
+      };
       if (filter.text) cleanFilter.text = filter.text;
       if (filter.hasAttachment !== undefined) cleanFilter.hasAttachment = filter.hasAttachment;
       if (filter.isUnread !== undefined) cleanFilter.isUnread = filter.isUnread;
@@ -295,9 +296,19 @@ export class StalwartJMAPProvider implements MailProvider {
       if (filter.maxSize !== undefined) cleanFilter.maxSize = filter.maxSize;
       if (filter.header && filter.header.length > 0) cleanFilter.header = filter.header;
       
-      console.log('[StalwartProvider] Querying emails:', {
-        mailboxId: mailboxIdToQuery,
-        filter: JSON.stringify(cleanFilter, null, 2),
+      console.error('[StalwartProvider] getMessages called:', {
+        accountId,
+        folderId,
+        mailboxIdToQuery,
+        options: {
+          cursor: options.cursor,
+          limit: options.limit,
+          q: options.q,
+          filter: options.filter,
+          messageFilter: options.messageFilter ? JSON.stringify(options.messageFilter) : undefined,
+        },
+        originalFilter: JSON.stringify(filter, null, 2),
+        cleanFilter: JSON.stringify(cleanFilter, null, 2),
       });
       
       const queryResult = await client.queryEmails(mailboxIdToQuery, {
@@ -308,10 +319,11 @@ export class StalwartJMAPProvider implements MailProvider {
         sort: [{ property: 'receivedAt', isAscending: false }],
       });
       
-      console.log('[StalwartProvider] Query result:', { 
+      console.error('[StalwartProvider] Query result:', { 
         idsCount: queryResult.ids.length, 
         total: queryResult.total,
-        position: queryResult.position 
+        position: queryResult.position,
+        firstFewIds: queryResult.ids.slice(0, 5),
       });
 
       const emailIds = queryResult.ids.slice(0, limit);

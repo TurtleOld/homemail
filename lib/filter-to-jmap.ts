@@ -26,10 +26,6 @@ export function convertFilterToJMAP(
 ): JMAPEmailFilter {
   const jmapFilter: JMAPEmailFilter = {};
 
-  if (folderId) {
-    jmapFilter.inMailbox = folderId;
-  }
-
   if (quickFilter) {
     applyQuickFilter(jmapFilter, quickFilter, folderId);
   }
@@ -42,7 +38,17 @@ export function convertFilterToJMAP(
     applySecurityFilter(jmapFilter, securityFilter);
   }
 
-  console.log('[filter-to-jmap] Converted filter:', JSON.stringify(jmapFilter, null, 2));
+  if (folderId && !jmapFilter.inMailbox) {
+    jmapFilter.inMailbox = folderId;
+  }
+
+  console.error('[filter-to-jmap] Converting filter:', {
+    filterGroup: filterGroup ? JSON.stringify(filterGroup) : undefined,
+    quickFilter,
+    securityFilter: securityFilter ? JSON.stringify(securityFilter) : undefined,
+    folderId,
+  });
+  console.error('[filter-to-jmap] Converted filter:', JSON.stringify(jmapFilter, null, 2));
   return jmapFilter;
 }
 
