@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import type { AutoSortRule, MessageListItem } from './types';
+import type { AutoSortRule, MessageListItem, MessageDetail } from './types';
 import { checkMessageMatchesRule, applyRuleActions } from './apply-auto-sort-rules';
 import type { MailProvider } from '@/providers/mail-provider';
 
@@ -17,7 +17,7 @@ async function loadRules(accountId: string): Promise<AutoSortRule[]> {
 }
 
 export async function processNewMessage(
-  message: MessageListItem,
+  message: MessageListItem | MessageDetail,
   accountId: string,
   folderId: string,
   provider: MailProvider

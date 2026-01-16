@@ -60,9 +60,23 @@ export async function GET(request: NextRequest) {
       try {
         sendEvent('connected', { accountId: session.accountId });
 
-        unsubscribe = provider.subscribeToUpdates(session.accountId, (event) => {
+        unsubscribe = provider.subscribeToUpdates(session.accountId, async (event) => {
           if (!isClosed) {
             sendEvent(event.type, event.data);
+            
+            if (event.type === 'message.new' && event.data?.messageId) {
+              try {
+                const messageId = event.data.messageId || event.data.id;
+                const folderId = event.data.folderId || event.data.mailboxId || 'inbox';
+                
+                const message = await provider.getMessage(session.accountId, messageId);
+                if (message) {
+                  await processNewMessage(message, session.accountId, folderId, provider);
+                }
+              } catch (error) {
+                console.error('[realtime] Error processing new message with rules:', error);
+              }
+            }
           }
         });
 

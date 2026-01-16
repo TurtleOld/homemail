@@ -1251,6 +1251,7 @@ export class StalwartJMAPProvider implements MailProvider {
   ): () => void {
     let intervalId: NodeJS.Timeout | null = null;
     let lastQueryState: string | undefined;
+    let lastMessageIds: Set<string> = new Set();
     let isActive = true;
 
     const poll = async () => {
@@ -1270,18 +1271,39 @@ export class StalwartJMAPProvider implements MailProvider {
         const queryResult = await client.queryEmails(inbox.id, {
           accountId: actualAccountId,
           position: 0,
-          limit: 1,
+          limit: 10,
           filter: { inMailbox: inbox.id },
         });
 
         if (queryResult.queryState !== lastQueryState) {
           lastQueryState = queryResult.queryState;
+          
+          if (queryResult.ids && queryResult.ids.length > 0) {
+            const currentMessageIds = new Set(queryResult.ids);
+            const newMessageIds = queryResult.ids.filter((id) => !lastMessageIds.has(id));
+            
+            for (const messageId of newMessageIds) {
+              callback({
+                type: 'message.new',
+                data: {
+                  messageId,
+                  id: messageId,
+                  folderId: inbox.id,
+                  mailboxId: inbox.id,
+                },
+              });
+            }
+            
+            lastMessageIds = currentMessageIds;
+          }
+          
           callback({
             type: 'mailbox.counts',
             data: {},
           });
         }
       } catch (error) {
+        console.error('[stalwart-provider] Error in subscribeToUpdates poll:', error);
       }
     };
 
