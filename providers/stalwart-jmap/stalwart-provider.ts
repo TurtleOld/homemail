@@ -352,6 +352,7 @@ export class StalwartJMAPProvider implements MailProvider {
         const from = email.from?.[0] || { email: 'unknown' };
         const isUnread = !email.keywords?.['$seen'];
         const isStarred = email.keywords?.['$flagged'] === true;
+        const isImportant = email.keywords?.['$important'] === true;
 
         return {
           id: email.id,
@@ -366,6 +367,7 @@ export class StalwartJMAPProvider implements MailProvider {
           flags: {
             unread: isUnread,
             starred: isStarred,
+            important: isImportant,
             hasAttachments: email.hasAttachment || false,
           },
           size: email.size || 0,
@@ -581,6 +583,7 @@ export class StalwartJMAPProvider implements MailProvider {
         flags: {
           unread: !email.keywords?.['$seen'],
           starred: email.keywords?.['$flagged'] === true,
+          important: email.keywords?.['$important'] === true,
           hasAttachments: attachments.length > 0,
         },
       };
@@ -592,7 +595,7 @@ export class StalwartJMAPProvider implements MailProvider {
   async updateMessageFlags(
     accountId: string,
     messageId: string,
-    flags: Partial<{ unread: boolean; starred: boolean }>
+    flags: Partial<{ unread: boolean; starred: boolean; important: boolean }>
   ): Promise<void> {
     try {
       const client = await this.getClient(accountId);
@@ -623,6 +626,14 @@ export class StalwartJMAPProvider implements MailProvider {
         }
       }
 
+      if (flags.important !== undefined) {
+        if (flags.important) {
+          newKeywords['$important'] = true;
+        } else {
+          delete newKeywords['$important'];
+        }
+      }
+
       await client.setEmailFlags(messageId, { accountId: actualAccountId, keywords: newKeywords });
     } catch (error) {
       throw error;
@@ -633,7 +644,7 @@ export class StalwartJMAPProvider implements MailProvider {
     accountId: string,
     action: {
       ids: string[];
-      action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar';
+      action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar' | 'markImportant' | 'unmarkImportant';
       payload?: { folderId?: string };
     }
   ): Promise<void> {
@@ -733,6 +744,12 @@ export class StalwartJMAPProvider implements MailProvider {
             break;
           case 'unstar':
             delete newKeywords['$flagged'];
+            break;
+          case 'markImportant':
+            newKeywords['$important'] = true;
+            break;
+          case 'unmarkImportant':
+            delete newKeywords['$important'];
             break;
         }
 
@@ -857,7 +874,36 @@ export class StalwartJMAPProvider implements MailProvider {
       }
 
       const emailId = Object.values(data.created)[0].id;
-      const submissionId = await client.sendEmail(emailId, actualAccountId);
+      await client.sendEmail(emailId, actualAccountId);
+
+      const targetSentMailbox = mailboxes.find((mb) => mb.id === 'e' && mb.role === 'sent') || sentMailbox;
+      
+      const emailAfterSend = await client.getEmails([emailId], {
+        accountId: actualAccountId,
+        properties: ['mailboxIds', 'keywords'],
+      });
+
+      if (emailAfterSend.length > 0) {
+        const currentMailboxIds = emailAfterSend[0].mailboxIds || {};
+        const isInSent = currentMailboxIds[targetSentMailbox.id] === true;
+        const isRead = emailAfterSend[0].keywords?.['$seen'] === true;
+
+        if (!isInSent || !isRead) {
+          const updates: Record<string, { mailboxIds: Record<string, boolean>; keywords: Record<string, boolean> }> = {};
+          const newMailboxIds: Record<string, boolean> = {};
+          newMailboxIds[targetSentMailbox.id] = true;
+          
+          const newKeywords: Record<string, boolean> = { ...(emailAfterSend[0].keywords || {}) };
+          newKeywords['$seen'] = true;
+          
+          updates[emailId] = {
+            mailboxIds: newMailboxIds,
+            keywords: newKeywords,
+          };
+          
+          await client.bulkSetEmails(updates, actualAccountId);
+        }
+      }
 
       return emailId;
     } catch (error) {

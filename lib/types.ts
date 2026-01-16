@@ -16,6 +16,7 @@ export type Folder = {
 export type MessageFlags = {
   unread: boolean;
   starred: boolean;
+  important: boolean;
   hasAttachments: boolean;
 };
 
@@ -67,7 +68,7 @@ export type Draft = {
 
 export type BulkAction = {
   ids: string[];
-  action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar';
+  action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar' | 'markImportant' | 'unmarkImportant';
   payload?: {
     folderId?: string;
   };

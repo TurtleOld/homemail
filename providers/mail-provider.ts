@@ -26,13 +26,13 @@ export interface MailProvider {
   updateMessageFlags(
     accountId: string,
     messageId: string,
-    flags: Partial<{ unread: boolean; starred: boolean }>
+    flags: Partial<{ unread: boolean; starred: boolean; important: boolean }>
   ): Promise<void>;
   bulkUpdateMessages(
     accountId: string,
     action: {
       ids: string[];
-      action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar';
+      action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar' | 'markImportant' | 'unmarkImportant';
       payload?: { folderId?: string };
     }
   ): Promise<void>;
