@@ -545,10 +545,24 @@ export class JMAPClient {
     });
 
     if (!response.ok) {
-      throw new Error(`JMAP request failed: ${response.statusText}`);
+      const errorText = await response.text().catch(() => '');
+      console.error('[JMAPClient] Request failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: resolvedApiUrl,
+        methodCalls: methodCalls.map(m => m[0]),
+        errorBody: errorText,
+      });
+      throw new Error(`JMAP request failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    const jsonResponse = await response.json();
+    
+    if (methodCalls[0]?.[0] === 'Identity/get') {
+      console.log('[JMAPClient] Identity/get response:', JSON.stringify(jsonResponse, null, 2));
+    }
+    
+    return jsonResponse;
   }
 
   async getMailboxes(accountId?: string): Promise<JMAPMailbox[]> {
@@ -588,19 +602,43 @@ export class JMAPClient {
           '0',
         ],
       ],
-      ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']
+      ['urn:ietf:params:jmap:core']
     );
 
+    if (!response || !response.methodResponses) {
+      console.error('[JMAPClient] Invalid response structure:', JSON.stringify(response, null, 2));
+      throw new Error('Invalid identity response: missing methodResponses');
+    }
+
+    if (!Array.isArray(response.methodResponses) || response.methodResponses.length === 0) {
+      console.error('[JMAPClient] Empty methodResponses:', JSON.stringify(response, null, 2));
+      throw new Error('Invalid identity response: empty methodResponses');
+    }
+
     const identityResponse = response.methodResponses[0];
+    if (!identityResponse || !Array.isArray(identityResponse)) {
+      console.error('[JMAPClient] Invalid identityResponse structure:', JSON.stringify(identityResponse, null, 2));
+      throw new Error(`Invalid identity response: unexpected response structure. Got: ${JSON.stringify(identityResponse)}`);
+    }
+
     if (identityResponse[0] !== 'Identity/get') {
-      throw new Error('Invalid identity response');
+      console.error('[JMAPClient] Unexpected method name:', identityResponse[0], 'Expected: Identity/get');
+      console.error('[JMAPClient] Full response:', JSON.stringify(response, null, 2));
+      throw new Error(`Invalid identity response: expected 'Identity/get', got '${identityResponse[0]}'`);
     }
 
     if ('type' in identityResponse[1] && identityResponse[1].type === 'error') {
-      throw new Error(`JMAP identity error: ${(identityResponse[1] as any).description}`);
+      const errorDesc = (identityResponse[1] as any).description || 'Unknown error';
+      console.error('[JMAPClient] Identity/get error:', errorDesc);
+      throw new Error(`JMAP identity error: ${errorDesc}`);
     }
 
     const data = identityResponse[1] as { list: JMAPIdentity[] };
+    if (!data || typeof data !== 'object') {
+      console.error('[JMAPClient] Invalid data structure:', JSON.stringify(identityResponse[1], null, 2));
+      throw new Error('Invalid identity response: missing or invalid data');
+    }
+
     return data.list || [];
   }
 
