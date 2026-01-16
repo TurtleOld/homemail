@@ -642,9 +642,9 @@ export class StalwartJMAPProvider implements MailProvider {
 
   async bulkUpdateMessages(
     accountId: string,
-    action: {
+      action: {
       ids: string[];
-      action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar' | 'markImportant' | 'unmarkImportant';
+      action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar' | 'markImportant' | 'unmarkImportant' | 'archive';
       payload?: { folderId?: string };
     }
   ): Promise<void> {
@@ -702,6 +702,48 @@ export class StalwartJMAPProvider implements MailProvider {
             if (email.length > 0) {
               const newMailboxIds: Record<string, boolean> = {};
               newMailboxIds[spamMailbox.id] = true;
+              updates[id] = { mailboxIds: newMailboxIds };
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            await client.bulkSetEmails(updates, actualAccountId);
+          }
+        }
+        return;
+      }
+
+      if (action.action === 'archive') {
+        const mailboxes = await client.getMailboxes(actualAccountId);
+        const archiveMailbox = mailboxes.find((mb) => mb.role === 'archive');
+        const inboxMailbox = mailboxes.find((mb) => mb.role === 'inbox');
+
+        if (archiveMailbox) {
+          const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
+          for (const id of action.ids) {
+            const email = await client.getEmails([id], { accountId: actualAccountId, properties: ['mailboxIds'] });
+            if (email.length > 0) {
+              const currentMailboxIds = email[0].mailboxIds || {};
+              const newMailboxIds: Record<string, boolean> = { ...currentMailboxIds };
+              
+              if (inboxMailbox && currentMailboxIds[inboxMailbox.id]) {
+                delete newMailboxIds[inboxMailbox.id];
+              }
+              
+              newMailboxIds[archiveMailbox.id] = true;
+              updates[id] = { mailboxIds: newMailboxIds };
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            await client.bulkSetEmails(updates, actualAccountId);
+          }
+        } else if (inboxMailbox) {
+          const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
+          for (const id of action.ids) {
+            const email = await client.getEmails([id], { accountId: actualAccountId, properties: ['mailboxIds'] });
+            if (email.length > 0) {
+              const currentMailboxIds = email[0].mailboxIds || {};
+              const newMailboxIds: Record<string, boolean> = { ...currentMailboxIds };
+              delete newMailboxIds[inboxMailbox.id];
               updates[id] = { mailboxIds: newMailboxIds };
             }
           }

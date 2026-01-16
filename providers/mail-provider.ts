@@ -32,7 +32,7 @@ export interface MailProvider {
     accountId: string,
     action: {
       ids: string[];
-      action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar' | 'markImportant' | 'unmarkImportant';
+      action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar' | 'markImportant' | 'unmarkImportant' | 'archive';
       payload?: { folderId?: string };
     }
   ): Promise<void>;
