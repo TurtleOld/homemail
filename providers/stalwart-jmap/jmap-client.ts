@@ -534,6 +534,13 @@ export class JMAPClient {
       methodCalls,
     };
 
+    const requestBody = JSON.stringify(request);
+    
+    if (methodCalls[0]?.[0] === 'Identity/get') {
+      console.log('[JMAPClient] Identity/get request body:', requestBody);
+      console.log('[JMAPClient] Request structure:', JSON.stringify(request, null, 2));
+    }
+
     const resolvedApiUrl = await this.resolveUrlToIp(apiUrl);
     const response = await fetch(resolvedApiUrl, {
       method: 'POST',
@@ -541,7 +548,7 @@ export class JMAPClient {
         'Content-Type': 'application/json',
         'Authorization': this.authHeader,
       },
-      body: JSON.stringify(request),
+      body: requestBody,
     });
 
     if (!response.ok) {
@@ -592,13 +599,27 @@ export class JMAPClient {
 
   async getIdentities(accountId?: string): Promise<JMAPIdentity[]> {
     const targetAccountId = accountId || this.accountId;
+    
+    if (!targetAccountId || typeof targetAccountId !== 'string') {
+      throw new Error(`Invalid accountId: ${targetAccountId}`);
+    }
+    
+    const requestBody = {
+      accountId: targetAccountId,
+    };
+    
+    console.log('[JMAPClient] Identity/get request:', {
+      accountId: targetAccountId,
+      accountIdType: typeof targetAccountId,
+      accountIdLength: targetAccountId.length,
+      requestBody: JSON.stringify(requestBody, null, 2),
+    });
+    
     const response = await this.requestWithUsing(
       [
         [
           'Identity/get',
-          {
-            accountId: targetAccountId,
-          },
+          requestBody,
           '0',
         ],
       ],
@@ -619,6 +640,18 @@ export class JMAPClient {
     if (!identityResponse || !Array.isArray(identityResponse)) {
       console.error('[JMAPClient] Invalid identityResponse structure:', JSON.stringify(identityResponse, null, 2));
       throw new Error(`Invalid identity response: unexpected response structure. Got: ${JSON.stringify(identityResponse)}`);
+    }
+
+    if (identityResponse[0] === 'error') {
+      const errorData = identityResponse[1] as { type?: string; description?: string };
+      const errorType = errorData?.type || 'unknown';
+      const errorDesc = errorData?.description || 'Unknown error';
+      console.error('[JMAPClient] Identity/get server error:', {
+        type: errorType,
+        description: errorDesc,
+        fullResponse: JSON.stringify(identityResponse, null, 2),
+      });
+      throw new Error(`JMAP identity error (${errorType}): ${errorDesc}`);
     }
 
     if (identityResponse[0] !== 'Identity/get') {
