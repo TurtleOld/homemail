@@ -65,36 +65,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function validateOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get('origin');
-  const referer = request.headers.get('referer');
-  
-  if (!origin && !referer) {
-    return false;
-  }
-
-  const host = request.headers.get('host');
-  if (!host) {
-    return false;
-  }
-
-  if (origin) {
-    try {
-      const originUrl = new URL(origin);
-      return originUrl.hostname === host || originUrl.hostname === 'localhost';
-    } catch {
-      return false;
-    }
-  }
-
-  if (referer) {
-    try {
-      const refererUrl = new URL(referer);
-      return refererUrl.hostname === host || refererUrl.hostname === 'localhost';
-    } catch {
-      return false;
-    }
-  }
-
-  return false;
-}
