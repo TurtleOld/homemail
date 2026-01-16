@@ -1006,6 +1006,8 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
   const [aliases, setAliases] = useState(() => initialSettings.aliases || []);
   const [newAliasEmail, setNewAliasEmail] = useState('');
   const [newAliasName, setNewAliasName] = useState('');
+  const [checkingAliases, setCheckingAliases] = useState(false);
+  const [aliasStatuses, setAliasStatuses] = useState<Record<string, { exists: boolean; message: string }>>({});
   const [language, setLanguage] = useState<'ru' | 'en'>(() => initialSettings.locale?.language || 'ru');
   const [dateFormat, setDateFormat] = useState<'DD.MM.YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD'>(() => initialSettings.locale?.dateFormat || 'DD.MM.YYYY');
   const [timeFormat, setTimeFormat] = useState<'24h' | '12h'>(() => initialSettings.locale?.timeFormat || '24h');
@@ -1073,6 +1075,56 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
 
   const handleDeleteAlias = (id: string) => {
     setAliases(aliases.filter((a) => a.id !== id));
+    const alias = aliases.find((a) => a.id === id);
+    if (alias) {
+      const newStatuses = { ...aliasStatuses };
+      delete newStatuses[alias.email];
+      setAliasStatuses(newStatuses);
+    }
+  };
+
+  const handleCheckAliases = async () => {
+    if (aliases.length === 0) {
+      toast.info('Нет алиасов для проверки');
+      return;
+    }
+
+    setCheckingAliases(true);
+    try {
+      const response = await fetch('/api/aliases/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aliases }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка при проверке алиасов');
+      }
+
+      const data = await response.json();
+      const statuses: Record<string, { exists: boolean; message: string }> = {};
+      
+      for (const result of data.results) {
+        statuses[result.email] = {
+          exists: result.exists,
+          message: result.message,
+        };
+      }
+
+      setAliasStatuses(statuses);
+
+      const notFound = data.results.filter((r: { exists: boolean }) => !r.exists);
+      if (notFound.length > 0) {
+        toast.warning(`Найдено ${notFound.length} алиасов, которые не существуют на сервере`);
+      } else {
+        toast.success('Все алиасы найдены на сервере');
+      }
+    } catch (error) {
+      console.error('Failed to check aliases:', error);
+      toast.error('Не удалось проверить алиасы');
+    } finally {
+      setCheckingAliases(false);
+    }
   };
 
   return (
@@ -1129,13 +1181,34 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
           </div>
 
                  <div className="space-y-4">
-                   <div className="flex items-center gap-2">
-                     <AtSign className="h-5 w-5" />
-                     <h3 className="text-lg font-semibold">Алиасы email</h3>
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                       <AtSign className="h-5 w-5" />
+                       <h3 className="text-lg font-semibold">Алиасы email</h3>
+                     </div>
+                     {aliases.length > 0 && (
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         onClick={handleCheckAliases}
+                         disabled={checkingAliases}
+                       >
+                         {checkingAliases ? 'Проверка...' : 'Проверить на сервере'}
+                       </Button>
+                     )}
                    </div>
                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                     <strong>Важно:</strong> Алиасы должны быть созданы на почтовом сервере через административный интерфейс перед использованием. 
-                     Добавление алиаса здесь только создает идентичность для отправки писем, но не создает сам почтовый ящик на сервере.
+                     <strong>Важно для приема писем:</strong>
+                     <ul className="list-disc list-inside mt-2 space-y-1">
+                       <li>Алиасы должны быть созданы в административном интерфейсе Stalwart</li>
+                       <li>Алиасы должны быть привязаны к вашему основному аккаунту (alexander.pavlov@pavlovteam.ru)</li>
+                       <li>Используйте кнопку &quot;Проверить на сервере&quot; для проверки статуса алиасов</li>
+                       <li>Если алиас не найден на сервере, письма на этот адрес не будут доставляться</li>
+                     </ul>
+                     <div className="mt-2">
+                       <strong>Примечание:</strong> Добавление алиаса здесь создает только идентичность для отправки писем через JMAP Identity API. 
+                       Для приема писем алиас должен быть настроен на уровне сервера.
+                     </div>
                    </div>
                    <div className="space-y-4 pl-7">
               <div className="flex gap-2">
@@ -1158,26 +1231,43 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
               </div>
               {aliases.length > 0 && (
                 <div className="space-y-2">
-                  {aliases.map((alias) => (
-                    <div
-                      key={alias.id}
-                      className="flex items-center justify-between rounded-md border bg-card p-3"
-                    >
-                      <div>
-                        <div className="font-medium">{alias.email}</div>
-                        {alias.name && (
-                          <div className="text-sm text-muted-foreground">{alias.name}</div>
-                        )}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteAlias(alias.id)}
+                  {aliases.map((alias) => {
+                    const status = aliasStatuses[alias.email];
+                    return (
+                      <div
+                        key={alias.id}
+                        className={`rounded-md border bg-card p-3 ${status && !status.exists ? 'border-red-200 dark:border-red-800' : status && status.exists ? 'border-green-200 dark:border-green-800' : ''}`}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{alias.email}</span>
+                              {status && (
+                                <span className={`text-xs px-2 py-0.5 rounded ${status.exists ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
+                                  {status.exists ? '✓ На сервере' : '✗ Не найден'}
+                                </span>
+                              )}
+                            </div>
+                            {alias.name && (
+                              <div className="text-sm text-muted-foreground">{alias.name}</div>
+                            )}
+                            {status && (
+                              <div className={`text-xs mt-1 ${status.exists ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                                {status.message}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteAlias(alias.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
