@@ -5,8 +5,9 @@ import type { MessageDetail } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { Button } from '@/components/ui/button';
-import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download, ArrowLeft } from 'lucide-react';
+import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download, ArrowLeft, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface MessageViewerProps {
   message: MessageDetail | null;
@@ -16,6 +17,7 @@ interface MessageViewerProps {
   onDelete?: () => void;
   onStar?: (starred: boolean) => void;
   onMarkRead?: (read: boolean) => void;
+  onToggleImportant?: (important: boolean) => void;
   allowRemoteImages?: boolean;
   isLoading?: boolean;
   hasSelection?: boolean;
@@ -31,6 +33,7 @@ export function MessageViewer({
   onDelete,
   onStar,
   onMarkRead,
+  onToggleImportant,
   allowRemoteImages = false,
   isLoading = false,
   hasSelection = false,
@@ -78,8 +81,20 @@ export function MessageViewer({
     return '';
   }, [message, effectiveAllowImages]);
 
+  const isDark = useMemo(() => {
+    if (typeof document === 'undefined') return false;
+    return document.documentElement.classList.contains('dark');
+  }, [message?.id]);
+
   const iframeSrcDoc = useMemo(() => {
     if (!sanitizedHtml) return '';
+    const bgColor = isDark ? 'hsl(217.2, 32.6%, 17.5%)' : '#ffffff';
+    const textColor = isDark ? 'hsl(210, 40%, 98%)' : '#111827';
+    const codeBg = isDark ? 'hsl(222.2, 84%, 4.9%)' : '#f3f4f6';
+    const blockquoteBg = isDark ? 'hsl(217.2, 32.6%, 17.5%)' : '#f9fafb';
+    const blockquoteBorder = isDark ? 'hsl(215, 20.2%, 65.1%)' : '#e5e7eb';
+    const blockquoteText = isDark ? 'hsl(210, 40%, 98%)' : '#374151';
+    const tableHeaderBg = isDark ? 'hsl(217.2, 32.6%, 20%)' : '#f9fafb';
     return [
       '<!DOCTYPE html>',
       '<html>',
@@ -89,7 +104,7 @@ export function MessageViewer({
       '<style>',
       '* { box-sizing: border-box; }',
       'html, body { height: 100%; margin: 0; padding: 0; }',
-      'body { padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #ffffff; color: #111827; line-height: 1.6; font-size: 15px; }',
+      `body { padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: ${bgColor}; color: ${textColor}; line-height: 1.6; font-size: 15px; transition: background-color 0.3s ease, color 0.3s ease; }`,
       'p { margin: 0 0 12px 0; }',
       'p:last-child { margin-bottom: 0; }',
       'h1, h2, h3, h4, h5, h6 { margin: 0 0 12px 0; font-weight: 600; line-height: 1.3; }',
@@ -101,9 +116,9 @@ export function MessageViewer({
       'h6 { font-size: 13px; }',
       'ul, ol { margin: 0 0 12px 0; padding-left: 24px; }',
       'li { margin: 4px 0; }',
-      'blockquote { margin: 12px 0; padding: 12px 16px; border-left: 4px solid #e5e7eb; background: #f9fafb; color: #374151; }',
-      'code { padding: 2px 6px; background: #f3f4f6; border-radius: 3px; font-family: "Courier New", monospace; font-size: 0.9em; }',
-      'pre { margin: 12px 0; padding: 12px; background: #f3f4f6; border-radius: 4px; overflow-x: auto; }',
+      `blockquote { margin: 12px 0; padding: 12px 16px; border-left: 4px solid ${blockquoteBorder}; background: ${blockquoteBg}; color: ${blockquoteText}; }`,
+      `code { padding: 2px 6px; background: ${codeBg}; border-radius: 3px; font-family: "Courier New", monospace; font-size: 0.9em; color: ${textColor}; }`,
+      `pre { margin: 12px 0; padding: 12px; background: ${codeBg}; border-radius: 4px; overflow-x: auto; }`,
       'pre code { padding: 0; background: transparent; }',
       'a { color: #2563eb; text-decoration: underline; }',
       'a:hover { color: #1d4ed8; }',
@@ -114,7 +129,7 @@ export function MessageViewer({
       'table { width: 100%; max-width: 100%; border-collapse: collapse; margin: 12px 0; border: none !important; }',
       'table[width] { width: 100% !important; max-width: 100%; border: none !important; }',
       'table td, table th { padding: 8px 12px; border: none !important; word-wrap: break-word; }',
-      'table th { background: #f9fafb; font-weight: 600; border: none !important; }',
+      `table th { background: ${tableHeaderBg}; font-weight: 600; border: none !important; color: ${textColor}; }`,
       'table[role="presentation"] { width: 100% !important; border: none !important; }',
       'table[role="presentation"] td { padding: 0; border: none !important; }',
       'table[style*="border"], table[style*="Border"] { border: none !important; }',
@@ -163,7 +178,7 @@ export function MessageViewer({
       `<body>${sanitizedHtml}</body>`,
       '</html>',
     ].join('');
-  }, [sanitizedHtml]);
+  }, [sanitizedHtml, isDark]);
 
   const handleMarkRead = useCallback(async () => {
     if (!message) return;
@@ -189,10 +204,21 @@ export function MessageViewer({
 
   if (isLoading && hasSelection) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p>Загрузка письма...</p>
+      <div className="flex h-full flex-col p-4 space-y-4">
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-24" />
+        </div>
+        <div className="flex-1 space-y-3">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-4/5" />
         </div>
       </div>
     );
@@ -223,9 +249,23 @@ export function MessageViewer({
     }
   };
 
+  const handleToggleImportant = async () => {
+    const newImportant = !message.flags.important;
+    try {
+      await fetch(`/api/mail/messages/${message.id}/flags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ important: newImportant }),
+      });
+      onToggleImportant?.(newImportant);
+    } catch (error) {
+      console.error('Failed to update important:', error);
+    }
+  };
+
   return (
-    <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden max-md:border-l-0">
-      <div className="border-b bg-muted/50 p-4 max-md:p-2">
+    <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden max-md:border-l-0" role="region" aria-label="Просмотр письма">
+      <div className="border-b bg-muted/50 p-4 max-md:p-2 transition-colors duration-200">
         <div className="mb-2 flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-semibold max-md:text-base break-words">{message.subject || '(без темы)'}</h2>
@@ -249,31 +289,78 @@ export function MessageViewer({
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" size="icon" onClick={handleStar} title={message.flags.starred ? 'Убрать из избранного' : 'Добавить в избранное'}>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleStar} 
+              title={message.flags.starred ? 'Убрать из избранного' : 'Добавить в избранное'}
+              aria-label={message.flags.starred ? 'Убрать из избранного' : 'Добавить в избранное'}
+            >
               {message.flags.starred ? <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" /> : <StarOff className="h-4 w-4" />}
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleToggleImportant}
+              title={message.flags.important ? 'Убрать важность' : 'Отметить как важное'}
+              aria-label={message.flags.important ? 'Убрать важность' : 'Отметить как важное'}
+            >
+              <AlertCircle
+                className={`h-4 w-4 ${message.flags.important ? 'fill-orange-500 text-orange-500' : ''}`}
+              />
+            </Button>
             {message.flags.unread && (
-              <Button variant="ghost" size="icon" onClick={handleMarkRead} title="Отметить как прочитанное">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={handleMarkRead} 
+                title="Отметить как прочитанное"
+                aria-label="Отметить как прочитанное"
+              >
                 <Mail className="h-4 w-4" />
               </Button>
             )}
           </div>
         </div>
-        <div className="flex gap-2 max-md:flex-wrap max-md:gap-1">
-          <Button variant="outline" size="sm" onClick={onReply} className="max-md:text-xs max-md:px-2 max-md:h-8">
-            <Reply className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+        <div className="flex gap-2 max-md:flex-wrap max-md:gap-2 max-md:justify-center">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onReply} 
+            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+            aria-label="Ответить"
+          >
+            <Reply className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
             <span className="max-md:hidden">Ответить</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={onReplyAll} className="max-md:text-xs max-md:px-2 max-md:h-8">
-            <ReplyAll className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onReplyAll} 
+            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+            aria-label="Ответить всем"
+          >
+            <ReplyAll className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
             <span className="max-md:hidden">Ответить всем</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={onForward} className="max-md:text-xs max-md:px-2 max-md:h-8">
-            <Forward className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onForward} 
+            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+            aria-label="Переслать"
+          >
+            <Forward className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
             <span className="max-md:hidden">Переслать</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={onDelete} className="max-md:text-xs max-md:px-2 max-md:h-8">
-            <Trash2 className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onDelete} 
+            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+            aria-label="Удалить"
+          >
+            <Trash2 className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
             <span className="max-md:hidden">Удалить</span>
           </Button>
         </div>

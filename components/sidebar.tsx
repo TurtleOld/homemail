@@ -28,6 +28,7 @@ interface SidebarProps {
   onFilterChange?: (quickFilter?: import('@/lib/types').QuickFilterType, filterGroup?: import('@/lib/types').FilterGroup) => void;
   isMobile?: boolean;
   onClose?: () => void;
+  onDropMessage?: (messageId: string, folderId: string) => void;
 }
 
 type ServiceStatus = 'up' | 'down' | 'unknown';
@@ -66,9 +67,11 @@ export function Sidebar({
   onFilterChange,
   isMobile = false,
   onClose,
+  onDropMessage,
 }: SidebarProps) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
   const { data: serverStatus, isLoading: isStatusLoading } = useQuery<ServerStatus>({
     queryKey: ['server-status'],
     queryFn: async () => {
@@ -138,9 +141,45 @@ export function Sidebar({
               <button
                 key={folder.id}
                 onClick={() => onFolderSelect(folder.id)}
+                onDragOver={(e) => {
+                  if (onDropMessage) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDraggedOverFolderId(folder.id);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (onDropMessage) {
+                    setDraggedOverFolderId(null);
+                  }
+                }}
+                onDrop={(e) => {
+                  if (onDropMessage) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDraggedOverFolderId(null);
+                    try {
+                      const data = e.dataTransfer.getData('application/json');
+                      if (data) {
+                        const parsed = JSON.parse(data);
+                        if (parsed.type === 'message' && parsed.id) {
+                          onDropMessage(parsed.id, folder.id);
+                        }
+                      } else {
+                        const messageId = e.dataTransfer.getData('text/plain');
+                        if (messageId) {
+                          onDropMessage(messageId, folder.id);
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error handling drop:', error);
+                    }
+                  }
+                }}
                 className={cn(
                   'flex w-full items-center justify-center rounded-md p-2 text-sm transition-colors hover:bg-muted',
-                  selectedFolderId === folder.id && 'bg-muted font-medium'
+                  selectedFolderId === folder.id && 'bg-muted font-medium',
+                  draggedOverFolderId === folder.id && 'bg-primary/20 ring-2 ring-primary ring-offset-1 scale-105'
                 )}
                 title={folder.name}
               >
@@ -164,10 +203,16 @@ export function Sidebar({
       ${isMobile ? 'w-full' : 'w-64'}
     `}>
       {isMobile && (
-        <div className="border-b p-2 flex items-center justify-between">
+        <div className="border-b p-3 flex items-center justify-between">
           <h1 className="text-lg font-bold">Меню</h1>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onClose}
+            className="min-w-[44px] min-h-[44px] touch-manipulation"
+            aria-label="Закрыть меню"
+          >
+            <X className="h-6 w-6" />
           </Button>
         </div>
       )}
@@ -202,7 +247,11 @@ export function Sidebar({
             </Button>
           )}
         </div>
-        <Button className="w-full" onClick={onCompose}>
+        <Button 
+          className="w-full max-md:min-h-[44px] touch-manipulation" 
+          onClick={onCompose}
+          aria-label="Написать новое письмо"
+        >
           <Plus className="mr-2 h-4 w-4" />
           Написать
         </Button>
@@ -221,20 +270,56 @@ export function Sidebar({
             <button
               key={folder.id}
               onClick={() => onFolderSelect(folder.id)}
+              onDragOver={(e) => {
+                if (onDropMessage) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDraggedOverFolderId(folder.id);
+                }
+              }}
+              onDragLeave={() => {
+                if (onDropMessage) {
+                  setDraggedOverFolderId(null);
+                }
+              }}
+              onDrop={(e) => {
+                if (onDropMessage) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDraggedOverFolderId(null);
+                  try {
+                    const data = e.dataTransfer.getData('application/json');
+                    if (data) {
+                      const parsed = JSON.parse(data);
+                      if (parsed.type === 'message' && parsed.id) {
+                        onDropMessage(parsed.id, folder.id);
+                      }
+                    } else {
+                      const messageId = e.dataTransfer.getData('text/plain');
+                      if (messageId) {
+                        onDropMessage(messageId, folder.id);
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error handling drop:', error);
+                  }
+                }
+              }}
               className={cn(
-                'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted',
-                selectedFolderId === folder.id && 'bg-muted font-medium'
+                'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-all duration-200 hover:bg-muted active:bg-muted/70 max-md:min-h-[44px] touch-manipulation hover:shadow-sm',
+                selectedFolderId === folder.id && 'bg-muted font-medium shadow-sm',
+                draggedOverFolderId === folder.id && 'bg-primary/20 ring-2 ring-primary ring-offset-1'
               )}
             >
               {folderIcons[folder.role] || folderIcons.custom}
               <span className="flex-1">{folder.name}</span>
               {folder.role === 'drafts' && folder.unreadCount > 0 && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-xs font-medium text-white">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                   {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
                 </span>
               )}
               {folder.role !== 'drafts' && folder.unreadCount > 0 && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black text-xs font-medium text-white">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                   {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
                 </span>
               )}
@@ -245,7 +330,11 @@ export function Sidebar({
       <div className="border-t p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start max-md:min-h-[44px] touch-manipulation"
+              aria-label="Настройки"
+            >
               <Settings className="mr-2 h-4 w-4" />
               Настройки
             </Button>

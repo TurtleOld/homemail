@@ -21,6 +21,19 @@ import { validateEmail, parseEmailList } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Draft } from '@/lib/types';
 
+function removeSignatureFromHtml(html: string, signature?: string): string {
+  if (!signature) return html;
+  const signatureValue = signature.trim();
+  const signatureHtml = signatureValue.replace(/\n/g, '<br>');
+  const signatureDiv = `<div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">${signatureHtml}</div>`;
+  const escapedSignature = signatureDiv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedSignatureWithBreaks = `<br><br>${escapedSignature}`;
+  let result = html;
+  result = result.replace(new RegExp(escapedSignatureWithBreaks, 'gi'), '');
+  result = result.replace(new RegExp(escapedSignature, 'gi'), '');
+  return result;
+}
+
 interface MinimizedDraft {
   id: string;
   to: string;
@@ -66,13 +79,6 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   useEffect(() => {
     if (!editor || !open) return;
 
-    const signatureValue = signature?.trim();
-    const signatureHtml = signatureValue ? signatureValue.replace(/\n/g, '<br>') : '';
-    const signatureDiv = signatureHtml
-      ? `<div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">${signatureHtml}</div>`
-      : '';
-    const signatureWithBreaks = signatureDiv ? `<br><br>${signatureDiv}` : '';
-
     if (initialDraft) {
       suppressDirtyRef.current = true;
       setTo(initialDraft.to?.join(', ') || '');
@@ -81,7 +87,8 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       setSubject(initialDraft.subject || '');
       setDraftId(initialDraft.id);
       if (initialDraft.html) {
-        editor.commands.setContent(initialDraft.html);
+        const htmlWithoutSignature = removeSignatureFromHtml(initialDraft.html, signature);
+        editor.commands.setContent(htmlWithoutSignature);
       }
       requestAnimationFrame(() => {
         suppressDirtyRef.current = false;
@@ -92,17 +99,6 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       setTo(replyTo.from.email);
       setSubject(replyTo.subject.startsWith('Re:') ? replyTo.subject : `Re: ${replyTo.subject}`);
       editor.commands.setContent(`<blockquote>${replyTo.body}</blockquote>`);
-      if (signatureDiv) {
-        setTimeout(() => {
-          const currentContent = editor.getHTML();
-          const trimmedContent = currentContent.trim();
-          if (!currentContent.includes(signatureDiv) && trimmedContent !== '<p></p>' && trimmedContent !== '') {
-            editor.commands.insertContent(signatureWithBreaks);
-          } else if (trimmedContent === '' || trimmedContent === '<p></p>') {
-            editor.commands.setContent(signatureDiv);
-          }
-        }, 200);
-      }
       requestAnimationFrame(() => {
         suppressDirtyRef.current = false;
       });
@@ -111,17 +107,6 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       suppressDirtyRef.current = true;
       setSubject(forwardFrom.subject.startsWith('Fwd:') ? forwardFrom.subject : `Fwd: ${forwardFrom.subject}`);
       editor.commands.setContent(`<blockquote>${forwardFrom.body}</blockquote>`);
-      if (signatureDiv) {
-        setTimeout(() => {
-          const currentContent = editor.getHTML();
-          const trimmedContent = currentContent.trim();
-          if (!currentContent.includes(signatureDiv) && trimmedContent !== '<p></p>' && trimmedContent !== '') {
-            editor.commands.insertContent(signatureWithBreaks);
-          } else if (trimmedContent === '' || trimmedContent === '<p></p>') {
-            editor.commands.setContent(signatureDiv);
-          }
-        }, 200);
-      }
       requestAnimationFrame(() => {
         suppressDirtyRef.current = false;
       });
@@ -134,17 +119,6 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       setSubject('');
       setDraftId(undefined);
       editor.commands.setContent('');
-      if (signatureDiv) {
-        setTimeout(() => {
-          const currentContent = editor.getHTML();
-          const trimmedContent = currentContent.trim();
-          if (!currentContent.includes(signatureDiv) && trimmedContent !== '<p></p>' && trimmedContent !== '') {
-            editor.commands.insertContent(signatureWithBreaks);
-          } else if (trimmedContent === '' || trimmedContent === '<p></p>') {
-            editor.commands.setContent(signatureDiv);
-          }
-        }, 200);
-      }
       requestAnimationFrame(() => {
         suppressDirtyRef.current = false;
       });
@@ -183,6 +157,9 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
     setSaving(true);
     try {
+      let html = editor.getHTML();
+      html = removeSignatureFromHtml(html, signature);
+
       const res = await fetch('/api/mail/drafts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -192,7 +169,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           cc: ccList,
           bcc: bccList,
           subject,
-          html: editor.getHTML(),
+          html,
         }),
       });
 
@@ -206,7 +183,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     } finally {
       setSaving(false);
     }
-  }, [editor, to, cc, bcc, showCc, showBcc, subject, draftId]);
+  }, [editor, to, cc, bcc, showCc, showBcc, subject, draftId, signature]);
 
   useEffect(() => {
     if (!open || !editor) return;
