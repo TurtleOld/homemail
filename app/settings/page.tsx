@@ -1020,7 +1020,7 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
       ...initialSettings,
       forwarding: {
         enabled: forwardingEnabled,
-        email: forwardingEmail,
+        email: forwardingEnabled ? forwardingEmail.trim() : '',
         keepCopy,
       },
       aliases: aliases.map((alias) => ({

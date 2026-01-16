@@ -29,7 +29,10 @@ const settingsSchema = z.object({
   }).optional(),
   forwarding: z.object({
     enabled: z.boolean().optional(),
-    email: z.string().email().optional(),
+    email: z.string().optional().refine((val) => {
+      if (val === undefined || val === '') return true;
+      return z.string().email().safeParse(val).success;
+    }, { message: 'Invalid email' }),
     keepCopy: z.boolean().optional(),
   }).optional(),
   aliases: z.array(z.object({
