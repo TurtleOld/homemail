@@ -11,7 +11,7 @@ const updateLabelsSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!validateOrigin(request)) {
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
@@ -24,6 +24,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const data = updateLabelsSchema.parse(body);
 
@@ -32,7 +33,7 @@ export async function POST(
       {}
     );
 
-    messageLabels[params.id] = data.labelIds;
+    messageLabels[id] = data.labelIds;
 
     await writeStorage(`messageLabels:${session.accountId}`, messageLabels);
 

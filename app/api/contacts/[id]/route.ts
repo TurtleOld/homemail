@@ -15,7 +15,7 @@ const updateContactSchema = z.object({
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!validateOrigin(request)) {
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
@@ -28,18 +28,19 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const data = updateContactSchema.parse(body);
 
     const contacts = await readStorage<Contact[]>(`contacts:${session.accountId}`, []);
-    const contactIndex = contacts.findIndex((c) => c.id === params.id);
+    const contactIndex = contacts.findIndex((c) => c.id === id);
 
     if (contactIndex === -1) {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
     }
 
     if (data.email && data.email.toLowerCase() !== contacts[contactIndex]!.email.toLowerCase()) {
-      const existingContact = contacts.find((c) => c.id !== params.id && c.email.toLowerCase() === data.email.toLowerCase());
+      const existingContact = contacts.find((c) => c.id !== id && c.email.toLowerCase() === data.email.toLowerCase());
       if (existingContact) {
         return NextResponse.json({ error: 'Contact with this email already exists' }, { status: 409 });
       }
@@ -65,7 +66,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!validateOrigin(request)) {
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
@@ -78,8 +79,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const contacts = await readStorage<Contact[]>(`contacts:${session.accountId}`, []);
-    const filteredContacts = contacts.filter((c) => c.id !== params.id);
+    const filteredContacts = contacts.filter((c) => c.id !== id);
 
     await writeStorage(`contacts:${session.accountId}`, filteredContacts);
 

@@ -12,7 +12,7 @@ const updateLabelSchema = z.object({
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!validateOrigin(request)) {
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
@@ -25,11 +25,12 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const data = updateLabelSchema.parse(body);
 
     const labels = await readStorage<Label[]>(`labels:${session.accountId}`, []);
-    const labelIndex = labels.findIndex((l) => l.id === params.id);
+    const labelIndex = labels.findIndex((l) => l.id === id);
 
     if (labelIndex === -1) {
       return NextResponse.json({ error: 'Label not found' }, { status: 404 });
@@ -55,7 +56,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!validateOrigin(request)) {
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
@@ -68,8 +69,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const labels = await readStorage<Label[]>(`labels:${session.accountId}`, []);
-    const filteredLabels = labels.filter((l) => l.id !== params.id);
+    const filteredLabels = labels.filter((l) => l.id !== id);
 
     await writeStorage(`labels:${session.accountId}`, filteredLabels);
 
