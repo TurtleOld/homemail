@@ -7,6 +7,8 @@ import { formatDate } from '@/lib/utils';
 import { Star, StarOff, Mail, MailOpen, Paperclip, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { groupMessagesByThread } from '@/lib/thread-utils';
+import { ThreadItem } from './thread-item';
 
 interface MessageListProps {
   messages: MessageListItem[];
@@ -22,9 +24,10 @@ interface MessageListProps {
   isSearching?: boolean;
   onDragStart?: (messageId: string) => void;
   onToggleImportant?: (messageId: string, important: boolean) => void;
+  conversationView?: boolean;
 }
 
-const MessageItem = memo(function MessageItem({
+export const MessageItem = memo(function MessageItem({
   message,
   index,
   isSelected,
@@ -185,11 +188,15 @@ export function MessageList({
   isSearching = false,
   onDragStart,
   onToggleImportant,
+  conversationView = false,
 }: MessageListProps) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const messagesRef = useRef(messages);
   const onMessageClickRef = useRef(onMessageClick);
   const focusedIndexRef = useRef<number | null>(null);
+
+  const threads = conversationView ? groupMessagesByThread(messages) : null;
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -263,6 +270,18 @@ export function MessageList({
     [messages, selectedIds, focusedIndex, onSelect, onMessageClick, onDragStart, onToggleImportant]
   );
 
+  const toggleThreadExpand = useCallback((threadId: string) => {
+    setExpandedThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(threadId)) {
+        next.delete(threadId);
+      } else {
+        next.add(threadId);
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <div className="flex h-full w-full flex-col border-r bg-background max-md:border-r-0" role="region" aria-label="Список писем">
       <div className="border-b bg-muted/50 p-2 max-md:p-1.5 sticky top-0 z-10" role="toolbar" aria-label="Действия со списком писем">
@@ -303,6 +322,34 @@ export function MessageList({
               <Mail className="mx-auto h-12 w-12 mb-4 opacity-50" />
               <p>{isSearching ? 'Ничего не найдено' : 'Нет писем'}</p>
             </div>
+          </div>
+        ) : conversationView && threads ? (
+          <div className="overflow-auto h-full">
+            {threads.map((thread) => (
+              <ThreadItem
+                key={thread.threadId}
+                thread={thread}
+                selectedIds={selectedIds}
+                onSelect={onSelect}
+                onMessageClick={onMessageClick}
+                onMessageDoubleClick={onMessageDoubleClick}
+                onDragStart={onDragStart}
+                onToggleImportant={onToggleImportant}
+                isExpanded={expandedThreads.has(thread.threadId)}
+                onToggleExpand={toggleThreadExpand}
+              />
+            ))}
+            {hasMore && onLoadMore && (
+              <div className="p-4 text-center">
+                <button
+                  onClick={onLoadMore}
+                  disabled={isFetchingMore}
+                  className="text-sm text-primary hover:underline"
+                >
+                  {isFetchingMore ? 'Загрузка...' : 'Загрузить ещё'}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           (process.env.NODE_ENV === 'test' ? (

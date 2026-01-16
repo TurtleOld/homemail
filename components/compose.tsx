@@ -15,11 +15,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X } from 'lucide-react';
+import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { validateEmail, parseEmailList } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Draft } from '@/lib/types';
+import { ContactAutocomplete } from './contact-autocomplete';
 
 function removeSignatureFromHtml(html: string, signature?: string): string {
   if (!signature) return html;
@@ -39,6 +40,13 @@ interface MinimizedDraft {
   to: string;
   subject: string;
   html: string;
+}
+
+interface AttachmentFile {
+  id: string;
+  file: File;
+  data: string;
+  mime: string;
 }
 
 interface ComposeProps {
@@ -62,8 +70,13 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   const [sending, setSending] = useState(false);
   const [draftId, setDraftId] = useState<string | undefined>(initialDraft?.id);
   const [isDirty, setIsDirty] = useState(false);
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const suppressDirtyRef = useRef(false);
   const didInitRef = useRef(false);
+  
+  const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
   const editor = useEditor({
     extensions: [StarterKit, Link.configure({ openOnClick: false }), CodeBlock, Underline],
@@ -124,6 +137,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       });
       setIsDirty(false);
     }
+    setAttachments([]);
     didInitRef.current = true;
   }, [initialDraft, replyTo, forwardFrom, editor, open, signature]);
 
@@ -227,6 +241,14 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         }
       }
 
+      const attachmentsData = attachments.length > 0
+        ? attachments.map((att) => ({
+            filename: att.file.name,
+            mime: att.mime,
+            data: att.data,
+          }))
+        : undefined;
+
       const res = await fetch('/api/mail/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -237,6 +259,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           subject,
           html,
           draftId: draftId,
+          attachments: attachmentsData,
         }),
       });
 
@@ -248,6 +271,34 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         return;
       }
 
+      const allEmails = [...toList, ...(showCc ? parseEmailList(cc) : []), ...(showBcc ? parseEmailList(bcc) : [])];
+      const allEmailStrings = [
+        ...(to ? to.split(',').map((e) => e.trim()).filter(Boolean) : []),
+        ...(showCc && cc ? cc.split(',').map((e) => e.trim()).filter(Boolean) : []),
+        ...(showBcc && bcc ? bcc.split(',').map((e) => e.trim()).filter(Boolean) : []),
+      ];
+      
+      for (const emailString of allEmailStrings) {
+        try {
+          const emailMatch = emailString.match(/^(.+?)\s*<([^\s@]+@[^\s@]+\.[^\s@]+)>$/);
+          const emailAddress = emailMatch ? emailMatch[2]!.trim() : emailString.trim();
+          const emailName = emailMatch ? emailMatch[1]!.trim() : undefined;
+          
+          if (emailAddress && validateEmail(emailAddress)) {
+            await fetch('/api/contacts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: emailAddress,
+                name: emailName,
+              }),
+            });
+          }
+        } catch (error) {
+          console.error('Failed to save contact:', error);
+        }
+      }
+
       toast.success('Письмо отправлено');
       onClose();
     } catch (error) {
@@ -257,6 +308,89 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     } finally {
       setSending(false);
     }
+  };
+
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const newAttachments: AttachmentFile[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`Файл "${file.name}" слишком большой. Максимальный размер: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB`);
+        continue;
+      }
+
+      try {
+        const data = await readFileAsBase64(file);
+        newAttachments.push({
+          id: `${Date.now()}-${i}`,
+          file,
+          data,
+          mime: file.type || 'application/octet-stream',
+        });
+      } catch (error) {
+        console.error('Error reading file:', error);
+        toast.error(`Ошибка чтения файла "${file.name}"`);
+      }
+    }
+
+    if (newAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...newAttachments]);
+      setIsDirty(true);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFileSelect(e.target.files);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    handleFileSelect(e.dataTransfer.files);
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((att) => att.id !== id));
+    setIsDirty(true);
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   };
 
   const handleClose = async () => {
@@ -284,26 +418,29 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         </DialogHeader>
         <div className="flex-1 overflow-auto space-y-4 max-md:space-y-2">
           <div>
-            <Input
-              placeholder="Кому"
+            <ContactAutocomplete
               value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="mb-2 max-md:text-sm"
+              onChange={setTo}
+              placeholder="Кому"
+              className="mb-2"
+              multiple
             />
             {showCc && (
-              <Input
-                placeholder="Копия"
+              <ContactAutocomplete
                 value={cc}
-                onChange={(e) => setCc(e.target.value)}
-                className="mb-2 max-md:text-sm"
+                onChange={setCc}
+                placeholder="Копия"
+                className="mb-2"
+                multiple
               />
             )}
             {showBcc && (
-              <Input
-                placeholder="Скрытая копия"
+              <ContactAutocomplete
                 value={bcc}
-                onChange={(e) => setBcc(e.target.value)}
-                className="mb-2 max-md:text-sm"
+                onChange={setBcc}
+                placeholder="Скрытая копия"
+                className="mb-2"
+                multiple
               />
             )}
             <div className="flex gap-2 text-sm max-md:text-xs">
@@ -329,6 +466,68 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             onChange={(e) => setSubject(e.target.value)}
             className="max-md:text-sm"
           />
+          {attachments.length > 0 && (
+            <div className="border rounded-md p-2 max-md:p-1.5 bg-muted/30">
+              <div className="text-sm font-medium mb-2 max-md:text-xs">Вложения ({attachments.length}):</div>
+              <div className="space-y-1">
+                {attachments.map((att) => (
+                  <div
+                    key={att.id}
+                    className="flex items-center justify-between rounded border bg-background p-2 max-md:p-1.5"
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <File className="h-4 w-4 max-md:h-3 max-md:w-3 flex-shrink-0 text-muted-foreground" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium max-md:text-xs truncate">{att.file.name}</div>
+                        <div className="text-xs text-muted-foreground max-md:text-[10px]">
+                          {formatFileSize(att.file.size)} • {att.mime}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeAttachment(att.id)}
+                      className="h-7 w-7 max-md:h-6 max-md:w-6 p-0 flex-shrink-0"
+                      aria-label={`Удалить вложение ${att.file.name}`}
+                    >
+                      <X className="h-4 w-4 max-md:h-3 max-md:w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div
+            className={cn(
+              'border-2 border-dashed rounded-md p-4 max-md:p-2 transition-colors',
+              isDragging ? 'border-primary bg-primary/10' : 'border-muted-foreground/25 hover:border-primary/50'
+            )}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileInputChange}
+              className="hidden"
+              id="file-upload"
+            />
+            <label
+              htmlFor="file-upload"
+              className="flex flex-col items-center justify-center cursor-pointer"
+            >
+              <Paperclip className="h-6 w-6 max-md:h-5 max-md:w-5 text-muted-foreground mb-2" />
+              <span className="text-sm text-muted-foreground max-md:text-xs text-center">
+                Перетащите файлы сюда или нажмите для выбора
+              </span>
+              <span className="text-xs text-muted-foreground/70 max-md:text-[10px] mt-1">
+                Максимальный размер файла: {(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB
+              </span>
+            </label>
+          </div>
           <div className="border rounded-md">
             <div className="border-b p-2 max-md:p-1 flex gap-2 max-md:gap-1 flex-wrap">
               <Button
