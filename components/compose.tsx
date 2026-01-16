@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File } from 'lucide-react';
+import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { validateEmail, parseEmailList } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -72,6 +72,9 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   const [isDirty, setIsDirty] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [scheduledSend, setScheduledSend] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const suppressDirtyRef = useRef(false);
   const didInitRef = useRef(false);
@@ -249,18 +252,34 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           }))
         : undefined;
 
+      const body: any = {
+        to: toList,
+        cc: showCc ? parseEmailList(cc) : [],
+        bcc: showBcc ? parseEmailList(bcc) : [],
+        subject,
+        html,
+        draftId: draftId,
+        attachments: attachmentsData,
+      };
+
+      if (scheduledSend && scheduledDate && scheduledTime) {
+        const sendAt = new Date(`${scheduledDate}T${scheduledTime}`);
+        if (sendAt.getTime() > Date.now()) {
+          body.scheduledSend = {
+            enabled: true,
+            sendAt: sendAt.toISOString(),
+          };
+        } else {
+          toast.error('Время отправки должно быть в будущем');
+          setSending(false);
+          return;
+        }
+      }
+
       const res = await fetch('/api/mail/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: toList,
-          cc: showCc ? parseEmailList(cc) : [],
-          bcc: showBcc ? parseEmailList(bcc) : [],
-          subject,
-          html,
-          draftId: draftId,
-          attachments: attachmentsData,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -268,6 +287,15 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         const errorMessage = data.error || data.details || `Ошибка отправки (${res.status})`;
         console.error('Send error:', errorMessage, data);
         toast.error(errorMessage);
+        setSending(false);
+        return;
+      }
+
+      const responseData = await res.json();
+      if (responseData.scheduled) {
+        toast.success(`Письмо запланировано на ${new Date(responseData.sendAt).toLocaleString('ru-RU')}`);
+        onClose();
+        setSending(false);
         return;
       }
 
@@ -597,12 +625,50 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             <EditorContent editor={editor} />
           </div>
         </div>
+        <div className="border-t p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="scheduledSend"
+              checked={scheduledSend}
+              onChange={(e) => setScheduledSend(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            <label htmlFor="scheduledSend" className="text-sm font-medium flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Отложенная отправка
+            </label>
+          </div>
+          {scheduledSend && (
+            <div className="grid grid-cols-2 gap-3 pl-6">
+              <div className="space-y-1">
+                <label htmlFor="scheduledDate" className="text-xs text-muted-foreground">Дата</label>
+                <Input
+                  id="scheduledDate"
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="scheduledTime" className="text-xs text-muted-foreground">Время</label>
+                <Input
+                  id="scheduledTime"
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+        </div>
         <DialogFooter className="max-md:flex-col max-md:gap-2">
           <Button variant="outline" onClick={handleClose} className="max-md:w-full">
             Отмена
           </Button>
           <Button onClick={handleSend} disabled={sending || saving} className="max-md:w-full">
-            {sending ? 'Отправка...' : saving ? 'Сохранение...' : 'Отправить'}
+            {sending ? 'Отправка...' : saving ? 'Сохранение...' : scheduledSend ? 'Запланировать отправку' : 'Отправить'}
           </Button>
         </DialogFooter>
       </DialogContent>
