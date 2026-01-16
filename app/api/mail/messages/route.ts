@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { FilterQueryParser } from '@/lib/filter-parser';
+import { readStorage } from '@/lib/storage';
 import type { MessageFilter } from '@/lib/types';
 
 const querySchema = z.object({
@@ -75,6 +76,17 @@ export async function GET(request: NextRequest) {
         filter: params.filter,
         messageFilter,
       });
+      
+      const messageLabels = await readStorage<Record<string, string[]>>(
+        `messageLabels:${session.accountId}`,
+        {}
+      );
+
+      if (result?.messages) {
+        for (const message of result.messages) {
+          message.labels = messageLabels[message.id] || [];
+        }
+      }
       
       console.error('[messages] API result:', { 
         messagesCount: result?.messages?.length || 0, 
