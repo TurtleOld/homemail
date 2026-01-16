@@ -11,7 +11,7 @@ const mockMessages: MessageListItem[] = [
     subject: 'Test Subject',
     snippet: 'Test snippet',
     date: new Date(),
-    flags: { unread: true, starred: false, hasAttachments: false },
+    flags: { unread: true, starred: false, important: false, hasAttachments: false },
     size: 1000,
   },
   {
@@ -21,7 +21,7 @@ const mockMessages: MessageListItem[] = [
     subject: 'Test Subject 2',
     snippet: 'Test snippet 2',
     date: new Date(),
-    flags: { unread: false, starred: true, hasAttachments: true },
+    flags: { unread: false, starred: true, important: false, hasAttachments: true },
     size: 2000,
   },
 ];
