@@ -39,10 +39,13 @@ export async function PUT(
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
     }
 
-    if (data.email && data.email.toLowerCase() !== contacts[contactIndex]!.email.toLowerCase()) {
-      const existingContact = contacts.find((c) => c.id !== id && c.email.toLowerCase() === data.email.toLowerCase());
-      if (existingContact) {
-        return NextResponse.json({ error: 'Contact with this email already exists' }, { status: 409 });
+    if (data.email) {
+      const newEmail = data.email.toLowerCase();
+      if (newEmail !== contacts[contactIndex]!.email.toLowerCase()) {
+        const existingContact = contacts.find((c) => c.id !== id && c.email.toLowerCase() === newEmail);
+        if (existingContact) {
+          return NextResponse.json({ error: 'Contact with this email already exists' }, { status: 409 });
+        }
       }
     }
 
