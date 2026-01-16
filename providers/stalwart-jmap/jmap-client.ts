@@ -598,7 +598,23 @@ export class JMAPClient {
   }
 
   async getIdentities(accountId?: string): Promise<JMAPIdentity[]> {
-    const targetAccountId = accountId || this.accountId;
+    const session = await this.getSession();
+    
+    let targetAccountId: string;
+    if (accountId) {
+      targetAccountId = accountId;
+    } else {
+      if (session.primaryAccounts?.mail) {
+        targetAccountId = session.primaryAccounts.mail;
+      } else {
+        const accountKeys = Object.keys(session.accounts);
+        if (accountKeys.length > 0) {
+          targetAccountId = accountKeys[0];
+        } else {
+          throw new Error('No account found in session');
+        }
+      }
+    }
     
     if (!targetAccountId || typeof targetAccountId !== 'string') {
       throw new Error(`Invalid accountId: ${targetAccountId}`);
@@ -623,7 +639,7 @@ export class JMAPClient {
           '0',
         ],
       ],
-      ['urn:ietf:params:jmap:core']
+      ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']
     );
 
     if (!response || !response.methodResponses) {

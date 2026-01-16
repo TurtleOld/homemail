@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         throw new Error('JMAP client not available');
       }
 
-      const serverIdentities = await client.getIdentities(session.accountId);
+      const serverIdentities = await client.getIdentities();
       const serverEmails = new Set(serverIdentities.map((id: { email: string }) => id.email.toLowerCase()));
 
       const results = aliases.map((alias: { email: string }) => {
