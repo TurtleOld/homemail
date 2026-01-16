@@ -32,6 +32,7 @@ export const ThreadItem = memo(function ThreadItem({
   isExpanded = false,
   onToggleExpand,
 }: ThreadItemProps) {
+  const localeSettings = useLocaleSettings();
   const [localExpanded, setLocalExpanded] = useState(isExpanded);
   const expanded = onToggleExpand ? isExpanded : localExpanded;
   const toggleExpanded = onToggleExpand
