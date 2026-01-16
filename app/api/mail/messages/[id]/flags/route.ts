@@ -7,6 +7,7 @@ import { validateOrigin } from '@/lib/csrf';
 const flagsSchema = z.object({
   unread: z.boolean().optional(),
   starred: z.boolean().optional(),
+  important: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

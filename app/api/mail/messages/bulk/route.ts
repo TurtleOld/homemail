@@ -7,7 +7,7 @@ import { validateOrigin } from '@/lib/csrf';
 
 const bulkActionSchema = z.object({
   ids: z.array(z.string()).min(1),
-  action: z.enum(['markRead', 'markUnread', 'move', 'delete', 'spam', 'star', 'unstar']),
+  action: z.enum(['markRead', 'markUnread', 'move', 'delete', 'spam', 'star', 'unstar', 'markImportant', 'unmarkImportant']),
   payload: z
     .object({
       folderId: z.string().optional(),
