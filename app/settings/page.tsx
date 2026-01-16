@@ -1023,7 +1023,11 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
         email: forwardingEmail,
         keepCopy,
       },
-      aliases,
+      aliases: aliases.map((alias) => ({
+        id: alias.id,
+        email: alias.email,
+        name: alias.name && alias.name.trim() ? alias.name.trim() : undefined,
+      })),
       locale: {
         language,
         dateFormat,
@@ -1035,8 +1039,9 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast.success('Настройки сохранены');
     },
-    onError: () => {
-      toast.error('Ошибка сохранения настроек');
+    onError: (error: Error) => {
+      console.error('Settings save error:', error);
+      toast.error(error.message || 'Ошибка сохранения настроек');
     },
   });
 
@@ -1057,7 +1062,11 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
       toast.error('Такой алиас уже существует');
       return;
     }
-    setAliases([...aliases, { id: Date.now().toString(), email: newAliasEmail, name: newAliasName || undefined }]);
+    setAliases([...aliases, { 
+      id: Date.now().toString(), 
+      email: newAliasEmail.trim(), 
+      name: newAliasName.trim() || undefined 
+    }]);
     setNewAliasEmail('');
     setNewAliasName('');
   };

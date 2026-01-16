@@ -201,6 +201,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      logger.error('Settings validation error:', error.errors);
       return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
     }
     logger.error('Failed to save settings:', error);
