@@ -10,10 +10,18 @@ import { MessageViewer } from '@/components/message-viewer';
 import { QuickFilters } from '@/components/quick-filters';
 import type { Folder, Account, MessageListItem, MessageDetail, Draft, QuickFilterType, FilterGroup } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft } from 'lucide-react';
+import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft, Folder as FolderIcon, Inbox, Send, AlertTriangle, AlertCircle } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks';
 import { FilterQueryParser } from '@/lib/filter-parser';
+import { useSwipeable } from 'react-swipeable';
+import { useHotkeys } from 'react-hotkeys-hook';
 
 interface MinimizedDraft {
   id: string;
@@ -367,7 +375,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     [queryClient]
   );
 
-  const handleBulkAction = async (action: string) => {
+  const handleBulkAction = async (action: string, payload?: { folderId?: string }) => {
     if (selectedIds.size === 0) {
       toast.error('Выберите письма');
       return;
@@ -380,6 +388,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         body: JSON.stringify({
           ids: Array.from(selectedIds),
           action,
+          payload,
         }),
       });
 
@@ -390,6 +399,31 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
 
       toast.success('Действие выполнено');
       setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+    } catch (error) {
+      toast.error('Ошибка соединения');
+    }
+  };
+
+  const handleMoveMessage = async (messageId: string, folderId: string) => {
+    try {
+      const res = await fetch('/api/mail/messages/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: [messageId],
+          action: 'move',
+          payload: { folderId },
+        }),
+      });
+
+      if (!res.ok) {
+        toast.error('Ошибка перемещения письма');
+        return;
+      }
+
+      toast.success('Письмо перемещено');
       queryClient.invalidateQueries({ queryKey: ['messages'] });
       queryClient.invalidateQueries({ queryKey: ['folders'] });
     } catch (error) {
@@ -526,16 +560,86 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     }
   };
 
+  const folderIcons: Record<string, React.ReactNode> = {
+    inbox: <Inbox className="h-4 w-4" />,
+    sent: <Send className="h-4 w-4" />,
+    drafts: <FileText className="h-4 w-4" />,
+    trash: <Trash2 className="h-4 w-4" />,
+    spam: <AlertTriangle className="h-4 w-4" />,
+    custom: <FileText className="h-4 w-4" />,
+  };
+
+  useHotkeys('ctrl+k, cmd+k', (e) => {
+    e.preventDefault();
+    if (!composeOpen) {
+      setReplyTo(null);
+      setForwardFrom(null);
+      setLoadedDraft(null);
+      setActiveDraftId(null);
+      setComposeOpen(true);
+    }
+  }, { enabled: !isMobile });
+
+  useHotkeys('ctrl+/', (e) => {
+    e.preventDefault();
+    toast.info('Горячие клавиши: Ctrl+K - новое письмо, Delete - удалить, R - ответить, F - переслать');
+  }, { enabled: !isMobile });
+
+  useHotkeys('delete, backspace', (e) => {
+    if (selectedIds.size > 0 && !composeOpen) {
+      e.preventDefault();
+      handleBulkAction('delete');
+    }
+  }, { enabled: !isMobile && selectedIds.size > 0 });
+
+  useHotkeys('r', (e) => {
+    if (selectedMessage && !composeOpen) {
+      e.preventDefault();
+      handleReply();
+    }
+  }, { enabled: !isMobile && !!selectedMessage });
+
+  useHotkeys('f', (e) => {
+    if (selectedMessage && !composeOpen) {
+      e.preventDefault();
+      handleForward();
+    }
+  }, { enabled: !isMobile && !!selectedMessage });
+
+  const swipeHandlers = useSwipeable({
+    onSwipedRight: () => {
+      if (isMobile && selectedMessageId) {
+        setSelectedMessageId(null);
+        setSelectedIds(new Set());
+      }
+    },
+    onSwipedLeft: () => {
+      if (isMobile && !selectedMessageId && messages.length > 0) {
+        const firstMessage = messages[0];
+        if (firstMessage) {
+          setSelectedMessageId(firstMessage.id);
+          setSelectedIds(new Set([firstMessage.id]));
+        }
+      }
+    },
+    trackMouse: false,
+    trackTouch: true,
+    preventScrollOnSwipe: true,
+    delta: 50,
+  });
+
   return (
-    <div className="flex h-screen flex-col">
+    <div id="main-content" className="flex h-screen flex-col" role="main" aria-label="Почтовый клиент">
       {isMobile && (
-        <div className="flex items-center gap-2 border-b bg-muted/50 p-2 md:hidden">
+        <div className="flex items-center gap-2 border-b bg-muted/50 p-3 md:hidden">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="min-w-[44px] min-h-[44px] touch-manipulation"
+            aria-label="Открыть меню"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-6 w-6" />
           </Button>
           <div className="flex-1">
             <img src="/icons/mail-icon.png" alt="Почта" className="h-5 w-5 inline mr-2" />
@@ -551,8 +655,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               setActiveDraftId(null);
               setComposeOpen(true);
             }}
+            className="min-w-[44px] min-h-[44px] touch-manipulation"
+            aria-label="Написать письмо"
           >
-            <FileText className="h-5 w-5" />
+            <FileText className="h-6 w-6" />
           </Button>
         </div>
       )}
@@ -598,16 +704,22 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               }}
               isMobile={isMobile}
               onClose={() => setSidebarOpen(false)}
+              onDropMessage={handleMoveMessage}
             />
             </div>
           </>
         )}
         {isMobile && selectedMessageId ? null : (
-          <div className={`
-            relative flex flex-col flex-shrink-0
-            ${isMobile ? 'w-full' : ''}
-          `} style={!isMobile ? { width: `${messageListWidth}px` } : {}} suppressHydrationWarning>
-          <div className="border-b bg-muted/50 p-2 max-md:p-1.5 flex-shrink-0">
+          <div 
+            className={`
+              relative flex flex-col flex-shrink-0
+              ${isMobile ? 'w-full' : ''}
+            `} 
+            style={!isMobile ? { width: `${messageListWidth}px` } : {}} 
+            suppressHydrationWarning
+            {...(isMobile ? swipeHandlers : {})}
+          >
+          <div className="border-b bg-muted/50 p-2 max-md:p-1.5 flex-shrink-0 transition-colors duration-200">
             <QuickFilters
               activeFilter={quickFilter}
               onFilterChange={(filter) => {
@@ -664,6 +776,29 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             isLoading={isMessagesLoading}
             isFetchingMore={isFetchingNextPage}
             isSearching={debouncedSearch.length > 0}
+            onDragStart={() => {}}
+            onToggleImportant={async (messageId, important) => {
+              try {
+                await fetch(`/api/mail/messages/${messageId}/flags`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ important }),
+                });
+                updateMessageInList(messageId, (message) => ({
+                  ...message,
+                  flags: { ...message.flags, important },
+                }));
+                if (selectedMessageId === messageId) {
+                  updateMessageDetail(messageId, (message) => ({
+                    ...message,
+                    flags: { ...message.flags, important },
+                  }));
+                }
+              } catch (error) {
+                console.error('Failed to update important:', error);
+                toast.error('Ошибка обновления важности');
+              }
+            }}
           />
           </div>
         </div>
@@ -677,13 +812,16 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           </div>
         )}
         {isMobile && !selectedMessageId ? null : (
-          <div className={`
-            flex-1 min-w-0
-            ${isMobile ? 'fixed inset-0 z-40 bg-background' : ''}
-            ${isMobile && !selectedMessageId ? 'hidden' : ''}
-          `}>
+          <div 
+            className={`
+              flex-1 min-w-0
+              ${isMobile ? 'fixed inset-0 z-40 bg-background' : ''}
+              ${isMobile && !selectedMessageId ? 'hidden' : ''}
+            `}
+            {...(isMobile && selectedMessageId ? swipeHandlers : {})}
+          >
             {isMobile && (
-              <div className="flex items-center gap-2 border-b bg-muted/50 p-2 flex-shrink-0">
+              <div className="flex items-center gap-2 border-b bg-muted/50 p-3 flex-shrink-0">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -691,8 +829,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     setSelectedMessageId(null);
                     setSelectedIds(new Set());
                   }}
+                  className="min-w-[44px] min-h-[44px] touch-manipulation"
+                  aria-label="Назад к списку"
                 >
-                  <ArrowLeft className="h-5 w-5" />
+                  <ArrowLeft className="h-6 w-6" />
                 </Button>
                 <span className="text-sm font-medium truncate flex-1">{selectedMessage?.subject || 'Письмо'}</span>
               </div>
@@ -726,6 +866,17 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             }));
             queryClient.invalidateQueries({ queryKey: ['folders'] });
           }}
+          onToggleImportant={(important) => {
+            if (!selectedMessageId) return;
+            updateMessageInList(selectedMessageId, (message) => ({
+              ...message,
+              flags: { ...message.flags, important },
+            }));
+            updateMessageDetail(selectedMessageId, (message) => ({
+              ...message,
+              flags: { ...message.flags, important },
+            }));
+          }}
           allowRemoteImages={allowRemoteImages}
           isLoading={isMessageLoading}
           hasSelection={!!selectedMessageId}
@@ -735,22 +886,111 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         )}
       </div>
       {selectedIds.size > 0 && (
-        <div className="border-t bg-muted/50 p-2 max-md:p-1.5">
-          <div className="flex items-center gap-2 max-md:gap-1 max-md:flex-wrap">
-            <span className="text-sm max-md:text-xs">Выбрано: {selectedIds.size}</span>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('markRead')} className="max-md:text-xs max-md:px-2 max-md:h-8">
-              <Mail className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+        <div className="border-t bg-muted/50 p-3 max-md:p-3 max-md:sticky max-md:bottom-0 max-md:z-50 max-md:shadow-lg">
+          <div className="flex items-center gap-2 max-md:gap-2 max-md:flex-wrap max-md:justify-center">
+            <span className="text-sm max-md:text-sm max-md:font-medium">Выбрано: {selectedIds.size}</span>
+            {(() => {
+              const currentFolder = folders.find((f) => f.id === selectedFolderId);
+              const isSpamFolder = currentFolder?.role === 'spam' || selectedFolderId === 'c';
+              const inboxFolder = folders.find((f) => f.role === 'inbox');
+              
+              if (isSpamFolder && inboxFolder) {
+                return (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkAction('move', { folderId: inboxFolder.id })}
+                    className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                    aria-label="Это не спам"
+                  >
+                    <Inbox className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+                    <span className="max-md:hidden">Это не спам</span>
+                  </Button>
+                );
+              }
+              return null;
+            })()}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handleBulkAction('markRead')} 
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label="Отметить как прочитанное"
+            >
+              <Mail className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">Прочитано</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('markUnread')} className="max-md:text-xs max-md:px-2 max-md:h-8">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handleBulkAction('markUnread')} 
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label="Отметить как непрочитанное"
+            >
+              <Mail className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">Непрочитано</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('star')} className="max-md:text-xs max-md:px-2 max-md:h-8">
-              <Star className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handleBulkAction('star')} 
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label="Добавить в избранное"
+            >
+              <Star className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">В избранное</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('delete')} className="max-md:text-xs max-md:px-2 max-md:h-8">
-              <Trash2 className="mr-2 h-4 w-4 max-md:mr-1 max-md:h-3 max-md:w-3" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const selectedMessages = messages.filter((m) => selectedIds.has(m.id));
+                const allImportant = selectedMessages.length > 0 && selectedMessages.every((m) => m.flags.important);
+                handleBulkAction(allImportant ? 'unmarkImportant' : 'markImportant');
+              }}
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label="Отметить как важное"
+            >
+              <AlertCircle className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+              <span className="max-md:hidden">Важное</span>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                  aria-label="Переместить письма"
+                >
+                  <FolderIcon className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+                  <span className="max-md:hidden">Переместить</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">
+                {folders
+                  .filter((folder) => folder.id !== selectedFolderId)
+                  .map((folder) => (
+                    <DropdownMenuItem
+                      key={folder.id}
+                      onClick={() => handleBulkAction('move', { folderId: folder.id })}
+                      className="min-h-[44px] touch-manipulation"
+                    >
+                      <span className="flex items-center">
+                        {folderIcons[folder.role] || folderIcons.custom}
+                        <span className="ml-2">{folder.name}</span>
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handleBulkAction('delete')} 
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label="Удалить письма"
+            >
+              <Trash2 className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">Удалить</span>
             </Button>
           </div>

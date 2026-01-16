@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { Toaster } from '@/components/ui/toast';
 import { PerformanceReporter } from '@/components/performance-reporter';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -47,9 +48,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <PerformanceReporter />
-      <Toaster />
+      <TooltipProvider delayDuration={300}>
+        {children}
+        <PerformanceReporter />
+        <Toaster />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }
