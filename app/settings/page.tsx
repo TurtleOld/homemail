@@ -1128,12 +1128,16 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <AtSign className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">Алиасы email</h3>
-            </div>
-            <div className="space-y-4 pl-7">
+                 <div className="space-y-4">
+                   <div className="flex items-center gap-2">
+                     <AtSign className="h-5 w-5" />
+                     <h3 className="text-lg font-semibold">Алиасы email</h3>
+                   </div>
+                   <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                     <strong>Важно:</strong> Алиасы должны быть созданы на почтовом сервере через административный интерфейс перед использованием. 
+                     Добавление алиаса здесь только создает идентичность для отправки писем, но не создает сам почтовый ящик на сервере.
+                   </div>
+                   <div className="space-y-4 pl-7">
               <div className="flex gap-2">
                 <Input
                   value={newAliasEmail}

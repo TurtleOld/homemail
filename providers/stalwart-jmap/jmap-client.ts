@@ -604,6 +604,79 @@ export class JMAPClient {
     return data.list || [];
   }
 
+  async setIdentities(
+    identities: Array<{ email: string; name?: string }>,
+    accountId?: string
+  ): Promise<{ created?: Record<string, JMAPIdentity>; updated?: Record<string, JMAPIdentity>; notCreated?: Record<string, any>; notUpdated?: Record<string, any> }> {
+    const targetAccountId = accountId || this.accountId;
+    
+    const existingIdentities = await this.getIdentities(targetAccountId);
+    const existingEmails = new Set(existingIdentities.map((id) => id.email));
+    
+    const create: Record<string, { email: string; name?: string }> = {};
+    const update: Record<string, { email: string; name?: string }> = {};
+    
+    for (const identity of identities) {
+      const existing = existingIdentities.find((id) => id.email === identity.email);
+      if (existing) {
+        update[existing.id] = { email: identity.email, name: identity.name };
+      } else {
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        create[tempId] = { email: identity.email, name: identity.name };
+      }
+    }
+    
+    const requestBody: any = {
+      accountId: targetAccountId,
+    };
+    
+    if (Object.keys(create).length > 0) {
+      requestBody.create = create;
+    }
+    if (Object.keys(update).length > 0) {
+      requestBody.update = update;
+    }
+    
+    if (Object.keys(create).length === 0 && Object.keys(update).length === 0) {
+      return { created: {}, updated: {} };
+    }
+    
+    const response = await this.requestWithUsing(
+      [
+        [
+          'Identity/set',
+          requestBody,
+          '0',
+        ],
+      ],
+      ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']
+    );
+
+    const setResponse = response.methodResponses[0];
+    if (setResponse[0] !== 'Identity/set') {
+      throw new Error('Invalid identity set response');
+    }
+
+    if ('type' in setResponse[1] && setResponse[1].type === 'error') {
+      const errorDesc = (setResponse[1] as any).description || 'Unknown error';
+      throw new Error(`JMAP identity set error: ${errorDesc}`);
+    }
+
+    const data = setResponse[1] as {
+      created?: Record<string, JMAPIdentity>;
+      updated?: Record<string, JMAPIdentity>;
+      notCreated?: Record<string, any>;
+      notUpdated?: Record<string, any>;
+    };
+    
+    return {
+      created: data.created || {},
+      updated: data.updated || {},
+      notCreated: data.notCreated,
+      notUpdated: data.notUpdated,
+    };
+  }
+
   async queryEmails(
     mailboxId: string,
     options: {

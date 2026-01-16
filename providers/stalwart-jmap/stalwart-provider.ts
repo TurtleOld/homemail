@@ -115,6 +115,11 @@ export class StalwartJMAPProvider implements MailProvider {
     return new JMAPClient(config.baseUrl, creds.email, creds.password, accountId, config.authMode);
   }
 
+  async syncAliases(accountId: string, aliases: Array<{ email: string; name?: string }>): Promise<void> {
+    const client = await this.getClient(accountId);
+    await client.setIdentities(aliases, accountId);
+  }
+
   async getAccount(accountId: string): Promise<Account | null> {
     try {
       // Получаем credentials

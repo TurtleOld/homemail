@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '@/lib/logger';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 
 const settingsSchema = z.object({
   signature: z.string().optional(),
@@ -188,7 +189,7 @@ export async function POST(request: NextRequest) {
       },
     };
     
-    settingsStore.set(session.accountId, {
+    const updatedSettings = {
       signature: data.signature !== undefined ? data.signature : currentSettings.signature,
       signatures: data.signatures !== undefined ? data.signatures : currentSettings.signatures,
       theme: data.theme !== undefined ? data.theme : currentSettings.theme,
@@ -197,9 +198,27 @@ export async function POST(request: NextRequest) {
       aliases: data.aliases !== undefined ? data.aliases : currentSettings.aliases,
       locale: data.locale ? { ...currentSettings.locale, ...data.locale } : currentSettings.locale,
       ui: data.ui ? { ...currentSettings.ui, ...data.ui } : currentSettings.ui,
-    });
-
+    };
+    
+    settingsStore.set(session.accountId, updatedSettings);
     await saveSettings();
+
+    if (data.aliases !== undefined && process.env.MAIL_PROVIDER === 'stalwart') {
+      try {
+        const provider = getMailProviderForAccount(session.accountId);
+        if (provider && typeof (provider as any).syncAliases === 'function') {
+          const identities = data.aliases.map((alias) => ({
+            email: alias.email,
+            name: alias.name,
+          }));
+          
+          await (provider as any).syncAliases(session.accountId, identities);
+          logger.info(`Synchronized ${data.aliases.length} aliases with server`);
+        }
+      } catch (error) {
+        logger.error('Failed to synchronize aliases with server:', error);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
