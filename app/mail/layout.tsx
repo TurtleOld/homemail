@@ -10,7 +10,7 @@ import { MessageViewer } from '@/components/message-viewer';
 import { QuickFilters } from '@/components/quick-filters';
 import type { Folder, Account, MessageListItem, MessageDetail, Draft, QuickFilterType, FilterGroup } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft, Folder as FolderIcon, Inbox, Send, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft, Folder as FolderIcon, Inbox, Send, AlertTriangle, AlertCircle, Archive } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,8 +68,19 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [isResizing, setIsResizing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [conversationView, setConversationView] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const saved = window.localStorage.getItem('conversationView');
+    return saved === 'true';
+  });
   const debouncedSearch = useDebounce(searchQuery, 400);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('conversationView', conversationView.toString());
+    }
+  }, [conversationView]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -720,29 +731,43 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             {...(isMobile ? swipeHandlers : {})}
           >
           <div className="border-b bg-muted/50 p-2 max-md:p-1.5 flex-shrink-0 transition-colors duration-200">
-            <QuickFilters
-              activeFilter={quickFilter}
-              onFilterChange={(filter) => {
-                setQuickFilter(filter);
-                if (filter === 'drafts') {
-                  const draftsFolder = folders.find((f) => f.role === 'drafts');
-                  if (draftsFolder) {
-                    setSelectedFolderId(draftsFolder.id);
+            <div className="flex items-center gap-2 max-md:gap-1">
+              <QuickFilters
+                activeFilter={quickFilter}
+                onFilterChange={(filter) => {
+                  setQuickFilter(filter);
+                  if (filter === 'drafts') {
+                    const draftsFolder = folders.find((f) => f.role === 'drafts');
+                    if (draftsFolder) {
+                      setSelectedFolderId(draftsFolder.id);
+                    }
+                  } else if (filter === 'sent') {
+                    const sentFolder = folders.find((f) => f.role === 'sent');
+                    if (sentFolder) {
+                      setSelectedFolderId(sentFolder.id);
+                    }
                   }
-                } else if (filter === 'sent') {
-                  const sentFolder = folders.find((f) => f.role === 'sent');
-                  if (sentFolder) {
-                    setSelectedFolderId(sentFolder.id);
-                  }
-                }
-                queryClient.invalidateQueries({ queryKey: ['messages'] });
-              }}
-            />
+                  queryClient.invalidateQueries({ queryKey: ['messages'] });
+                }}
+              />
+              <Button
+                variant={conversationView ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setConversationView(!conversationView)}
+                className="max-md:text-xs max-md:px-2 max-md:h-8"
+                title={conversationView ? 'Переключить на обычный вид' : 'Переключить на вид переписки'}
+                aria-label={conversationView ? 'Переключить на обычный вид' : 'Переключить на вид переписки'}
+              >
+                <MessageSquare className="h-4 w-4 max-md:h-3 max-md:w-3 mr-1 max-md:mr-0" />
+                <span className="max-md:hidden">Переписки</span>
+              </Button>
+            </div>
           </div>
           <div className="flex-1 min-h-0">
             <MessageList
             messages={messages}
             selectedIds={selectedIds}
+            conversationView={conversationView}
             onSelect={(id, multi) => {
               if (multi) {
                 setSelectedIds((prev) => {
@@ -954,6 +979,26 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               <AlertCircle className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">Важное</span>
             </Button>
+            {(() => {
+              const currentFolder = folders.find((f) => f.id === selectedFolderId);
+              const isInbox = currentFolder?.role === 'inbox';
+              
+              if (isInbox) {
+                return (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleBulkAction('archive')} 
+                    className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                    aria-label="Архивировать письма"
+                  >
+                    <Archive className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+                    <span className="max-md:hidden">Архивировать</span>
+                  </Button>
+                );
+              }
+              return null;
+            })()}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button 

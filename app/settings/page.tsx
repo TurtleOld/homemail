@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2 } from 'lucide-react';
+import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users } from 'lucide-react';
 import type { Folder, SavedFilter, AutoSortRule } from '@/lib/types';
 import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
+import { ContactsManager } from '@/components/contacts-manager';
 
 interface UserSettings {
   signature: string;
@@ -70,7 +71,7 @@ async function deleteFolder(folderId: string): Promise<void> {
   }
 }
 
-type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters';
+type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'contacts';
 
 interface Tab {
   id: TabId;
@@ -85,6 +86,7 @@ function getTabs(theme: 'light' | 'dark'): Tab[] {
     { id: 'autoReply', label: 'Автоответ', icon: <Mail className="h-4 w-4" /> },
     { id: 'folders', label: 'Папки', icon: <FolderPlus className="h-4 w-4" /> },
     { id: 'filters', label: 'Фильтры', icon: <Filter className="h-4 w-4" /> },
+    { id: 'contacts', label: 'Контакты', icon: <Users className="h-4 w-4" /> },
   ];
 }
 
@@ -748,6 +750,7 @@ export default function SettingsPage() {
             {activeTab === 'autoReply' && <AutoReplyTab initialSettings={settings} />}
             {activeTab === 'folders' && <FoldersTab />}
             {activeTab === 'filters' && <FiltersTab />}
+            {activeTab === 'contacts' && <ContactsManager />}
           </div>
         </div>
       </div>
