@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import type { MessageDetail } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
+import { useLocaleSettings } from '@/lib/hooks';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { Button } from '@/components/ui/button';
 import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download, ArrowLeft, AlertCircle } from 'lucide-react';
@@ -40,6 +41,7 @@ export function MessageViewer({
   isMobile = false,
   onBack,
 }: MessageViewerProps) {
+  const localeSettings = useLocaleSettings();
   const markedAsReadRef = useRef<Set<string>>(new Set());
   const [localAllowImages, setLocalAllowImages] = useState(false);
 
@@ -284,7 +286,7 @@ export function MessageViewer({
                 </div>
               )}
               <div>
-                <strong>Дата:</strong> {formatDate(message.date)}
+                <strong>Дата:</strong> {formatDate(message.date, localeSettings)}
               </div>
             </div>
           </div>

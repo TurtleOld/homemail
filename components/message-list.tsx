@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import type { MessageListItem } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
+import { useLocaleSettings } from '@/lib/hooks';
 import { Star, StarOff, Mail, MailOpen, Paperclip, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,6 +26,8 @@ interface MessageListProps {
   onDragStart?: (messageId: string) => void;
   onToggleImportant?: (messageId: string, important: boolean) => void;
   conversationView?: boolean;
+  density?: 'compact' | 'comfortable' | 'spacious';
+  groupBy?: 'none' | 'date' | 'sender';
 }
 
 export const MessageItem = memo(function MessageItem({
@@ -38,6 +41,7 @@ export const MessageItem = memo(function MessageItem({
   onMessageDoubleClick,
   onDragStart,
   onToggleImportant,
+  density = 'comfortable',
 }: {
   message: MessageListItem;
   index: number;
@@ -49,7 +53,20 @@ export const MessageItem = memo(function MessageItem({
   onMessageDoubleClick?: (message: MessageListItem) => void;
   onDragStart?: (messageId: string) => void;
   onToggleImportant?: (messageId: string, important: boolean) => void;
+  density?: 'compact' | 'comfortable' | 'spacious';
 }) {
+  const localeSettings = useLocaleSettings();
+  const densityClasses = {
+    compact: 'p-2 gap-2',
+    comfortable: 'p-3 gap-3',
+    spacious: 'p-4 gap-4',
+  };
+
+  const textSizeClasses = {
+    compact: 'text-xs',
+    comfortable: 'text-sm',
+    spacious: 'text-base',
+  };
   return (
     <article
       key={message.id}
@@ -75,7 +92,9 @@ export const MessageItem = memo(function MessageItem({
         }
       }}
       className={cn(
-        'flex cursor-pointer items-start gap-3 border-b p-3 max-md:p-4 max-md:gap-3 transition-all duration-200 hover:bg-muted/50 active:bg-muted/70 touch-manipulation hover:shadow-sm',
+        'flex cursor-pointer items-start border-b transition-all duration-200 hover:bg-muted/50 active:bg-muted/70 touch-manipulation hover:shadow-sm',
+        densityClasses[density],
+        'max-md:p-4 max-md:gap-3',
         isSelected && 'bg-muted shadow-sm',
         isFocused && 'ring-2 ring-primary ring-offset-2',
         onDragStart && 'cursor-grab active:cursor-grabbing'
@@ -151,14 +170,14 @@ export const MessageItem = memo(function MessageItem({
                 <Paperclip className="h-3 w-3 max-md:h-2.5 max-md:w-2.5 flex-shrink-0 text-muted-foreground" />
               )}
             </div>
-            <div className="mt-1 max-md:mt-0.5 flex items-center gap-2 text-sm max-md:text-xs">
+            <div className={cn('mt-1 max-md:mt-0.5 flex items-center gap-2', textSizeClasses[density], 'max-md:text-xs')}>
               <span className={cn('truncate', message.flags.unread ? 'font-semibold' : 'text-muted-foreground')}>
                 {message.subject || '(без темы)'}
               </span>
-              <span className="text-xs max-md:text-[10px] text-muted-foreground flex-shrink-0">{formatDate(message.date)}</span>
+              <span className={cn('text-muted-foreground flex-shrink-0', density === 'compact' ? 'text-[10px]' : 'text-xs', 'max-md:text-[10px]')}>{formatDate(message.date, localeSettings)}</span>
             </div>
             {message.snippet && (
-              <div className="mt-1 max-md:mt-0.5 truncate text-xs max-md:text-[10px] text-muted-foreground">{message.snippet}</div>
+              <div className={cn('mt-1 max-md:mt-0.5 truncate text-muted-foreground', density === 'compact' ? 'text-[10px]' : 'text-xs', 'max-md:text-[10px]')}>{message.snippet}</div>
             )}
           </div>
           <div className="flex-shrink-0 max-md:hidden">
@@ -189,6 +208,8 @@ export function MessageList({
   onDragStart,
   onToggleImportant,
   conversationView = false,
+  density = 'comfortable',
+  groupBy = 'none',
 }: MessageListProps) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
@@ -243,19 +264,104 @@ export function MessageList({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const groupedMessages = useMemo(() => {
+    if (groupBy === 'none') {
+      return messages.map((msg, idx) => ({ message: msg, index: idx, groupHeader: null }));
+    }
+
+    if (groupBy === 'date') {
+      const groups: Array<{ date: string; messages: Array<{ message: MessageListItem; index: number }> }> = [];
+      const dateMap = new Map<string, Array<{ message: MessageListItem; index: number }>>();
+
+      messages.forEach((msg, idx) => {
+        const date = new Date(msg.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const thisWeek = new Date(today);
+        thisWeek.setDate(thisWeek.getDate() - 7);
+
+        let groupKey: string;
+        if (date >= today) {
+          groupKey = 'Сегодня';
+        } else if (date >= yesterday) {
+          groupKey = 'Вчера';
+        } else if (date >= thisWeek) {
+          groupKey = 'На этой неделе';
+        } else {
+          const month = date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+          groupKey = month.charAt(0).toUpperCase() + month.slice(1);
+        }
+
+        if (!dateMap.has(groupKey)) {
+          dateMap.set(groupKey, []);
+        }
+        dateMap.get(groupKey)!.push({ message: msg, index: idx });
+      });
+
+      return Array.from(dateMap.entries())
+        .sort((a, b) => {
+          const order = ['Сегодня', 'Вчера', 'На этой неделе'];
+          const aIdx = order.indexOf(a[0]);
+          const bIdx = order.indexOf(b[0]);
+          if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+          if (aIdx !== -1) return -1;
+          if (bIdx !== -1) return 1;
+          return a[0].localeCompare(b[0], 'ru');
+        })
+        .flatMap(([groupKey, msgs]) => [
+          { message: null, index: -1, groupHeader: groupKey },
+          ...msgs.map((m) => ({ ...m, groupHeader: null })),
+        ]);
+    }
+
+    if (groupBy === 'sender') {
+      const senderMap = new Map<string, Array<{ message: MessageListItem; index: number }>>();
+
+      messages.forEach((msg, idx) => {
+        const senderKey = msg.from.name || msg.from.email;
+        if (!senderMap.has(senderKey)) {
+          senderMap.set(senderKey, []);
+        }
+        senderMap.get(senderKey)!.push({ message: msg, index: idx });
+      });
+
+      return Array.from(senderMap.entries())
+        .sort((a, b) => a[0].localeCompare(b[0], 'ru'))
+        .flatMap(([senderKey, msgs]) => [
+          { message: null, index: -1, groupHeader: senderKey },
+          ...msgs.map((m) => ({ ...m, groupHeader: null })),
+        ]);
+    }
+
+    return messages.map((msg, idx) => ({ message: msg, index: idx, groupHeader: null }));
+  }, [messages, groupBy]);
+
   const renderMessage = useCallback(
     (index: number) => {
-      const message = messages[index];
+      const item = groupedMessages[index];
+      if (!item) return null;
+
+      if (item.groupHeader) {
+        return (
+          <div key={`group-${item.groupHeader}`} className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm border-b px-3 py-2 text-sm font-semibold text-muted-foreground">
+            {item.groupHeader}
+          </div>
+        );
+      }
+
+      const message = item.message;
       if (!message) return null;
 
       const isSelected = selectedIds.has(message.id);
-      const isFocused = focusedIndex === index;
+      const isFocused = focusedIndex === item.index;
 
       return (
         <MessageItem
           key={message.id}
           message={message}
-          index={index}
+          index={item.index}
           isSelected={isSelected}
           isFocused={isFocused}
           selectedIds={selectedIds}
@@ -264,10 +370,11 @@ export function MessageList({
           onMessageDoubleClick={onMessageDoubleClick}
           onDragStart={onDragStart}
           onToggleImportant={onToggleImportant}
+          density={density}
         />
       );
     },
-    [messages, selectedIds, focusedIndex, onSelect, onMessageClick, onDragStart, onToggleImportant]
+    [groupedMessages, selectedIds, focusedIndex, onSelect, onMessageClick, onDragStart, onToggleImportant, density]
   );
 
   const toggleThreadExpand = useCallback((threadId: string) => {
@@ -354,13 +461,43 @@ export function MessageList({
         ) : (
           (process.env.NODE_ENV === 'test' ? (
             <div>
-              {messages.map((_, index) => renderMessage(index))}
+              {groupedMessages.map((_, index) => renderMessage(index))}
             </div>
           ) : (
             <Virtuoso
-              data={messages}
-              totalCount={messages.length}
-              itemContent={renderMessage}
+              data={groupedMessages}
+              totalCount={groupedMessages.length}
+              itemContent={(index) => {
+                const item = groupedMessages[index];
+                if (!item) return null;
+                if (item.groupHeader) {
+                  return (
+                    <div key={`group-${item.groupHeader}-${index}`} className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm border-b px-3 py-2 text-sm font-semibold text-muted-foreground">
+                      {item.groupHeader}
+                    </div>
+                  );
+                }
+                const message = item.message;
+                if (!message) return null;
+                const isSelected = selectedIds.has(message.id);
+                const isFocused = focusedIndex === item.index;
+                return (
+                  <MessageItem
+                    key={message.id}
+                    message={message}
+                    index={item.index}
+                    isSelected={isSelected}
+                    isFocused={isFocused}
+                    selectedIds={selectedIds}
+                    onSelect={onSelect}
+                    onMessageClick={onMessageClick}
+                    onMessageDoubleClick={onMessageDoubleClick}
+                    onDragStart={onDragStart}
+                    onToggleImportant={onToggleImportant}
+                    density={density}
+                  />
+                );
+              }}
               endReached={() => {
                 if (hasMore && onLoadMore) {
                   onLoadMore();

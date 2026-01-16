@@ -4,6 +4,7 @@ import { useState, memo } from 'react';
 import type { MessageListItem } from '@/lib/types';
 import type { ThreadGroup } from '@/lib/thread-utils';
 import { formatDate } from '@/lib/utils';
+import { useLocaleSettings } from '@/lib/hooks';
 import { Star, StarOff, Mail, MailOpen, Paperclip, AlertCircle, ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MessageItem } from './message-list';
@@ -150,7 +151,7 @@ export const ThreadItem = memo(function ThreadItem({
                   </span>
                 )}
                 <span className="text-xs max-md:text-[10px] text-muted-foreground flex-shrink-0">
-                  {formatDate(thread.latestDate)}
+                  {formatDate(thread.latestDate, localeSettings)}
                 </span>
               </div>
               {latestMessage.snippet && !expanded && (

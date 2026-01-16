@@ -7,11 +7,48 @@ import { logger } from '@/lib/logger';
 
 const settingsSchema = z.object({
   signature: z.string().optional(),
+  signatures: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    content: z.string(),
+    isDefault: z.boolean().optional(),
+    context: z.enum(['work', 'personal', 'autoReply', 'general']).optional(),
+  })).optional(),
   theme: z.enum(['light', 'dark']).optional(),
   autoReply: z.object({
     enabled: z.boolean(),
     subject: z.string().optional(),
     message: z.string().optional(),
+    schedule: z.object({
+      enabled: z.boolean().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      startTime: z.string().optional(),
+      endTime: z.string().optional(),
+    }).optional(),
+  }).optional(),
+  forwarding: z.object({
+    enabled: z.boolean().optional(),
+    email: z.string().email().optional(),
+    keepCopy: z.boolean().optional(),
+  }).optional(),
+  aliases: z.array(z.object({
+    id: z.string(),
+    email: z.string().email(),
+    name: z.string().optional(),
+  })).optional(),
+  locale: z.object({
+    language: z.enum(['ru', 'en']).optional(),
+    dateFormat: z.enum(['DD.MM.YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD']).optional(),
+    timeFormat: z.enum(['24h', '12h']).optional(),
+    timezone: z.string().optional(),
+  }).optional(),
+  ui: z.object({
+    density: z.enum(['compact', 'comfortable', 'spacious']).optional(),
+    messagesPerPage: z.number().int().min(10).max(100).optional(),
+    sortBy: z.enum(['date', 'from', 'subject', 'size']).optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional(),
+    groupBy: z.enum(['none', 'date', 'sender']).optional(),
   }).optional(),
 });
 
@@ -65,6 +102,32 @@ export async function GET(request: NextRequest) {
         enabled: false,
         subject: '',
         message: '',
+        schedule: {
+          enabled: false,
+          startDate: '',
+          endDate: '',
+          startTime: '',
+          endTime: '',
+        },
+      },
+      forwarding: {
+        enabled: false,
+        email: '',
+        keepCopy: true,
+      },
+      aliases: [],
+      locale: {
+        language: 'ru',
+        dateFormat: 'DD.MM.YYYY',
+        timeFormat: '24h',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+      ui: {
+        density: 'comfortable',
+        messagesPerPage: 50,
+        sortBy: 'date',
+        sortOrder: 'desc',
+        groupBy: 'none',
       },
     };
 
@@ -87,18 +150,50 @@ export async function POST(request: NextRequest) {
 
     const currentSettings = settingsStore.get(session.accountId) || {
       signature: '',
+      signatures: [],
       theme: 'light',
       autoReply: {
         enabled: false,
         subject: '',
         message: '',
+        schedule: {
+          enabled: false,
+          startDate: '',
+          endDate: '',
+          startTime: '',
+          endTime: '',
+        },
+      },
+      forwarding: {
+        enabled: false,
+        email: '',
+        keepCopy: true,
+      },
+      aliases: [],
+      locale: {
+        language: 'ru',
+        dateFormat: 'DD.MM.YYYY',
+        timeFormat: '24h',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+      ui: {
+        density: 'comfortable',
+        messagesPerPage: 50,
+        sortBy: 'date',
+        sortOrder: 'desc',
+        groupBy: 'none',
       },
     };
     
     settingsStore.set(session.accountId, {
       signature: data.signature !== undefined ? data.signature : currentSettings.signature,
+      signatures: data.signatures !== undefined ? data.signatures : currentSettings.signatures,
       theme: data.theme !== undefined ? data.theme : currentSettings.theme,
-      autoReply: data.autoReply || currentSettings.autoReply,
+      autoReply: data.autoReply ? { ...currentSettings.autoReply, ...data.autoReply, schedule: data.autoReply.schedule ? { ...currentSettings.autoReply.schedule, ...data.autoReply.schedule } : currentSettings.autoReply.schedule } : currentSettings.autoReply,
+      forwarding: data.forwarding ? { ...currentSettings.forwarding, ...data.forwarding } : currentSettings.forwarding,
+      aliases: data.aliases !== undefined ? data.aliases : currentSettings.aliases,
+      locale: data.locale ? { ...currentSettings.locale, ...data.locale } : currentSettings.locale,
+      ui: data.ui ? { ...currentSettings.ui, ...data.ui } : currentSettings.ui,
     });
 
     await saveSettings();

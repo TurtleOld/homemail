@@ -5,29 +5,80 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: Date | string): string {
+export function formatDate(
+  date: Date | string,
+  options?: {
+    language?: 'ru' | 'en';
+    dateFormat?: 'DD.MM.YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+    timeFormat?: '24h' | '12h';
+    timezone?: string;
+  }
+): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
   const diff = now.getTime() - d.getTime();
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const language = options?.language || 'ru';
+  const dateFormat = options?.dateFormat || 'DD.MM.YYYY';
+  const timeFormat = options?.timeFormat || '24h';
+  const timezone = options?.timezone;
+
+  const translations = {
+    ru: {
+      justNow: 'только что',
+      minutesAgo: (m: number) => `${m} мин назад`,
+      hoursAgo: (h: number) => `${h} ч назад`,
+      yesterday: 'вчера',
+      daysAgo: (d: number) => `${d} дн назад`,
+    },
+    en: {
+      justNow: 'just now',
+      minutesAgo: (m: number) => `${m} min ago`,
+      hoursAgo: (h: number) => `${h} h ago`,
+      yesterday: 'yesterday',
+      daysAgo: (d: number) => `${d} days ago`,
+    },
+  };
+
+  const t = translations[language];
 
   if (days === 0) {
     const hours = Math.floor(diff / (1000 * 60 * 60));
     if (hours === 0) {
       const minutes = Math.floor(diff / (1000 * 60));
-      return minutes <= 1 ? 'только что' : `${minutes} мин назад`;
+      return minutes <= 1 ? t.justNow : t.minutesAgo(minutes);
     }
-    return `${hours} ч назад`;
+    return t.hoursAgo(hours);
   }
 
-  if (days === 1) return 'вчера';
-  if (days < 7) return `${days} дн назад`;
+  if (days === 1) return t.yesterday;
+  if (days < 7) return t.daysAgo(days);
 
-  return d.toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-  });
+  const dateToFormat = timezone ? new Date(d.toLocaleString('en-US', { timeZone: timezone })) : d;
+  const year = dateToFormat.getFullYear();
+  const month = String(dateToFormat.getMonth() + 1).padStart(2, '0');
+  const day = String(dateToFormat.getDate()).padStart(2, '0');
+
+  let formatted: string;
+  switch (dateFormat) {
+    case 'DD.MM.YYYY':
+      formatted = `${day}.${month}.${year}`;
+      break;
+    case 'MM/DD/YYYY':
+      formatted = `${month}/${day}/${year}`;
+      break;
+    case 'YYYY-MM-DD':
+      formatted = `${year}-${month}-${day}`;
+      break;
+    default:
+      formatted = `${day}.${month}.${year}`;
+  }
+
+  if (dateToFormat.getFullYear() === now.getFullYear() && days < 365) {
+    return formatted.replace(`.${year}`, '').replace(`/${year}`, '').replace(`${year}-`, '');
+  }
+
+  return formatted;
 }
 
 export function validateEmail(email: string): boolean {

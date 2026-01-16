@@ -63,6 +63,10 @@ data/credentials.enc
 .settings.json
 data/.settings.json
 
+# User accounts
+user_accounts.json
+data/user_accounts.json
+
 # Filters
 data/filters.json
 data/filter-rules.json

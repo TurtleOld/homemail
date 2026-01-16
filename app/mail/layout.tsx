@@ -10,7 +10,7 @@ import { MessageViewer } from '@/components/message-viewer';
 import { QuickFilters } from '@/components/quick-filters';
 import type { Folder, Account, MessageListItem, MessageDetail, Draft, QuickFilterType, FilterGroup } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft, Folder as FolderIcon, Inbox, Send, AlertTriangle, AlertCircle, Archive } from 'lucide-react';
+import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft, Folder as FolderIcon, Inbox, Send, AlertTriangle, AlertCircle, Archive, MessageSquare } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +33,13 @@ interface MinimizedDraft {
 interface UserSettings {
   signature: string;
   theme: 'light' | 'dark';
+  ui?: {
+    density: 'compact' | 'comfortable' | 'spacious';
+    messagesPerPage: number;
+    sortBy: 'date' | 'from' | 'subject' | 'size';
+    sortOrder: 'asc' | 'desc';
+    groupBy: 'none' | 'date' | 'sender';
+  };
 }
 
 const Compose = dynamic(
@@ -205,6 +212,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       if (pageParam && typeof pageParam === 'string') {
         params.set('cursor', pageParam);
       }
+      const uiSettings = settings?.ui;
+      if (uiSettings?.messagesPerPage) {
+        params.set('limit', uiSettings.messagesPerPage.toString());
+      }
       if (debouncedSearch) {
         params.set('q', debouncedSearch);
       }
@@ -252,9 +263,36 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         return msg.flags.hasAttachments;
       });
     }
+
+    const uiSettings = settings?.ui || {
+      sortBy: 'date',
+      sortOrder: 'desc',
+      groupBy: 'none',
+    };
+
+    allMessages.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (uiSettings.sortBy) {
+        case 'date':
+          comparison = a.date.getTime() - b.date.getTime();
+          break;
+        case 'from':
+          comparison = (a.from.name || a.from.email).localeCompare(b.from.name || b.from.email, 'ru');
+          break;
+        case 'subject':
+          comparison = (a.subject || '').localeCompare(b.subject || '', 'ru');
+          break;
+        case 'size':
+          comparison = a.size - b.size;
+          break;
+      }
+      
+      return uiSettings.sortOrder === 'asc' ? comparison : -comparison;
+    });
     
     return allMessages;
-  }, [messagesData, quickFilter]);
+  }, [messagesData, quickFilter, settings?.ui]);
 
   const { data: selectedMessage, isLoading: isMessageLoading } = useQuery<MessageDetail>({
     queryKey: ['message', selectedMessageId],
@@ -768,6 +806,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             messages={messages}
             selectedIds={selectedIds}
             conversationView={conversationView}
+            density={settings?.ui?.density || 'comfortable'}
+            groupBy={settings?.ui?.groupBy || 'none'}
             onSelect={(id, multi) => {
               if (multi) {
                 setSelectedIds((prev) => {
