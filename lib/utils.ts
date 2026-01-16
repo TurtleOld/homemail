@@ -31,15 +31,33 @@ export function formatDate(date: Date | string): string {
 }
 
 export function validateEmail(email: string): boolean {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(email);
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const nameEmailRegex = /^(.+?)\s*<([^\s@]+@[^\s@]+\.[^\s@]+)>$/;
+  return emailRegex.test(email) || nameEmailRegex.test(email);
+}
+
+export function extractEmail(emailString: string): string | null {
+  const nameEmailMatch = emailString.match(/^(.+?)\s*<([^\s@]+@[^\s@]+\.[^\s@]+)>$/);
+  if (nameEmailMatch) {
+    return nameEmailMatch[2]!.trim();
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const trimmed = emailString.trim();
+  return emailRegex.test(trimmed) ? trimmed : null;
 }
 
 export function parseEmailList(input: string): string[] {
-  return input
-    .split(',')
-    .map((e) => e.trim())
-    .filter((e) => e.length > 0 && validateEmail(e));
+  const emails: string[] = [];
+  const parts = input.split(',').map((e) => e.trim()).filter((e) => e.length > 0);
+  
+  for (const part of parts) {
+    const email = extractEmail(part);
+    if (email) {
+      emails.push(email);
+    }
+  }
+  
+  return emails;
 }
 
 export function generateCursor(page: number, pageSize: number): string {

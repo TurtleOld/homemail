@@ -212,3 +212,21 @@ export async function deleteCredentials(accountId: string): Promise<void> {
   credentials.delete(accountId);
   await saveCredentials();
 }
+
+export async function readStorage<T>(key: string, defaultValue: T): Promise<T> {
+  await ensureDataDir();
+  const filePath = path.join(DATA_DIR, `${key.replace(/:/g, '_')}.json`);
+  
+  try {
+    const data = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(data) as T;
+  } catch (error) {
+    return defaultValue;
+  }
+}
+
+export async function writeStorage<T>(key: string, value: T): Promise<void> {
+  await ensureDataDir();
+  const filePath = path.join(DATA_DIR, `${key.replace(/:/g, '_')}.json`);
+  await fs.writeFile(filePath, JSON.stringify(value, null, 2), 'utf-8');
+}

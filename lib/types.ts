@@ -4,6 +4,25 @@ export type Account = {
   displayName: string;
 };
 
+export type Contact = {
+  id: string;
+  email: string;
+  name?: string;
+  phone?: string;
+  notes?: string;
+  groups?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type ContactGroup = {
+  id: string;
+  name: string;
+  color?: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type FolderRole = 'inbox' | 'sent' | 'drafts' | 'trash' | 'spam' | 'custom';
 
 export type Folder = {
@@ -11,6 +30,14 @@ export type Folder = {
   name: string;
   role: FolderRole;
   unreadCount: number;
+};
+
+export type Label = {
+  id: string;
+  name: string;
+  color?: string;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export type MessageFlags = {
@@ -29,6 +56,7 @@ export type MessageListItem = {
   date: Date;
   flags: MessageFlags;
   size: number;
+  labels?: string[];
 };
 
 export type Attachment = {
@@ -54,6 +82,7 @@ export type MessageDetail = {
   };
   attachments: Attachment[];
   flags: MessageFlags;
+  labels?: string[];
 };
 
 export type Draft = {
