@@ -107,7 +107,8 @@ function checkMessageMatchesCondition(
       }
       return false;
     case 'date':
-      const messageDate = message.date.getTime();
+      const messageDateObj = message.date instanceof Date ? message.date : new Date(message.date);
+      const messageDate = messageDateObj.getTime();
       if (operator === 'gte' || operator === 'gt') {
         const filterDate = typeof value === 'string' ? new Date(value).getTime() : (value as number);
         return operator === 'gte' ? messageDate >= filterDate : messageDate > filterDate;

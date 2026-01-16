@@ -22,11 +22,16 @@ export function groupMessagesByThread(messages: MessageListItem[]): ThreadGroup[
   const threads: ThreadGroup[] = [];
 
   for (const [threadId, threadMessages] of threadMap.entries()) {
-    threadMessages.sort((a, b) => b.date.getTime() - a.date.getTime());
+    threadMessages.sort((a, b) => {
+      const aDate = a.date instanceof Date ? a.date : new Date(a.date);
+      const bDate = b.date instanceof Date ? b.date : new Date(b.date);
+      return bDate.getTime() - aDate.getTime();
+    });
 
     const unreadCount = threadMessages.filter((m) => m.flags.unread).length;
     const hasStarred = threadMessages.some((m) => m.flags.starred);
-    const latestDate = threadMessages[0]!.date;
+    const firstMessage = threadMessages[0]!;
+    const latestDate = firstMessage.date instanceof Date ? firstMessage.date : new Date(firstMessage.date);
 
     threads.push({
       threadId,
@@ -37,7 +42,11 @@ export function groupMessagesByThread(messages: MessageListItem[]): ThreadGroup[
     });
   }
 
-  threads.sort((a, b) => b.latestDate.getTime() - a.latestDate.getTime());
+  threads.sort((a, b) => {
+    const aDate = a.latestDate instanceof Date ? a.latestDate : new Date(a.latestDate);
+    const bDate = b.latestDate instanceof Date ? b.latestDate : new Date(b.latestDate);
+    return bDate.getTime() - aDate.getTime();
+  });
 
   return threads;
 }

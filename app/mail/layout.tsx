@@ -250,6 +250,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const messages = useMemo(() => {
     let allMessages = messagesData?.pages.flatMap((p) => p.messages) || [];
     
+    allMessages = allMessages.map((msg) => ({
+      ...msg,
+      date: msg.date instanceof Date ? msg.date : new Date(msg.date),
+    }));
+    
     if (quickFilter === 'attachmentsImages') {
       allMessages = allMessages.filter((msg) => {
         return msg.flags.hasAttachments;
@@ -275,7 +280,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       
       switch (uiSettings.sortBy) {
         case 'date':
-          comparison = a.date.getTime() - b.date.getTime();
+          const aDate = a.date instanceof Date ? a.date : new Date(a.date);
+          const bDate = b.date instanceof Date ? b.date : new Date(b.date);
+          comparison = aDate.getTime() - bDate.getTime();
           break;
         case 'from':
           comparison = (a.from.name || a.from.email).localeCompare(b.from.name || b.from.email, 'ru');

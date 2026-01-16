@@ -137,7 +137,8 @@ function matchCondition(message: MessageListItem, condition: FilterCondition): b
       const from = toDate(value.from);
       const to = toDate(value.to);
       if (from && to) {
-        const timestamp = message.date.getTime();
+        const messageDate = message.date instanceof Date ? message.date : new Date(message.date);
+      const timestamp = messageDate.getTime();
         return timestamp >= from.getTime() && timestamp <= to.getTime();
       }
       return false;
@@ -146,7 +147,8 @@ function matchCondition(message: MessageListItem, condition: FilterCondition): b
     if (!expected) {
       return false;
     }
-    const timestamp = message.date.getTime();
+    const messageDate = message.date instanceof Date ? message.date : new Date(message.date);
+    const timestamp = messageDate.getTime();
     const expectedTimestamp = expected.getTime();
     if (operator === 'lt') {
       return timestamp < expectedTimestamp;
