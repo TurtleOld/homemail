@@ -12,29 +12,49 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const isAddingAccount = searchParams.get('addAccount') === 'true';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      if (isAddingAccount) {
+        const res = await fetch('/api/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (!res.ok) {
-        toast.error(data.error || 'Ошибка входа');
-        return;
+        if (!res.ok) {
+          toast.error(data.error || 'Ошибка добавления аккаунта');
+          return;
+        }
+
+        toast.success('Аккаунт добавлен');
+        router.push('/mail');
+        router.refresh();
+      } else {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          toast.error(data.error || 'Ошибка входа');
+          return;
+        }
+
+        toast.success('Вход выполнен');
+        const redirectTo = searchParams.get('redirect') || '/mail';
+        router.push(redirectTo);
+        router.refresh();
       }
-
-      toast.success('Вход выполнен');
-      const redirectTo = searchParams.get('redirect') || '/mail';
-      router.push(redirectTo);
-      router.refresh();
     } catch (error) {
       toast.error('Ошибка соединения');
     } finally {
@@ -50,8 +70,12 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-blue-50 px-4 py-8 sm:px-6 lg:px-8 dark:bg-blue-50">
       <div className="w-full max-w-md space-y-8 rounded-2xl border border-blue-200 bg-white p-6 shadow-xl sm:p-8 md:p-10">
         <div className="text-center sm:text-left">
-          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Вход в почту</h1>
-          <p className="mt-2 text-sm text-gray-600 sm:text-base">Введите логин и пароль для входа</p>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+            {isAddingAccount ? 'Добавить аккаунт' : 'Вход в почту'}
+          </h1>
+          <p className="mt-2 text-sm text-gray-600 sm:text-base">
+            {isAddingAccount ? 'Введите данные нового аккаунта' : 'Введите логин и пароль для входа'}
+          </p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
           <div className="space-y-2">
@@ -87,7 +111,7 @@ function LoginForm() {
             className="h-11 w-full bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500 disabled:opacity-50 sm:h-12 sm:text-base"
             disabled={loading}
           >
-            {loading ? 'Вход...' : 'Войти'}
+            {loading ? (isAddingAccount ? 'Добавление...' : 'Вход...') : (isAddingAccount ? 'Добавить' : 'Войти')}
           </Button>
         </form>
       </div>

@@ -230,3 +230,85 @@ export async function writeStorage<T>(key: string, value: T): Promise<void> {
   const filePath = path.join(DATA_DIR, `${key.replace(/:/g, '_')}.json`);
   await fs.writeFile(filePath, JSON.stringify(value, null, 2), 'utf-8');
 }
+
+export interface UserAccount {
+  id: string;
+  email: string;
+  displayName?: string;
+  addedAt: number;
+  isActive?: boolean;
+}
+
+const ACCOUNTS_FILE = path.join(DATA_DIR, 'user_accounts.json');
+let accountsCache: Map<string, UserAccount[]> | null = null;
+
+export async function loadUserAccounts(): Promise<Map<string, UserAccount[]>> {
+  if (accountsCache !== null) {
+    return accountsCache;
+  }
+
+  await ensureDataDir();
+  accountsCache = new Map();
+
+  try {
+    const data = await fs.readFile(ACCOUNTS_FILE, 'utf-8');
+    const accounts = JSON.parse(data) as Record<string, UserAccount[]>;
+    for (const [userId, userAccounts] of Object.entries(accounts)) {
+      accountsCache.set(userId, userAccounts);
+    }
+  } catch (error) {
+  }
+
+  return accountsCache;
+}
+
+export async function saveUserAccounts(): Promise<void> {
+  if (accountsCache === null) {
+    return;
+  }
+
+  await ensureDataDir();
+  const accountsObj: Record<string, UserAccount[]> = {};
+  
+  for (const [userId, accounts] of accountsCache.entries()) {
+    accountsObj[userId] = accounts;
+  }
+
+  await fs.writeFile(ACCOUNTS_FILE, JSON.stringify(accountsObj, null, 2), 'utf-8');
+}
+
+export async function getUserAccounts(userId: string): Promise<UserAccount[]> {
+  const accounts = await loadUserAccounts();
+  return accounts.get(userId) || [];
+}
+
+export async function addUserAccount(userId: string, account: UserAccount): Promise<void> {
+  const accounts = await loadUserAccounts();
+  const userAccounts = accounts.get(userId) || [];
+  
+  if (!userAccounts.find((a) => a.id === account.id)) {
+    userAccounts.push(account);
+    accounts.set(userId, userAccounts);
+    await saveUserAccounts();
+  }
+}
+
+export async function removeUserAccount(userId: string, accountId: string): Promise<void> {
+  const accounts = await loadUserAccounts();
+  const userAccounts = accounts.get(userId) || [];
+  const filtered = userAccounts.filter((a) => a.id !== accountId);
+  accounts.set(userId, filtered);
+  await saveUserAccounts();
+}
+
+export async function setActiveAccount(userId: string, accountId: string): Promise<void> {
+  const accounts = await loadUserAccounts();
+  const userAccounts = accounts.get(userId) || [];
+  
+  for (const account of userAccounts) {
+    account.isActive = account.id === accountId;
+  }
+  
+  accounts.set(userId, userAccounts);
+  await saveUserAccounts();
+}

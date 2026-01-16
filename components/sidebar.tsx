@@ -11,10 +11,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, ChevronLeft, ChevronRight, X, User, UserPlus, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { SearchBar } from './search-bar';
 
 interface SidebarProps {
@@ -72,6 +73,7 @@ export function Sidebar({
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const { data: serverStatus, isLoading: isStatusLoading } = useQuery<ServerStatus>({
     queryKey: ['server-status'],
     queryFn: async () => {
@@ -84,6 +86,81 @@ export function Sidebar({
     staleTime: 15000,
     refetchInterval: 30000,
   });
+
+  const { data: accountsData } = useQuery<{ accounts: Array<{ id: string; email: string; displayName?: string; isActive?: boolean }> }>({
+    queryKey: ['user-accounts'],
+    queryFn: async () => {
+      const res = await fetch('/api/accounts');
+      if (!res.ok) {
+        throw new Error('Failed to load accounts');
+      }
+      return res.json();
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const switchAccountMutation = useMutation({
+    mutationFn: async (accountId: string) => {
+      const res = await fetch('/api/accounts/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to switch account');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['account'] });
+      queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      toast.success('Аккаунт переключен');
+      router.refresh();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Ошибка переключения аккаунта');
+    },
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (accountId: string) => {
+      const res = await fetch(`/api/accounts?accountId=${encodeURIComponent(accountId)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete account');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
+      toast.success('Аккаунт удален');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Ошибка удаления аккаунта');
+    },
+  });
+
+  const handleSwitchAccount = (accountId: string) => {
+    if (accountId === account?.id) {
+      return;
+    }
+    switchAccountMutation.mutate(accountId);
+  };
+
+  const handleDeleteAccount = (accountId: string, accountEmail: string) => {
+    if (confirm(`Вы уверены, что хотите удалить аккаунт ${accountEmail}?`)) {
+      deleteAccountMutation.mutate(accountId);
+    }
+  };
+
+  const handleAddAccount = () => {
+    router.push('/login?addAccount=true');
+  };
 
   const statusItems = useMemo<StatusItem[]>(() => {
     if (!serverStatus) {
@@ -339,8 +416,52 @@ export function Sidebar({
               Настройки
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuLabel>{account?.email || 'Аккаунт'}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {accountsData && accountsData.accounts.length > 0 && (
+              <>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Аккаунты</DropdownMenuLabel>
+                {accountsData.accounts.map((acc) => (
+                  <DropdownMenuItem
+                    key={acc.id}
+                    onClick={() => handleSwitchAccount(acc.id)}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <User className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{acc.displayName || acc.email}</span>
+                    </div>
+                    {acc.id === account?.id && (
+                      <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem onClick={handleAddAccount}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Добавить аккаунт
+            </DropdownMenuItem>
+            {accountsData && accountsData.accounts.length > 1 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Управление</DropdownMenuLabel>
+                {accountsData.accounts
+                  .filter((acc) => acc.id !== account?.id)
+                  .map((acc) => (
+                    <DropdownMenuItem
+                      key={acc.id}
+                      onClick={() => handleDeleteAccount(acc.id, acc.email)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Удалить {acc.email}
+                    </DropdownMenuItem>
+                  ))}
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSettings}>
               <Settings className="mr-2 h-4 w-4" />

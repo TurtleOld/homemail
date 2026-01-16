@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { validateOrigin } from '@/lib/csrf';
 import { getMailProvider, getMailProviderForAccount, ensureAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
+import { addUserAccount, setActiveAccount, type UserAccount } from '@/lib/storage';
 
 const loginSchema = z.object({
   email: z.string().min(1),
@@ -45,6 +46,17 @@ export async function POST(request: NextRequest) {
       }
 
       await createSession(accountId, email);
+
+      const userAccount: UserAccount = {
+        id: accountId,
+        email: account.email,
+        displayName: account.displayName,
+        addedAt: Date.now(),
+        isActive: true,
+      };
+
+      await addUserAccount(email, userAccount);
+      await setActiveAccount(email, accountId);
 
       return NextResponse.json({ success: true, account: { id: account.id, email: account.email, displayName: account.displayName } });
     } catch (providerError) {
