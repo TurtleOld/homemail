@@ -101,6 +101,37 @@ function validateEmail(email: string, context: string = 'credentials'): void {
   }
 }
 
+function checkAttachmentType(bodyStructure: any, mimeTypes: string[]): boolean {
+  if (!bodyStructure) return false;
+  
+  const checkPart = (part: any): boolean => {
+    if (!part) return false;
+    
+    if (part.disposition === 'attachment' || (part.disposition === 'inline' && part.name)) {
+      const partType = (part.type || '').toLowerCase();
+      if (mimeTypes.some((mime) => partType.startsWith(mime.toLowerCase()))) {
+        return true;
+      }
+    }
+    
+    if (part.subParts && Array.isArray(part.subParts)) {
+      for (const subPart of part.subParts) {
+        if (checkPart(subPart)) return true;
+      }
+    }
+    
+    if (part.parts && Array.isArray(part.parts)) {
+      for (const subPart of part.parts) {
+        if (checkPart(subPart)) return true;
+      }
+    }
+    
+    return false;
+  };
+  
+  return checkPart(bodyStructure);
+}
+
 export class StalwartJMAPProvider implements MailProvider {
   private async getClient(accountId: string): Promise<JMAPClient> {
     const creds = await getUserCredentials(accountId);
@@ -331,8 +362,126 @@ export class StalwartJMAPProvider implements MailProvider {
         firstFewIds: queryResult.ids.slice(0, 5),
       });
 
-      const emailIds = queryResult.ids.slice(0, limit);
-      const hasMore = queryResult.ids.length > limit;
+      let emailIds = queryResult.ids.slice(0, limit);
+      let hasMore = queryResult.ids.length > limit;
+
+      const parsedMessageFilter = typeof options.messageFilter === 'string' 
+        ? JSON.parse(options.messageFilter) 
+        : options.messageFilter;
+      
+      const hasQuickFilter = cleanFilter.hasAttachment !== undefined || 
+                            cleanFilter.isUnread !== undefined || 
+                            cleanFilter.isFlagged !== undefined ||
+                            (parsedMessageFilter && parsedMessageFilter.quickFilter);
+
+      console.error('[StalwartProvider] Checking fallback:', {
+        emailIdsCount: emailIds.length,
+        hasQuickFilter,
+        cleanFilterHasAttachment: cleanFilter.hasAttachment,
+        cleanFilterIsUnread: cleanFilter.isUnread,
+        cleanFilterIsFlagged: cleanFilter.isFlagged,
+        messageFilterQuickFilter: parsedMessageFilter?.quickFilter,
+      });
+
+      if (emailIds.length === 0 && hasQuickFilter) {
+        console.error('[StalwartProvider] Server-side quick filter returned 0 results, trying client-side filtering');
+        const allEmailsQuery = await client.queryEmails(mailboxIdToQuery, {
+          accountId: actualAccountId,
+          position: 0,
+          limit: 1000,
+          filter: {
+            inMailbox: mailboxIdToQuery,
+          },
+          sort: [{ property: 'receivedAt', isAscending: false }],
+        });
+        
+        const allEmailIds = allEmailsQuery.ids;
+        if (allEmailIds.length > 0) {
+          const quickFilterType = parsedMessageFilter?.quickFilter;
+          const needsAttachmentTypeFilter = quickFilterType === 'attachmentsImages' || 
+                                           quickFilterType === 'attachmentsDocuments' || 
+                                           quickFilterType === 'attachmentsArchives';
+          
+          const properties = [
+            'id',
+            'hasAttachment',
+            'keywords',
+          ];
+          
+          if (needsAttachmentTypeFilter) {
+            properties.push('bodyStructure');
+          }
+          
+          const allEmails = await client.getEmails(allEmailIds, {
+            accountId: actualAccountId,
+            properties: properties as any,
+          });
+          
+          let filteredEmails = allEmails;
+          
+          if (cleanFilter.hasAttachment === true || quickFilterType === 'hasAttachments') {
+            filteredEmails = filteredEmails.filter((email) => email.hasAttachment === true);
+          }
+          
+          if (quickFilterType === 'attachmentsImages') {
+            filteredEmails = filteredEmails.filter((email) => {
+              if (!email.hasAttachment || !email.bodyStructure) return false;
+              const hasImage = checkAttachmentType(email.bodyStructure, ['image/']);
+              return hasImage;
+            });
+          } else if (quickFilterType === 'attachmentsDocuments') {
+            filteredEmails = filteredEmails.filter((email) => {
+              if (!email.hasAttachment || !email.bodyStructure) return false;
+              const hasDocument = checkAttachmentType(email.bodyStructure, [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument',
+                'application/vnd.ms-excel',
+                'application/vnd.ms-powerpoint',
+                'text/',
+              ]);
+              return hasDocument;
+            });
+          } else if (quickFilterType === 'attachmentsArchives') {
+            filteredEmails = filteredEmails.filter((email) => {
+              if (!email.hasAttachment || !email.bodyStructure) return false;
+              const hasArchive = checkAttachmentType(email.bodyStructure, [
+                'application/zip',
+                'application/x-rar-compressed',
+                'application/x-7z-compressed',
+                'application/x-tar',
+                'application/gzip',
+              ]);
+              return hasArchive;
+            });
+          }
+          
+          if (cleanFilter.isUnread !== undefined) {
+            filteredEmails = filteredEmails.filter((email) => {
+              const isUnread = !email.keywords?.['$seen'];
+              return cleanFilter.isUnread === true ? isUnread : !isUnread;
+            });
+          }
+          
+          if (cleanFilter.isFlagged !== undefined) {
+            filteredEmails = filteredEmails.filter((email) => {
+              const isFlagged = email.keywords?.['$flagged'] === true;
+              return cleanFilter.isFlagged === true ? isFlagged : !isFlagged;
+            });
+          }
+          
+          const filteredIds = filteredEmails.map((email) => email.id);
+          emailIds = filteredIds.slice(0, limit);
+          hasMore = filteredIds.length > limit;
+          
+          console.error('[StalwartProvider] Client-side filtering result:', {
+            totalEmails: allEmailIds.length,
+            filteredCount: filteredIds.length,
+            returnedCount: emailIds.length,
+            quickFilterType,
+          });
+        }
+      }
 
       if (emailIds.length === 0) {
         return { messages: [] };
@@ -446,15 +595,22 @@ export class StalwartJMAPProvider implements MailProvider {
       if (email.bodyStructure) {
         const extractAttachments = (part: any): void => {
           if (part.disposition === 'attachment' || (part.disposition === 'inline' && part.name)) {
-            attachments.push({
-              id: part.blobId || part.partId || '',
-              filename: part.name || part.filename || 'attachment',
-              mime: part.type || 'application/octet-stream',
-              size: part.size || 0,
-            });
+            if (part.blobId) {
+              attachments.push({
+                id: part.blobId,
+                filename: part.name || part.filename || 'attachment',
+                mime: part.type || 'application/octet-stream',
+                size: part.size || 0,
+              });
+            }
           }
-          if (part.subParts) {
+          if (part.subParts && Array.isArray(part.subParts)) {
             for (const subPart of part.subParts) {
+              extractAttachments(subPart);
+            }
+          }
+          if (part.parts && Array.isArray(part.parts)) {
+            for (const subPart of part.parts) {
               extractAttachments(subPart);
             }
           }
@@ -1110,21 +1266,32 @@ export class StalwartJMAPProvider implements MailProvider {
     attachmentId: string
   ): Promise<(Attachment & { data: Buffer }) | null> {
     try {
+      const { logger } = await import('@/lib/logger');
+      logger.info(`[StalwartProvider] getAttachment called: accountId=${accountId}, messageId=${messageId}, attachmentId=${attachmentId}`);
+
       const message = await this.getMessage(accountId, messageId);
 
       if (!message) {
+        logger.error(`[StalwartProvider] Message not found: accountId=${accountId}, messageId=${messageId}`);
         return null;
       }
 
+      logger.info(`[StalwartProvider] Message found, attachments count: ${message.attachments.length}, attachment IDs: ${message.attachments.map(a => a.id).join(', ')}`);
+
       const attachment = message.attachments.find((att) => att.id === attachmentId);
       if (!attachment) {
+        logger.error(`[StalwartProvider] Attachment not found in message: attachmentId=${attachmentId}, available IDs: ${message.attachments.map(a => a.id).join(', ')}`);
         return null;
       }
+
+      logger.info(`[StalwartProvider] Attachment found: filename=${attachment.filename}, mime=${attachment.mime}, size=${attachment.size}`);
 
       const client = await this.getClient(accountId);
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       const downloadUrl = await client.getBlobDownloadUrl(attachmentId, actualAccountId, attachment.filename);
+
+      logger.info(`[StalwartProvider] Download URL obtained: ${downloadUrl}`);
 
       const response = await fetch(downloadUrl, {
         headers: {
@@ -1133,15 +1300,19 @@ export class StalwartJMAPProvider implements MailProvider {
       });
 
       if (!response.ok) {
+        logger.error(`[StalwartProvider] Failed to download attachment blob: status=${response.status}, statusText=${response.statusText}`);
         throw new Error(`Failed to download attachment: ${response.statusText}`);
       }
 
       const arrayBuffer = await response.arrayBuffer();
+      logger.info(`[StalwartProvider] Attachment downloaded successfully: size=${arrayBuffer.byteLength} bytes`);
       return {
         ...attachment,
         data: Buffer.from(arrayBuffer),
       };
     } catch (error) {
+      const { logger } = await import('@/lib/logger');
+      logger.error(`[StalwartProvider] Error in getAttachment: accountId=${accountId}, messageId=${messageId}, attachmentId=${attachmentId}`, error instanceof Error ? error.message : error);
       return null;
     }
   }
