@@ -15,23 +15,32 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File, Clock } from 'lucide-react';
+import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File, Clock, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { validateEmail, parseEmailList } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Draft } from '@/lib/types';
 import { ContactAutocomplete } from './contact-autocomplete';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-function removeSignatureFromHtml(html: string, signature?: string): string {
-  if (!signature) return html;
-  const signatureValue = signature.trim();
-  const signatureHtml = signatureValue.replace(/\n/g, '<br>');
-  const signatureDiv = `<div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">${signatureHtml}</div>`;
-  const escapedSignature = signatureDiv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const escapedSignatureWithBreaks = `<br><br>${escapedSignature}`;
+function removeSignatureFromHtml(html: string, signatures: Signature[]): string {
+  if (signatures.length === 0) return html;
   let result = html;
-  result = result.replace(new RegExp(escapedSignatureWithBreaks, 'gi'), '');
-  result = result.replace(new RegExp(escapedSignature, 'gi'), '');
+  for (const sig of signatures) {
+    const signatureValue = sig.content.trim();
+    if (!signatureValue) continue;
+    const signatureHtml = signatureValue.replace(/\n/g, '<br>');
+    const signatureDiv = `<div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">${signatureHtml}</div>`;
+    const escapedSignature = signatureDiv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedSignatureWithBreaks = `<br><br>${escapedSignature}`;
+    result = result.replace(new RegExp(escapedSignatureWithBreaks, 'gi'), '');
+    result = result.replace(new RegExp(escapedSignature, 'gi'), '');
+  }
   return result;
 }
 
@@ -49,6 +58,14 @@ interface AttachmentFile {
   mime: string;
 }
 
+interface Signature {
+  id: string;
+  name: string;
+  content: string;
+  isDefault?: boolean;
+  context?: 'work' | 'personal' | 'autoReply' | 'general';
+}
+
 interface ComposeProps {
   open: boolean;
   onClose: () => void;
@@ -56,10 +73,10 @@ interface ComposeProps {
   initialDraft?: Draft | null;
   replyTo?: { subject: string; from: { email: string; name?: string }; body: string };
   forwardFrom?: { subject: string; body: string };
-  signature?: string;
+  signatures?: Signature[];
 }
 
-export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forwardFrom, signature }: ComposeProps) {
+export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forwardFrom, signatures = [] }: ComposeProps) {
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
@@ -75,11 +92,24 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   const [scheduledSend, setScheduledSend] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+  const [selectedSignatureId, setSelectedSignatureId] = useState<string | null>(() => {
+    const defaultSig = signatures.find(s => s.isDefault);
+    return defaultSig?.id || (signatures.length > 0 ? signatures[0]!.id : null);
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const suppressDirtyRef = useRef(false);
   const didInitRef = useRef(false);
   
   const MAX_FILE_SIZE = 25 * 1024 * 1024;
+
+  useEffect(() => {
+    if (signatures.length > 0) {
+      const defaultSig = signatures.find(s => s.isDefault);
+      setSelectedSignatureId(defaultSig?.id || signatures[0]!.id);
+    } else {
+      setSelectedSignatureId(null);
+    }
+  }, [signatures]);
 
   const editor = useEditor({
     extensions: [StarterKit, Link.configure({ openOnClick: false }), CodeBlock, Underline],
@@ -103,7 +133,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       setSubject(initialDraft.subject || '');
       setDraftId(initialDraft.id);
       if (initialDraft.html) {
-        const htmlWithoutSignature = removeSignatureFromHtml(initialDraft.html, signature);
+        const htmlWithoutSignature = removeSignatureFromHtml(initialDraft.html, signatures);
         editor.commands.setContent(htmlWithoutSignature);
       }
       requestAnimationFrame(() => {
@@ -142,7 +172,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     }
     setAttachments([]);
     didInitRef.current = true;
-  }, [initialDraft, replyTo, forwardFrom, editor, open, signature]);
+  }, [initialDraft, replyTo, forwardFrom, editor, open, signatures]);
 
   useEffect(() => {
     if (!editor) return;
@@ -175,7 +205,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     setSaving(true);
     try {
       let html = editor.getHTML();
-      html = removeSignatureFromHtml(html, signature);
+      html = removeSignatureFromHtml(html, signatures);
 
       const res = await fetch('/api/mail/drafts', {
         method: 'POST',
@@ -200,7 +230,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     } finally {
       setSaving(false);
     }
-  }, [editor, to, cc, bcc, showCc, showBcc, subject, draftId, signature]);
+  }, [editor, to, cc, bcc, showCc, showBcc, subject, draftId, signatures]);
 
   useEffect(() => {
     if (!open || !editor) return;
@@ -233,14 +263,17 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     setSending(true);
     try {
       let html = editor.getHTML();
-      const signatureValue = signature?.trim();
-      if (signatureValue) {
-        const signatureHtml = signatureValue.replace(/\n/g, '<br>');
-        const signatureDiv = `<div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">${signatureHtml}</div>`;
-        const trimmedHtml = html.trim();
-        const hasContent = trimmedHtml && trimmedHtml !== '<p></p>' && !trimmedHtml.match(/^<p>\s*<\/p>$/i);
-        if (!html.includes(signatureDiv)) {
-          html += hasContent ? `<br><br>${signatureDiv}` : signatureDiv;
+      const selectedSignature = selectedSignatureId ? signatures.find(s => s.id === selectedSignatureId) : null;
+      if (selectedSignature) {
+        const signatureValue = selectedSignature.content.trim();
+        if (signatureValue) {
+          const signatureHtml = signatureValue.replace(/\n/g, '<br>');
+          const signatureDiv = `<div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">${signatureHtml}</div>`;
+          const trimmedHtml = html.trim();
+          const hasContent = trimmedHtml && trimmedHtml !== '<p></p>' && !trimmedHtml.match(/^<p>\s*<\/p>$/i);
+          if (!html.includes(signatureDiv)) {
+            html += hasContent ? `<br><br>${signatureDiv}` : signatureDiv;
+          }
         }
       }
 
@@ -494,6 +527,38 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             onChange={(e) => setSubject(e.target.value)}
             className="max-md:text-sm"
           />
+          {signatures.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Подпись:</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="max-md:text-xs">
+                    {selectedSignatureId ? signatures.find(s => s.id === selectedSignatureId)?.name || 'Выбрать подпись' : 'Без подписи'}
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => setSelectedSignatureId(null)}>
+                    Без подписи
+                  </DropdownMenuItem>
+                  {signatures.map((sig) => (
+                    <DropdownMenuItem
+                      key={sig.id}
+                      onClick={() => setSelectedSignatureId(sig.id)}
+                      className={selectedSignatureId === sig.id ? 'bg-accent' : ''}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{sig.name}</span>
+                        {sig.isDefault && (
+                          <span className="text-xs text-muted-foreground">(По умолчанию)</span>
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
           {attachments.length > 0 && (
             <div className="border rounded-md p-2 max-md:p-1.5 bg-muted/30">
               <div className="text-sm font-medium mb-2 max-md:text-xs">Вложения ({attachments.length}):</div>

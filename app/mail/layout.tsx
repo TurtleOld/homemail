@@ -30,8 +30,17 @@ interface MinimizedDraft {
   html: string;
 }
 
+interface Signature {
+  id: string;
+  name: string;
+  content: string;
+  isDefault?: boolean;
+  context?: 'work' | 'personal' | 'autoReply' | 'general';
+}
+
 interface UserSettings {
-  signature: string;
+  signature?: string;
+  signatures?: Signature[];
   theme: 'light' | 'dark';
   ui?: {
     density: 'compact' | 'comfortable' | 'spacious';
@@ -1095,7 +1104,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         replyTo={replyTo || undefined}
         forwardFrom={forwardFrom || undefined}
         initialDraft={composeDraft}
-        signature={settings?.signature}
+        signatures={settings?.signatures || []}
       />
       {minimizedDrafts.length > 0 && (
         <div className="fixed bottom-0 right-4 flex gap-2 z-50 max-md:right-2 max-md:bottom-16">

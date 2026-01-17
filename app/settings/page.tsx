@@ -133,15 +133,13 @@ function getTabs(theme: 'light' | 'dark'): Tab[] {
 
 function SignatureTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
-  const [signature, setSignature] = useState(() => initialSettings.signature || '');
   const [signatures, setSignatures] = useState<Signature[]>(() => initialSettings.signatures || []);
-  const [editingSignature, setEditingSignature] = useState<Signature | null>(null);
   const [newSignatureName, setNewSignatureName] = useState('');
   const [newSignatureContent, setNewSignatureContent] = useState('');
   const [newSignatureContext, setNewSignatureContext] = useState<'work' | 'personal' | 'autoReply' | 'general'>('general');
 
   const saveMutation = useMutation({
-    mutationFn: () => saveSettings({ ...initialSettings, signature, signatures }),
+    mutationFn: () => saveSettings({ ...initialSettings, signatures }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast.success('Настройки сохранены');
@@ -186,24 +184,9 @@ function SignatureTab({ initialSettings }: { readonly initialSettings: UserSetti
       <div>
         <h2 className="text-xl font-semibold mb-4">Подпись письма</h2>
         <div className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="signature-text" className="text-sm font-medium">Основная подпись (для обратной совместимости)</label>
-            <textarea
-              id="signature-text"
-              value={signature}
-              onChange={(e) => setSignature(e.target.value)}
-              placeholder="Введите текст подписи, которая будет добавляться к каждому отправляемому письму..."
-              className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              rows={5}
-            />
-            <p className="text-xs text-muted-foreground">
-              Эта подпись используется по умолчанию, если не выбрана другая
-            </p>
-          </div>
-
-          <div className="space-y-4 pt-4 border-t">
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Подписи для разных ситуаций</h3>
+              <h3 className="text-lg font-semibold">Подписи</h3>
             </div>
 
             <div className="space-y-4 p-4 border rounded-md bg-muted/30">
