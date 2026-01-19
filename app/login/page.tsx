@@ -11,7 +11,9 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [totpCode, setTotpCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsTotp, setNeedsTotp] = useState(false);
   const isAddingAccount = searchParams.get('addAccount') === 'true';
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,13 +42,18 @@ function LoginForm() {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, totpCode: totpCode || undefined }),
         });
 
         const data = await res.json();
 
         if (!res.ok) {
-          toast.error(data.error || 'Ошибка входа');
+          if (data.requiresTotp) {
+            setNeedsTotp(true);
+            toast.error(data.error || 'Требуется код TOTP');
+          } else {
+            toast.error(data.error || 'Ошибка входа');
+          }
           return;
         }
 
@@ -106,6 +113,26 @@ function LoginForm() {
               placeholder="••••••••"
             />
           </div>
+          {(needsTotp || totpCode) && (
+            <div className="space-y-2">
+              <label htmlFor="totpCode" className="block text-sm font-medium text-gray-700 sm:text-base">
+                Код TOTP (6 цифр)
+              </label>
+              <Input
+                id="totpCode"
+                type="text"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                maxLength={6}
+                className="h-11 border-blue-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-12"
+                placeholder="000000"
+                autoComplete="one-time-code"
+              />
+              <p className="text-xs text-gray-500">
+                Введите 6-значный код из приложения-аутентификатора
+              </p>
+            </div>
+          )}
           <Button
             type="submit"
             className="h-11 w-full bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500 disabled:opacity-50 sm:h-12 sm:text-base"

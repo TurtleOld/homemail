@@ -10,6 +10,7 @@ import { addUserAccount, setActiveAccount, type UserAccount } from '@/lib/storag
 const loginSchema = z.object({
   email: z.string().min(1),
   password: z.string().min(1),
+  totpCode: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -29,10 +30,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { email, password } = loginSchema.parse(body);
+    const { email, password, totpCode } = loginSchema.parse(body);
 
     const accountId = email;
-    await ensureAccount(accountId, email, password);
+    const authPassword = totpCode ? `${password}${totpCode}` : password;
+    
+    await ensureAccount(accountId, email, authPassword);
     const provider = process.env.MAIL_PROVIDER === 'stalwart' 
       ? getMailProviderForAccount(accountId)
       : getMailProvider();
@@ -43,6 +46,10 @@ export async function POST(request: NextRequest) {
       if (!account) {
         logger.error('Account not found for:', email);
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+      }
+
+      if (totpCode) {
+        await ensureAccount(accountId, email, password);
       }
 
       await createSession(accountId, email);
@@ -61,6 +68,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, account: { id: account.id, email: account.email, displayName: account.displayName } });
     } catch (providerError) {
       logger.error('Provider error during login:', providerError);
+      const errorMessage = providerError instanceof Error ? providerError.message : String(providerError);
+      
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('credentials')) {
+        if (!totpCode) {
+          return NextResponse.json({ error: 'Требуется код TOTP', requiresTotp: true }, { status: 401 });
+        }
+        return NextResponse.json({ error: 'Неверный пароль или код TOTP', requiresTotp: true }, { status: 401 });
+      }
+      
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
   } catch (error) {
