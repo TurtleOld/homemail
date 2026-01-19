@@ -38,9 +38,11 @@ export async function POST(request: NextRequest) {
     
     let authPassword: string;
     if (totpCode) {
-      const totpFormat = process.env.TOTP_FORMAT || 'concat';
+      const totpFormat = process.env.TOTP_FORMAT || 'dollar';
       if (totpFormat === 'colon') {
         authPassword = `${password}:${totpCode}`;
+      } else if (totpFormat === 'dollar') {
+        authPassword = `${password}$${totpCode}`;
       } else {
         authPassword = `${password}${totpCode}`;
       }
@@ -62,7 +64,9 @@ export async function POST(request: NextRequest) {
         const authMode = (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer') || 'basic';
         
         const authHeaderPreview = Buffer.from(`${email}:${authPassword}`).toString('base64').substring(0, 20);
-        logger.info(`Creating temporary client: email=${email}, password format=${password.substring(0, 2)}...:${totpCode}, authHeader preview=${authHeaderPreview}...`);
+        const totpFormat = process.env.TOTP_FORMAT || 'dollar';
+        const formatSeparator = totpFormat === 'colon' ? ':' : totpFormat === 'dollar' ? '$' : '';
+        logger.info(`Creating temporary client: email=${email}, password format=${password.substring(0, 2)}...${formatSeparator}${totpCode}, authHeader preview=${authHeaderPreview}...`);
         
         const tempClient = new JMAPClient(baseUrl, email, authPassword, accountId, authMode);
         
