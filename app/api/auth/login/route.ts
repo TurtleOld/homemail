@@ -6,6 +6,8 @@ import { validateOrigin } from '@/lib/csrf';
 import { getMailProvider, getMailProviderForAccount, ensureAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
 import { addUserAccount, setActiveAccount, type UserAccount } from '@/lib/storage';
+import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
+import type { Account } from '@/lib/types';
 
 const loginSchema = z.object({
   email: z.string().min(1),
@@ -48,21 +50,56 @@ export async function POST(request: NextRequest) {
       logger.info(`Login attempt for ${email}, no TOTP`);
     }
     
-    await ensureAccount(accountId, email, authPassword);
     const provider = process.env.MAIL_PROVIDER === 'stalwart' 
       ? getMailProviderForAccount(accountId)
       : getMailProvider();
     
     try {
-      const account = await provider.getAccount(accountId);
+      let account: Account | null;
+      
+      if (process.env.MAIL_PROVIDER === 'stalwart' && totpCode) {
+        const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
+        const authMode = (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer') || 'basic';
+        const tempClient = new JMAPClient(baseUrl, email, authPassword, accountId, authMode);
+        
+        try {
+          const session = await tempClient.getSession();
+          
+          let jmapAccount: any;
+          if (session.primaryAccounts?.mail) {
+            jmapAccount = session.accounts[session.primaryAccounts.mail];
+          } else {
+            const accountKeys = Object.keys(session.accounts);
+            if (accountKeys.length > 0) {
+              jmapAccount = session.accounts[accountKeys[0]];
+            }
+          }
+          
+          if (!jmapAccount) {
+            logger.error('Account not found in session for:', email);
+            return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+          }
+          
+          account = {
+            id: jmapAccount.id || accountId,
+            email: email,
+            displayName: jmapAccount.name || email.split('@')[0],
+          };
+          
+          await ensureAccount(accountId, email, password);
+        } catch (tempError) {
+          const errorMessage = tempError instanceof Error ? tempError.message : String(tempError);
+          logger.error('Temporary client auth error:', errorMessage);
+          throw tempError;
+        }
+      } else {
+        await ensureAccount(accountId, email, authPassword);
+        account = await provider.getAccount(accountId);
+      }
 
       if (!account) {
         logger.error('Account not found for:', email);
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-      }
-
-      if (totpCode) {
-        await ensureAccount(accountId, email, password);
       }
 
       await createSession(accountId, email);
