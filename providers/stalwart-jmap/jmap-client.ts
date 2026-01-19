@@ -372,6 +372,9 @@ export class JMAPClient {
     const resolvedDiscoveryUrl = await this.resolveUrlToIp(discoveryUrl);
     
     try {
+      const authHeaderPreview = this.authHeader.substring(0, 20) + '...';
+      console.log(`[JMAPClient] Discovery request with auth header: ${authHeaderPreview}`);
+      
       const discoveryRes = await fetch(resolvedDiscoveryUrl, {
         headers: {
           'Accept': 'application/json',
@@ -382,6 +385,7 @@ export class JMAPClient {
 
       if (!discoveryRes.ok) {
         const errorText = await discoveryRes.text().catch(() => '');
+        console.error(`[JMAPClient] Discovery failed: ${discoveryRes.status} ${discoveryRes.statusText}, response: ${errorText.substring(0, 200)}`);
         throw new Error(`JMAP discovery failed: ${discoveryRes.status} ${discoveryRes.statusText}`);
       }
 

@@ -60,10 +60,16 @@ export async function POST(request: NextRequest) {
       if (process.env.MAIL_PROVIDER === 'stalwart' && totpCode) {
         const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
         const authMode = (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer') || 'basic';
+        
+        const authHeaderPreview = Buffer.from(`${email}:${authPassword}`).toString('base64').substring(0, 20);
+        logger.info(`Creating temporary client: email=${email}, password format=${password.substring(0, 2)}...:${totpCode}, authHeader preview=${authHeaderPreview}...`);
+        
         const tempClient = new JMAPClient(baseUrl, email, authPassword, accountId, authMode);
         
         try {
+          logger.info(`Attempting to get session with temporary client...`);
           const session = await tempClient.getSession();
+          logger.info(`Session obtained successfully, accounts: ${Object.keys(session.accounts || {}).length}`);
           
           let jmapAccount: any;
           if (session.primaryAccounts?.mail) {
