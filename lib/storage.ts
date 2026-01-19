@@ -15,7 +15,7 @@ function getEncryptionKey(): Buffer {
   return crypto.scryptSync(secret, 'salt', 32);
 }
 
-function encryptData(data: string): string {
+export function encryptData(data: string): string {
   const key = getEncryptionKey();
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
@@ -34,7 +34,7 @@ function encryptData(data: string): string {
   ]).toString('base64url');
 }
 
-function decryptData(encryptedData: string): string | null {
+export function decryptData(encryptedData: string): string | null {
   try {
     const key = getEncryptionKey();
     const data = Buffer.from(encryptedData, 'base64url');
