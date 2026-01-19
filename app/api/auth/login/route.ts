@@ -33,7 +33,20 @@ export async function POST(request: NextRequest) {
     const { email, password, totpCode } = loginSchema.parse(body);
 
     const accountId = email;
-    const authPassword = totpCode ? `${password}${totpCode}` : password;
+    
+    let authPassword: string;
+    if (totpCode) {
+      const totpFormat = process.env.TOTP_FORMAT || 'concat';
+      if (totpFormat === 'colon') {
+        authPassword = `${password}:${totpCode}`;
+      } else {
+        authPassword = `${password}${totpCode}`;
+      }
+      logger.info(`Login attempt for ${email}, TOTP format: ${totpFormat}`);
+    } else {
+      authPassword = password;
+      logger.info(`Login attempt for ${email}, no TOTP`);
+    }
     
     await ensureAccount(accountId, email, authPassword);
     const provider = process.env.MAIL_PROVIDER === 'stalwart' 
@@ -70,6 +83,13 @@ export async function POST(request: NextRequest) {
       logger.error('Provider error during login:', providerError);
       const errorMessage = providerError instanceof Error ? providerError.message : String(providerError);
       
+      if (errorMessage.includes('402') || errorMessage.includes('Payment Required')) {
+        if (!totpCode) {
+          return NextResponse.json({ error: 'Требуется код TOTP', requiresTotp: true }, { status: 401 });
+        }
+        return NextResponse.json({ error: 'Неверный пароль или код TOTP. Проверьте формат ввода.', requiresTotp: true }, { status: 401 });
+      }
+      
       if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('credentials')) {
         if (!totpCode) {
           return NextResponse.json({ error: 'Требуется код TOTP', requiresTotp: true }, { status: 401 });
@@ -77,7 +97,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Неверный пароль или код TOTP', requiresTotp: true }, { status: 401 });
       }
       
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+      return NextResponse.json({ error: `Ошибка аутентификации: ${errorMessage}`, requiresTotp: !!totpCode }, { status: 401 });
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
