@@ -48,7 +48,7 @@ export function checkBruteForce(
 
   if (emailEntry && emailEntry.blockedUntil && emailEntry.blockedUntil > now) {
     if (request) {
-      SecurityLogger.logLoginBlocked(request, email, 'Email blocked due to brute force');
+      SecurityLogger.logLoginBlocked(request, email || 'unknown', 'Email blocked due to brute force');
     }
     return {
       allowed: false,
@@ -66,7 +66,7 @@ export function checkBruteForce(
     bruteForceStore.set(ipKey, ipEntry);
   }
 
-  if (email && !emailEntry) {
+  if (email && !emailEntry && emailKey) {
     emailEntry = {
       attempts: 0,
       lastAttempt: now,
@@ -109,7 +109,7 @@ export function checkBruteForce(
   if (emailEntry && emailAttempts >= MAX_ATTEMPTS_PER_EMAIL) {
     emailEntry.blockedUntil = now + BLOCK_DURATION_EMAIL;
     if (request) {
-      SecurityLogger.logLoginBlocked(request, email, 'Email blocked due to brute force');
+      SecurityLogger.logLoginBlocked(request, email || 'unknown', 'Email blocked due to brute force');
     }
     return {
       allowed: false,
@@ -143,7 +143,7 @@ export function recordFailedAttempt(ip: string, email?: string): void {
     bruteForceStore.set(ipKey, ipEntry);
   }
 
-  if (email && !emailEntry) {
+  if (email && !emailEntry && emailKey) {
     emailEntry = {
       attempts: 0,
       lastAttempt: Date.now(),
