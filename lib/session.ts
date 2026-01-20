@@ -6,6 +6,7 @@ import {
   deleteSession as deleteSessionFromStorage,
   type StoredSession,
 } from './storage';
+import { SecurityLogger } from './security-logger';
 
 const SESSION_COOKIE_NAME = 'mail_session';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
@@ -18,6 +19,9 @@ export interface SessionData {
   accountId: string;
   email: string;
   expiresAt: number;
+  createdAt: number;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 function getEncryptionKey(): Buffer {
@@ -71,15 +75,30 @@ function decryptSessionData(encryptedData: string): SessionData | null {
   }
 }
 
-export async function createSession(accountId: string, email: string): Promise<string> {
+export async function createSession(
+  accountId: string,
+  email: string,
+  request?: Request
+): Promise<string> {
   const sessionId = `sess_${crypto.randomBytes(32).toString('base64url')}`;
   const expiresAt = Date.now() + SESSION_DURATION;
+  const createdAt = Date.now();
+
+  const ipAddress = request
+    ? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown'
+    : undefined;
+  const userAgent = request ? request.headers.get('user-agent') || undefined : undefined;
 
   const session: SessionData = {
     sessionId,
     accountId,
     email,
     expiresAt,
+    createdAt,
+    ipAddress,
+    userAgent,
   };
 
   const encryptedSession = encryptSessionData(session);
@@ -102,10 +121,24 @@ export async function createSession(accountId: string, email: string): Promise<s
   };
   await saveSessionToStorage(storedSession);
 
+  if (request) {
+    SecurityLogger.logSessionCreated(request, email, accountId);
+  }
+
   return sessionId;
 }
 
-export async function getSession(): Promise<SessionData | null> {
+export async function regenerateSession(
+  oldSessionId: string,
+  accountId: string,
+  email: string,
+  request?: Request
+): Promise<string> {
+  await deleteSessionFromStorage(oldSessionId);
+  return createSession(accountId, email, request);
+}
+
+export async function getSession(request?: Request): Promise<SessionData | null> {
   const cookieStore = await cookies();
   const encryptedSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -114,16 +147,19 @@ export async function getSession(): Promise<SessionData | null> {
   }
 
   const storedSession = await getSessionByCookie(encryptedSession);
+  let session: SessionData | null = null;
+
   if (storedSession) {
-    return {
+    session = {
       sessionId: storedSession.sessionId,
       accountId: storedSession.accountId,
       email: storedSession.email,
       expiresAt: storedSession.expiresAt,
+      createdAt: Date.now(),
     };
+  } else {
+    session = decryptSessionData(encryptedSession);
   }
-
-  const session = decryptSessionData(encryptedSession);
 
   if (!session) {
     await deleteSession();
@@ -135,14 +171,37 @@ export async function getSession(): Promise<SessionData | null> {
     return null;
   }
 
-  const storedSessionNew: StoredSession = {
-    sessionId: session.sessionId,
-    accountId: session.accountId,
-    email: session.email,
-    expiresAt: session.expiresAt,
-    cookieValue: encryptedSession,
-  };
-  await saveSessionToStorage(storedSessionNew);
+  if (request && session.ipAddress && session.userAgent) {
+    const currentIp =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown';
+    const currentUserAgent = request.headers.get('user-agent') || 'unknown';
+
+    if (session.ipAddress !== currentIp || session.userAgent !== currentUserAgent) {
+      if (request) {
+        SecurityLogger.logSessionHijackAttempt(request, session.email, {
+          originalIp: session.ipAddress,
+          currentIp,
+          originalUserAgent: session.userAgent,
+          currentUserAgent,
+        });
+      }
+      await deleteSession();
+      return null;
+    }
+  }
+
+  if (!storedSession) {
+    const storedSessionNew: StoredSession = {
+      sessionId: session.sessionId,
+      accountId: session.accountId,
+      email: session.email,
+      expiresAt: session.expiresAt,
+      cookieValue: encryptedSession,
+    };
+    await saveSessionToStorage(storedSessionNew);
+  }
 
   return session;
 }
