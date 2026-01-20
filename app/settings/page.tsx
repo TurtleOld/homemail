@@ -795,7 +795,7 @@ function FiltersTab() {
             queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
             
             if (rule.applyToExisting) {
-              toast.info('Применение правила к существующим письмам...');
+              const loadingToast = toast.loading('Применение правила к существующим письмам...');
               try {
                 const res = await fetch('/api/mail/filters/rules/apply', {
                   method: 'POST',
@@ -803,15 +803,17 @@ function FiltersTab() {
                   body: JSON.stringify({ ruleId: rule.id }),
                 });
                 
+                toast.dismiss(loadingToast);
+                
                 if (!res.ok) {
                   const errorData = await res.json().catch(() => ({}));
-                  throw new Error(errorData.error || 'Failed to apply rule');
+                  toast.error(`Правило сохранено, но не применено: ${errorData.error || 'Ошибка применения'}`);
+                } else {
+                  toast.success('Правило сохранено и применено к существующим письмам');
                 }
-                
-                toast.success('Правило сохранено и применено к существующим письмам');
               } catch (error) {
-                toast.error(error instanceof Error ? error.message : 'Ошибка применения правила к существующим письмам');
-                toast.success('Правило сохранено, но не применено к существующим письмам');
+                toast.dismiss(loadingToast);
+                toast.error(`Правило сохранено, но не применено: ${error instanceof Error ? error.message : 'Ошибка применения'}`);
               }
             } else {
               toast.success('Правило сохранено');
