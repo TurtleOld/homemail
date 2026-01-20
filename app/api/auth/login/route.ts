@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
       logger.error('Provider error during login:', providerError);
       const errorMessage = providerError instanceof Error ? providerError.message : String(providerError);
       
-      if (errorMessage.includes('402') || errorMessage.includes('Payment Required')) {
+      if (errorMessage.includes('TOTP code required') || errorMessage.includes('TOTP') || errorMessage.includes('402') || errorMessage.includes('Payment Required')) {
         if (!totpCode) {
           return NextResponse.json({ error: 'Требуется код TOTP', requiresTotp: true }, { status: 401 });
         }
