@@ -1,5 +1,7 @@
+import { validateCsrfToken } from './csrf-tokens';
+import { SecurityLogger } from './security-logger';
+
 export function validateOrigin(request: Request): boolean {
-  // Skip validation in development
   if (process.env.NODE_ENV === 'development') {
     return true;
   }
@@ -39,7 +41,6 @@ export function validateOrigin(request: Request): boolean {
     allowedHosts.add(h);
   }
 
-  // Standard validation for direct access
   if (!origin && !referer) {
     return false;
   }
@@ -66,6 +67,26 @@ export function validateOrigin(request: Request): boolean {
   }
 
   if (referer && !isAllowedUrl(referer)) {
+    return false;
+  }
+
+  return true;
+}
+
+export async function validateCsrf(request: Request): Promise<boolean> {
+  const method = request.method;
+  
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+    return true;
+  }
+
+  if (!validateOrigin(request)) {
+    SecurityLogger.logCsrfViolation(request, { reason: 'origin_validation_failed' });
+    return false;
+  }
+
+  const csrfValidation = await validateCsrfToken(request);
+  if (!csrfValidation.valid) {
     return false;
   }
 
