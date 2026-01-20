@@ -54,7 +54,6 @@ export async function POST(request: NextRequest) {
       discoveryUrl = internalDiscoveryUrl;
     }
     const clientId = process.env.OAUTH_CLIENT_ID || '';
-    const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
 
     if (!discoveryUrl || !clientId) {
       logger.error(`[OAuth] Configuration missing. discoveryUrl: ${discoveryUrl || 'not set'}, clientId: ${clientId || 'not set'}`);
