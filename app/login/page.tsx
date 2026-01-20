@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { validateEmail } from '@/lib/email-validator';
 
 function LoginForm() {
   const router = useRouter();
@@ -19,10 +20,34 @@ function LoginForm() {
   const [oauthVerificationUri, setOauthVerificationUri] = useState('');
   const [oauthPolling, setOauthPolling] = useState(false);
   const [oauthWindow, setOauthWindow] = useState<Window | null>(null);
+  const [emailError, setEmailError] = useState<string>('');
   const isAddingAccount = searchParams.get('addAccount') === 'true';
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (value.trim()) {
+      const validation = validateEmail(value);
+      if (!validation.valid) {
+        setEmailError(validation.errors[0] || 'Неверный формат email');
+      } else {
+        setEmailError('');
+      }
+    } else {
+      setEmailError('');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (email.trim()) {
+      const validation = validateEmail(email);
+      if (!validation.valid) {
+        setEmailError(validation.errors[0] || 'Неверный формат email');
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -214,14 +239,18 @@ function LoginForm() {
             </label>
             <Input
               id="email"
-              type="text"
+              type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => handleEmailChange(e.target.value)}
               required
-              className="h-11 border-blue-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-12"
+              className={`h-11 border-blue-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-12 ${emailError ? 'border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500' : ''
+                }`}
               placeholder="например: example@example.com"
               autoComplete="email"
             />
+            {emailError && (
+              <p className="text-sm text-red-600">{emailError}</p>
+            )}
           </div>
           <div className="space-y-2">
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 sm:text-base">
