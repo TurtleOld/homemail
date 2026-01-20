@@ -29,6 +29,14 @@ const nextConfig = {
         key: 'Referrer-Policy',
         value: 'strict-origin-when-cross-origin',
       },
+      {
+        key: 'Permissions-Policy',
+        value: 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), speaker=()',
+      },
+      {
+        key: 'X-Permitted-Cross-Domain-Policies',
+        value: 'none',
+      },
     ];
 
     if (isProduction) {
