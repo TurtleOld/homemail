@@ -18,6 +18,7 @@ function LoginForm() {
   const [oauthUserCode, setOauthUserCode] = useState('');
   const [oauthVerificationUri, setOauthVerificationUri] = useState('');
   const [oauthPolling, setOauthPolling] = useState(false);
+  const [oauthWindow, setOauthWindow] = useState<Window | null>(null);
   const isAddingAccount = searchParams.get('addAccount') === 'true';
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -98,7 +99,8 @@ function LoginForm() {
       setOauthVerificationUri(deviceData.verificationUri || deviceData.verificationUriComplete);
 
       if (deviceData.verificationUriComplete) {
-        window.open(deviceData.verificationUriComplete, '_blank');
+        const authWindow = window.open(deviceData.verificationUriComplete, '_blank');
+        setOauthWindow(authWindow);
       }
 
       const pollInterval = setInterval(async () => {
@@ -119,6 +121,16 @@ function LoginForm() {
           if (pollData.success) {
             clearInterval(pollInterval);
             setOauthPolling(false);
+            
+            if (oauthWindow && !oauthWindow.closed) {
+              try {
+                oauthWindow.close();
+              } catch (e) {
+                console.warn('Не удалось закрыть окно авторизации:', e);
+              }
+            }
+            setOauthWindow(null);
+            
             toast.success('OAuth авторизация успешна');
             
             const loginRes = await fetch('/api/auth/login', {
@@ -140,6 +152,14 @@ function LoginForm() {
           } else if (pollData.error === 'expired_token' || pollData.error === 'access_denied') {
             clearInterval(pollInterval);
             setOauthPolling(false);
+            if (oauthWindow && !oauthWindow.closed) {
+              try {
+                oauthWindow.close();
+              } catch (e) {
+                console.warn('Не удалось закрыть окно авторизации:', e);
+              }
+            }
+            setOauthWindow(null);
             toast.error(pollData.errorDescription || 'Авторизация отменена или истекла');
             setNeedsOAuth(false);
           } else if (pollData.error !== 'authorization_pending' && pollData.error !== 'slow_down') {
@@ -155,6 +175,14 @@ function LoginForm() {
       setTimeout(() => {
         clearInterval(pollInterval);
         setOauthPolling(false);
+        if (oauthWindow && !oauthWindow.closed) {
+          try {
+            oauthWindow.close();
+          } catch (e) {
+            console.warn('Не удалось закрыть окно авторизации:', e);
+          }
+        }
+        setOauthWindow(null);
         toast.error('Время ожидания авторизации истекло');
       }, (deviceData.expiresIn || 600) * 1000);
     } catch (error) {
