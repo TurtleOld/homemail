@@ -7,12 +7,14 @@ import { getMailProvider, getMailProviderForAccount, ensureAccount } from '@/lib
 import { logger } from '@/lib/logger';
 import { addUserAccount, setActiveAccount, type UserAccount } from '@/lib/storage';
 import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
+import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
 import type { Account } from '@/lib/types';
 
 const loginSchema = z.object({
   email: z.string().min(1),
-  password: z.string().min(1),
+  password: z.string().optional(),
   totpCode: z.string().optional(),
+  useOAuth: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -32,9 +34,101 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { email, password, totpCode } = loginSchema.parse(body);
+    const { email, password, totpCode, useOAuth } = loginSchema.parse(body);
 
     const accountId = email;
+    const authMode = (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer' | 'oauth') || 'basic';
+    const shouldUseOAuth = useOAuth !== undefined ? useOAuth : authMode === 'oauth';
+    
+    if (shouldUseOAuth) {
+      const discoveryUrl = process.env.OAUTH_DISCOVERY_URL || 
+        (process.env.STALWART_BASE_URL?.replace(/\/$/, '') + '/.well-known/oauth-authorization-server');
+      const clientId = process.env.OAUTH_CLIENT_ID || '';
+
+      if (!discoveryUrl || !clientId) {
+        return NextResponse.json(
+          { error: 'OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required' },
+          { status: 500 }
+        );
+      }
+
+      const oauthClient = new OAuthJMAPClient({
+        discoveryUrl,
+        clientId,
+        scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'offline_access'],
+        baseUrl: process.env.STALWART_BASE_URL || 'http://stalwart:8080',
+        accountId,
+      });
+
+      const hasToken = await oauthClient.hasValidToken();
+      if (!hasToken) {
+        return NextResponse.json(
+          { error: 'OAuth token required', requiresOAuth: true },
+          { status: 401 }
+        );
+      }
+
+      try {
+        const jmapClient = await oauthClient.getJMAPClient();
+        const session = await jmapClient.getSession();
+
+        let account: any;
+        if (session.primaryAccounts?.mail) {
+          account = session.accounts[session.primaryAccounts.mail];
+        } else {
+          const accountKeys = Object.keys(session.accounts);
+          if (accountKeys.length > 0) {
+            account = session.accounts[accountKeys[0]];
+          }
+        }
+
+        if (!account) {
+          logger.error('Account not found in session for:', email);
+          return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+        }
+
+        await createSession(accountId, email);
+
+        const userAccount: UserAccount = {
+          id: accountId,
+          email: account.name || email,
+          displayName: account.name || email.split('@')[0],
+          addedAt: Date.now(),
+          isActive: true,
+        };
+
+        await addUserAccount(email, userAccount);
+        await setActiveAccount(email, accountId);
+
+        return NextResponse.json({
+          success: true,
+          account: {
+            id: account.id || accountId,
+            email: account.name || email,
+            displayName: account.name || email.split('@')[0],
+          },
+        });
+      } catch (oauthError) {
+        const errorMessage = oauthError instanceof Error ? oauthError.message : String(oauthError);
+        logger.error('OAuth login error:', errorMessage);
+        
+        if (errorMessage.includes('token required') || errorMessage.includes('authorize')) {
+          return NextResponse.json(
+            { error: 'OAuth token required', requiresOAuth: true },
+            { status: 401 }
+          );
+        }
+        
+        return NextResponse.json(
+          { error: `OAuth authentication failed: ${errorMessage}`, requiresOAuth: true },
+          { status: 401 }
+        );
+      }
+    }
+    
+    if (!password) {
+      return NextResponse.json({ error: 'Password is required for basic authentication' }, { status: 400 });
+    }
     
     let authPassword: string;
     if (totpCode) {

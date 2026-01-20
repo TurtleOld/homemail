@@ -9,6 +9,7 @@ import type {
 } from '@/lib/types';
 import { JMAPClient } from './jmap-client';
 import { convertFilterToJMAP } from '@/lib/filter-to-jmap';
+import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
 
 interface JMAPAccount {
   id: string;
@@ -23,7 +24,9 @@ interface StalwartConfig {
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;
-  authMode: 'basic' | 'bearer';
+  authMode: 'basic' | 'bearer' | 'oauth';
+  oauthDiscoveryUrl?: string;
+  oauthClientId?: string;
 }
 
 const config: StalwartConfig = {
@@ -31,7 +34,9 @@ const config: StalwartConfig = {
   smtpHost: process.env.STALWART_SMTP_HOST || 'stalwart',
   smtpPort: parseInt(process.env.STALWART_SMTP_PORT || '587', 10),
   smtpSecure: process.env.STALWART_SMTP_SECURE === 'true',
-  authMode: (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer') || 'basic',
+  authMode: (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer' | 'oauth') || 'basic',
+  oauthDiscoveryUrl: process.env.OAUTH_DISCOVERY_URL || process.env.STALWART_BASE_URL?.replace(/\/$/, '') + '/.well-known/oauth-authorization-server',
+  oauthClientId: process.env.OAUTH_CLIENT_ID || '',
 };
 
 if (config.baseUrl.includes('://') && !config.baseUrl.includes('localhost') && !config.baseUrl.includes('127.0.0.1')) {
@@ -134,16 +139,35 @@ function checkAttachmentType(bodyStructure: any, mimeTypes: string[]): boolean {
 
 export class StalwartJMAPProvider implements MailProvider {
   private async getClient(accountId: string): Promise<JMAPClient> {
+    if (config.authMode === 'oauth') {
+      if (!config.oauthDiscoveryUrl || !config.oauthClientId) {
+        throw new Error('OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required');
+      }
+
+      const oauthClient = new OAuthJMAPClient({
+        discoveryUrl: config.oauthDiscoveryUrl,
+        clientId: config.oauthClientId,
+        scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'offline_access'],
+        baseUrl: config.baseUrl,
+        accountId: accountId,
+      });
+
+      const hasToken = await oauthClient.hasValidToken();
+      if (!hasToken) {
+        throw new Error('OAuth token required. Please authorize first.');
+      }
+
+      return await oauthClient.getJMAPClient();
+    }
+
     const creds = await getUserCredentials(accountId);
     if (!creds) {
       throw new Error('User credentials not found');
     }
 
-    // Проверяем, что creds.email является валидным email адресом
     validateEmail(creds.email, 'credentials');
 
-    // Используем creds.email (теперь всегда должен быть полным email адресом)
-    return new JMAPClient(config.baseUrl, creds.email, creds.password, accountId, config.authMode);
+    return new JMAPClient(config.baseUrl, creds.email, creds.password, accountId, config.authMode === 'bearer' ? 'bearer' : 'basic');
   }
 
   async syncAliases(accountId: string, aliases: Array<{ email: string; name?: string }>): Promise<void> {
@@ -153,7 +177,53 @@ export class StalwartJMAPProvider implements MailProvider {
 
   async getAccount(accountId: string): Promise<Account | null> {
     try {
-      // Получаем credentials
+      if (config.authMode === 'oauth') {
+        if (!config.oauthDiscoveryUrl || !config.oauthClientId) {
+          throw new Error('OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required');
+        }
+
+        const oauthClient = new OAuthJMAPClient({
+          discoveryUrl: config.oauthDiscoveryUrl,
+          clientId: config.oauthClientId,
+          scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'offline_access'],
+          baseUrl: config.baseUrl,
+          accountId: accountId,
+        });
+
+        const hasToken = await oauthClient.hasValidToken();
+        if (!hasToken) {
+          const { logger } = await import('@/lib/logger');
+          logger.warn(`No OAuth token found for accountId: ${accountId}`);
+          throw new Error('OAuth token required. Please authorize first.');
+        }
+
+        const client = await oauthClient.getJMAPClient();
+        const session = await client.getSession();
+
+        let account: JMAPAccount | undefined;
+
+        if (session.primaryAccounts?.mail) {
+          account = session.accounts[session.primaryAccounts.mail];
+        } else {
+          const accountKeys = Object.keys(session.accounts);
+          if (accountKeys.length > 0) {
+            account = session.accounts[accountKeys[0]];
+          }
+        }
+
+        if (!account) {
+          const { logger } = await import('@/lib/logger');
+          logger.warn(`No account found in session for accountId: ${accountId}`);
+          return null;
+        }
+
+        return {
+          id: account.id || accountId,
+          email: account.name || accountId,
+          displayName: account.name || accountId.split('@')[0],
+        };
+      }
+
       const creds = await getUserCredentials(accountId);
       if (!creds) {
         const { logger } = await import('@/lib/logger');
@@ -161,10 +231,8 @@ export class StalwartJMAPProvider implements MailProvider {
         return null;
       }
 
-      // Проверяем, что creds.email является валидным email адресом
       validateEmail(creds.email, 'credentials');
 
-      // Создаём client с email адресом
       const client = await this.getClient(accountId);
 
       try {
@@ -187,7 +255,6 @@ export class StalwartJMAPProvider implements MailProvider {
           return null;
         }
 
-        // Используем email из credentials (теперь всегда должен быть полным email адресом)
         const email = creds.email;
 
         return {
@@ -196,19 +263,21 @@ export class StalwartJMAPProvider implements MailProvider {
           displayName: account.name || email.split('@')[0],
         };
       } catch (sessionError) {
-        // Если не удалось получить session, логируем детали для отладки
         const { logger } = await import('@/lib/logger');
         const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
         const errorStack = sessionError instanceof Error ? sessionError.stack : undefined;
+        
+        if (errorMessage.includes('402') || errorMessage.includes('TOTP')) {
+          logger.warn(`TOTP required for account ${accountId}, but no TOTP code provided`);
+          throw new Error('TOTP code required. Please log in again with TOTP code.');
+        }
+        
         logger.error(`Failed to get JMAP session for account ${accountId} (email: ${creds.email}):`, errorMessage, errorStack ? `\n${errorStack}` : '');
-
-        // Пробрасываем ошибку дальше, чтобы вызывающий код мог понять, что произошло
         throw sessionError;
       }
     } catch (error) {
       const { logger } = await import('@/lib/logger');
       logger.error('Failed to get account:', error instanceof Error ? error.message : error);
-      // Пробрасываем ошибку дальше, чтобы вызывающий код мог понять, что произошло
       throw error;
     }
   }

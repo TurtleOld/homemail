@@ -32,12 +32,18 @@ export async function GET() {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Error getting account for ${session.accountId}:`, errorMessage);
       
-      // Если ошибка связана с авторизацией (401, 403), возвращаем 401
+      if (errorMessage.includes('TOTP code required')) {
+        return NextResponse.json({ error: 'TOTP code required. Please log in again.', requiresTotp: true }, { status: 401 });
+      }
+      
+      if (errorMessage.includes('402') || errorMessage.includes('TOTP')) {
+        return NextResponse.json({ error: 'TOTP code required. Please log in again.', requiresTotp: true }, { status: 401 });
+      }
+      
       if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('credentials')) {
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
       }
       
-      // Для других ошибок возвращаем 500
       return NextResponse.json({ error: 'Failed to get account', details: errorMessage }, { status: 500 });
     }
   } catch (error) {
