@@ -142,42 +142,6 @@ async function resolveUrlToIp(url: string): Promise<string> {
   }
 }
 
-function normalizeInternalPort(url: string): string {
-  try {
-    const urlObj = new URL(url);
-    const isInternal = urlObj.hostname.includes('stalwart') || 
-                      urlObj.hostname === 'localhost' || 
-                      urlObj.hostname === '127.0.0.1' ||
-                      /^\d+\.\d+\.\d+\.\d+$/.test(urlObj.hostname);
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:114',message:'normalizeInternalPort entry',data:{url:url,hostname:urlObj.hostname,port:urlObj.port,isInternal:isInternal},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    
-    if (isInternal && urlObj.port === '9080') {
-      urlObj.port = '8080';
-      const normalized = urlObj.toString();
-      const { logger } = require('@/lib/logger');
-      logger.info(`[OAuthDiscovery] Normalized internal port 9080 -> 8080: ${url} -> ${normalized}`);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:127',message:'normalizeInternalPort - port changed',data:{originalUrl:url,normalizedUrl:normalized,originalPort:'9080',newPort:'8080'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      
-      return normalized;
-    }
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:132',message:'normalizeInternalPort - no change',data:{url:url,reason:!isInternal?'not internal':urlObj.port!=='9080'?'port not 9080':'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-  } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:135',message:'normalizeInternalPort - error',data:{url:url,error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-  }
-  return url;
-}
-
 export class OAuthDiscovery {
   private readonly discoveryUrl: string;
   private cachedDiscovery: OAuthDiscoveryResponse | null = null;
@@ -185,7 +149,7 @@ export class OAuthDiscovery {
   private readonly CACHE_TTL = 3600000;
 
   constructor(discoveryUrl: string) {
-    this.discoveryUrl = normalizeInternalPort(discoveryUrl.replace(/\/$/, ''));
+    this.discoveryUrl = discoveryUrl.replace(/\/$/, '');
   }
 
   async discover(): Promise<OAuthDiscoveryResponse> {
