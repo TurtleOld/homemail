@@ -132,13 +132,6 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    if (authMode === 'oauth') {
-      return NextResponse.json(
-        { error: 'OAuth authentication required. Please authorize first.', requiresOAuth: true },
-        { status: 401 }
-      );
-    }
-    
     if (!password) {
       return NextResponse.json({ error: 'Password is required for basic authentication' }, { status: 400 });
     }
@@ -168,14 +161,21 @@ export async function POST(request: NextRequest) {
       
       if (process.env.MAIL_PROVIDER === 'stalwart' && totpCode) {
         const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
-        const authMode = (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer') || 'basic';
+        const authMode = (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer' | 'oauth') || 'basic';
+        
+        if (authMode === 'oauth') {
+          return NextResponse.json(
+            { error: 'TOTP is not supported with OAuth authentication', requiresOAuth: true },
+            { status: 400 }
+          );
+        }
         
         const authHeaderPreview = Buffer.from(`${email}:${authPassword}`).toString('base64').substring(0, 20);
         const totpFormat = process.env.TOTP_FORMAT || 'dollar';
         const formatSeparator = totpFormat === 'colon' ? ':' : totpFormat === 'dollar' ? '$' : '';
         logger.info(`Creating temporary client: email=${email}, password format=${password.substring(0, 2)}...${formatSeparator}${totpCode}, authHeader preview=${authHeaderPreview}...`);
         
-        const tempClient = new JMAPClient(baseUrl, email, authPassword, accountId, authMode);
+        const tempClient = new JMAPClient(baseUrl, email, authPassword, accountId, authMode as 'basic' | 'bearer');
         
         try {
           logger.info(`Attempting to get session with temporary client...`);
