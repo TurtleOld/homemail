@@ -20,14 +20,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const discoveryUrl = process.env.OAUTH_DISCOVERY_URL || 
-      (process.env.STALWART_BASE_URL?.replace(/\/$/, '') + '/.well-known/oauth-authorization-server');
+    let discoveryUrl = process.env.OAUTH_DISCOVERY_URL;
+    if (!discoveryUrl || discoveryUrl.includes('example.com')) {
+      const publicUrl = process.env.STALWART_PUBLIC_URL;
+      if (publicUrl) {
+        discoveryUrl = publicUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
+        logger.info(`OAuth discovery URL determined from STALWART_PUBLIC_URL: ${discoveryUrl}`);
+      }
+    }
     const clientId = process.env.OAUTH_CLIENT_ID || '';
     const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
 
     if (!discoveryUrl || !clientId) {
       return NextResponse.json(
-        { error: 'OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required' },
+        { error: 'OAuth configuration missing: OAUTH_DISCOVERY_URL (or STALWART_PUBLIC_URL) and OAUTH_CLIENT_ID are required' },
         { status: 500 }
       );
     }

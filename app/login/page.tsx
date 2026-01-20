@@ -14,6 +14,10 @@ function LoginForm() {
   const [totpCode, setTotpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [needsTotp, setNeedsTotp] = useState(false);
+  const [needsOAuth, setNeedsOAuth] = useState(false);
+  const [oauthUserCode, setOauthUserCode] = useState('');
+  const [oauthVerificationUri, setOauthVerificationUri] = useState('');
+  const [oauthPolling, setOauthPolling] = useState(false);
   const isAddingAccount = searchParams.get('addAccount') === 'true';
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +55,8 @@ function LoginForm() {
           if (data.requiresTotp) {
             setNeedsTotp(true);
             toast.error(data.error || 'Требуется код TOTP');
+          } else if (data.requiresOAuth) {
+            await startOAuthFlow(email);
           } else {
             toast.error(data.error || 'Ошибка входа');
           }
@@ -66,6 +72,95 @@ function LoginForm() {
       toast.error('Ошибка соединения');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startOAuthFlow = async (accountId: string) => {
+    try {
+      setNeedsOAuth(true);
+      setOauthPolling(true);
+      
+      const deviceCodeRes = await fetch('/api/auth/oauth/device-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId }),
+      });
+
+      if (!deviceCodeRes.ok) {
+        const errorData = await deviceCodeRes.json();
+        toast.error(errorData.error || 'Ошибка запроса OAuth кода');
+        setOauthPolling(false);
+        return;
+      }
+
+      const deviceData = await deviceCodeRes.json();
+      setOauthUserCode(deviceData.userCode);
+      setOauthVerificationUri(deviceData.verificationUri || deviceData.verificationUriComplete);
+
+      if (deviceData.verificationUriComplete) {
+        window.open(deviceData.verificationUriComplete, '_blank');
+      }
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const pollRes = await fetch('/api/auth/oauth/poll', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              deviceCode: deviceData.deviceCode,
+              accountId,
+              interval: deviceData.interval || 5,
+              expiresIn: deviceData.expiresIn || 600,
+            }),
+          });
+
+          const pollData = await pollRes.json();
+
+          if (pollData.success) {
+            clearInterval(pollInterval);
+            setOauthPolling(false);
+            toast.success('OAuth авторизация успешна');
+            
+            const loginRes = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password: '', totpCode: undefined }),
+            });
+
+            const loginData = await loginRes.json();
+
+            if (loginRes.ok && loginData.success) {
+              toast.success('Вход выполнен');
+              const redirectTo = searchParams.get('redirect') || '/mail';
+              router.push(redirectTo);
+              router.refresh();
+            } else {
+              toast.error(loginData.error || 'Ошибка входа после авторизации');
+            }
+          } else if (pollData.error === 'expired_token' || pollData.error === 'access_denied') {
+            clearInterval(pollInterval);
+            setOauthPolling(false);
+            toast.error(pollData.errorDescription || 'Авторизация отменена или истекла');
+            setNeedsOAuth(false);
+          } else if (pollData.error !== 'authorization_pending' && pollData.error !== 'slow_down') {
+            clearInterval(pollInterval);
+            setOauthPolling(false);
+            toast.error(pollData.errorDescription || 'Ошибка авторизации');
+          }
+        } catch (pollError) {
+          console.error('Polling error:', pollError);
+        }
+      }, (deviceData.interval || 5) * 1000);
+
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setOauthPolling(false);
+        toast.error('Время ожидания авторизации истекло');
+      }, (deviceData.expiresIn || 600) * 1000);
+    } catch (error) {
+      console.error('OAuth flow error:', error);
+      toast.error('Ошибка запуска OAuth авторизации');
+      setOauthPolling(false);
     }
   };
 
@@ -131,6 +226,38 @@ function LoginForm() {
               <p className="text-xs text-gray-500">
                 Введите 6-значный код из приложения-аутентификатора
               </p>
+            </div>
+          )}
+          {needsOAuth && (
+            <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <div className="text-sm font-medium text-gray-900">
+                Требуется OAuth авторизация
+              </div>
+              <div className="space-y-2 text-sm text-gray-700">
+                <p>1. Перейдите по ссылке ниже и введите код:</p>
+                <div className="flex items-center gap-2">
+                  <code className="rounded bg-white px-3 py-2 text-lg font-mono font-bold text-blue-600">
+                    {oauthUserCode}
+                  </code>
+                </div>
+                {oauthVerificationUri && (
+                  <div className="pt-2">
+                    <a
+                      href={oauthVerificationUri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Открыть страницу авторизации
+                    </a>
+                  </div>
+                )}
+                {oauthPolling && (
+                  <p className="text-xs text-gray-600">
+                    Ожидание авторизации...
+                  </p>
+                )}
+              </div>
             </div>
           )}
           <Button
