@@ -46,14 +46,25 @@ export async function POST(request: NextRequest) {
         const publicUrl = process.env.STALWART_PUBLIC_URL;
         if (publicUrl) {
           discoveryUrl = publicUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
-          logger.info(`OAuth discovery URL determined from STALWART_PUBLIC_URL: ${discoveryUrl}`);
+          logger.info(`[OAuth] Discovery URL determined from STALWART_PUBLIC_URL: ${discoveryUrl}`);
+        } else {
+          logger.error(`[OAuth] Discovery URL not configured. OAUTH_DISCOVERY_URL: ${process.env.OAUTH_DISCOVERY_URL || 'not set'}, STALWART_PUBLIC_URL: ${process.env.STALWART_PUBLIC_URL || 'not set'}`);
         }
       }
       const clientId = process.env.OAUTH_CLIENT_ID || '';
 
       if (!discoveryUrl || !clientId) {
+        logger.error(`[OAuth] Configuration missing. discoveryUrl: ${discoveryUrl || 'not set'}, clientId: ${clientId || 'not set'}`);
         return NextResponse.json(
-          { error: 'OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required' },
+          {
+            error: 'OAuth configuration missing',
+            details: {
+              discoveryUrl: discoveryUrl ? 'set' : 'not set',
+              clientId: clientId ? 'set' : 'not set',
+              stalwartPublicUrl: process.env.STALWART_PUBLIC_URL ? 'set' : 'not set',
+            },
+            hint: 'Please set STALWART_PUBLIC_URL (e.g., https://mail.pavlovteam.ru) or OAUTH_DISCOVERY_URL, and OAUTH_CLIENT_ID'
+          },
           { status: 500 }
         );
       }

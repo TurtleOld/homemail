@@ -34,7 +34,12 @@ if (!oauthDiscoveryUrl || oauthDiscoveryUrl.includes('example.com')) {
   const publicUrl = process.env.STALWART_PUBLIC_URL;
   if (publicUrl) {
     oauthDiscoveryUrl = publicUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
+    console.log(`[StalwartProvider] OAuth discovery URL determined from STALWART_PUBLIC_URL: ${oauthDiscoveryUrl}`);
+  } else {
+    console.error(`[StalwartProvider] OAuth discovery URL not configured. OAUTH_DISCOVERY_URL: ${process.env.OAUTH_DISCOVERY_URL || 'not set'}, STALWART_PUBLIC_URL: ${process.env.STALWART_PUBLIC_URL || 'not set'}`);
   }
+} else {
+  console.log(`[StalwartProvider] Using explicit OAUTH_DISCOVERY_URL: ${oauthDiscoveryUrl}`);
 }
 
 const config: StalwartConfig = {

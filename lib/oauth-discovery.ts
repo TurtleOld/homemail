@@ -26,6 +26,9 @@ export class OAuthDiscovery {
     }
 
     try {
+      const { logger } = await import('@/lib/logger');
+      logger.info(`[OAuthDiscovery] Attempting discovery at: ${this.discoveryUrl}`);
+      
       const response = await fetch(this.discoveryUrl, {
         method: 'GET',
         headers: {
@@ -34,6 +37,8 @@ export class OAuthDiscovery {
       });
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        logger.error(`[OAuthDiscovery] Discovery failed: ${response.status} ${response.statusText}, URL: ${this.discoveryUrl}, Response: ${errorText.substring(0, 200)}`);
         throw new Error(`Discovery failed: ${response.status} ${response.statusText}`);
       }
 
@@ -49,14 +54,29 @@ export class OAuthDiscovery {
         throw new Error('Missing token_endpoint in discovery response');
       }
 
+      logger.info(`[OAuthDiscovery] Discovery successful, issuer: ${data.issuer}, device_endpoint: ${data.device_authorization_endpoint}`);
+
       this.cachedDiscovery = data;
       this.cacheExpiry = now + this.CACHE_TTL;
 
       return data;
     } catch (error) {
+      const { logger } = await import('@/lib/logger');
       if (error instanceof TypeError && error.message.includes('fetch failed')) {
-        throw new Error(`Network error during OAuth discovery: ${error.message}`);
+        const cause = (error as any).cause;
+        logger.error(`[OAuthDiscovery] Network error during discovery, URL: ${this.discoveryUrl}`, {
+          message: error.message,
+          cause: cause ? {
+            code: cause.code,
+            errno: cause.errno,
+            syscall: cause.syscall,
+            address: cause.address,
+            port: cause.port,
+          } : undefined,
+        });
+        throw new Error(`Network error during OAuth discovery: ${error.message}. URL: ${this.discoveryUrl}. Check that STALWART_PUBLIC_URL is set correctly and the discovery endpoint is accessible.`);
       }
+      logger.error(`[OAuthDiscovery] Discovery error, URL: ${this.discoveryUrl}`, error);
       throw error;
     }
   }
