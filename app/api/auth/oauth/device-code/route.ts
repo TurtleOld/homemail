@@ -19,10 +19,6 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
     const isInternalBaseUrl = baseUrl.includes('stalwart') || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1') || /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'device-code/route.ts:19',message:'Device code request started',data:{stalwartBaseUrl:process.env.STALWART_BASE_URL,baseUrl:baseUrl,isInternalBaseUrl:isInternalBaseUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
-    // #endregion
-    
     let discoveryUrl = process.env.OAUTH_DISCOVERY_URL;
     let isPublicDiscoveryUrl = false;
     
@@ -52,16 +48,8 @@ export async function POST(request: NextRequest) {
       logger.info(`[OAuth] OAUTH_DISCOVERY_URL is public (${process.env.OAUTH_DISCOVERY_URL}), but STALWART_BASE_URL is internal. Using internal URL for request: ${internalDiscoveryUrl}`);
       logger.info(`[OAuth] Public URL will be used for normalizing endpoints in discovery response`);
       discoveryUrl = internalDiscoveryUrl;
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'device-code/route.ts:62',message:'Using internal discovery URL',data:{publicDiscoveryUrl:process.env.OAUTH_DISCOVERY_URL,internalDiscoveryUrl:internalDiscoveryUrl,baseUrl:baseUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,D'})}).catch(()=>{});
-      // #endregion
     } else {
       logger.info(`[OAuth] Using explicit OAUTH_DISCOVERY_URL: ${discoveryUrl}`);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'device-code/route.ts:65',message:'Using explicit discovery URL',data:{discoveryUrl:discoveryUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
-      // #endregion
     }
     const clientId = process.env.OAUTH_CLIENT_ID || '';
 

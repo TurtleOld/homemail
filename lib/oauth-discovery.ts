@@ -88,56 +88,27 @@ async function resolveUrlToIp(url: string): Promise<string> {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:86',message:'resolveUrlToIp entry',data:{url:url,hostname:hostname,port:urlObj.port},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    
     if (hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
       if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) && !isDockerInternalIp(hostname) && !isAllowedHostIp(hostname)) {
         throw new Error(`URL contains external IP address ${hostname}. This will not work for Docker container communication. Please use container hostname, internal IP, or add IP to ALLOWED_DOCKER_NETWORKS.`);
       }
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:95',message:'resolveUrlToIp - localhost/IP path',data:{url:url,hostname:hostname,returning:url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       
       return url;
     }
     
     const isContainerName = !hostname.includes('.') || hostname === 'stalwart' || hostname === 'homemail-stalwart' || hostname.startsWith('homemail-');
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:100',message:'resolveUrlToIp - checking container name',data:{hostname:hostname,isContainerName:isContainerName,includesStalwart:hostname.includes('stalwart')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    
     if (isContainerName || hostname.includes('stalwart')) {
       const ip = await resolveHostnameToIp(hostname);
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:103',message:'resolveUrlToIp - DNS resolution result',data:{hostname:hostname,resolvedIp:ip,isDockerInternal:ip?isDockerInternalIp(ip):false,isAllowedHost:ip?isAllowedHostIp(ip):false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      
       if (ip && (isDockerInternalIp(ip) || isAllowedHostIp(ip))) {
         urlObj.hostname = ip;
-        const resolved = urlObj.toString();
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:106',message:'resolveUrlToIp - resolved to IP',data:{originalUrl:url,resolvedUrl:resolved,ip:ip},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-        
-        return resolved;
+        return urlObj.toString();
       }
     }
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:111',message:'resolveUrlToIp - returning original URL',data:{url:url,reason:'not container name or DNS resolution failed'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    
     return url;
-  } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:115',message:'resolveUrlToIp - error',data:{url:url,error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
+  } catch {
     return url;
   }
 }
@@ -163,23 +134,11 @@ export class OAuthDiscovery {
       const { logger } = await import('@/lib/logger');
       logger.info(`[OAuthDiscovery] Attempting discovery at: ${this.discoveryUrl}`);
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:153',message:'Discovery attempt started',data:{discoveryUrl:this.discoveryUrl,stalwartBaseUrl:process.env.STALWART_BASE_URL,stalwartPublicUrl:process.env.STALWART_PUBLIC_URL,oauthDiscoveryUrl:process.env.OAUTH_DISCOVERY_URL},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-      // #endregion
-      
       const resolvedUrl = await resolveUrlToIp(this.discoveryUrl);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:159',message:'URL resolved',data:{originalUrl:this.discoveryUrl,resolvedUrl:resolvedUrl,urlChanged:resolvedUrl!==this.discoveryUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       
       if (resolvedUrl !== this.discoveryUrl) {
         logger.info(`[OAuthDiscovery] Resolved discovery URL to IP: ${this.discoveryUrl} -> ${resolvedUrl}`);
       }
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:165',message:'Before fetch request',data:{url:resolvedUrl,method:'GET'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,D'})}).catch(()=>{});
-      // #endregion
       
       const response = await fetch(resolvedUrl, {
         method: 'GET',
@@ -187,18 +146,9 @@ export class OAuthDiscovery {
           'Accept': 'application/json',
         },
       });
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:172',message:'After fetch request',data:{status:response.status,statusText:response.statusText,ok:response.ok,url:resolvedUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,D'})}).catch(()=>{});
-      // #endregion
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/fa9b7cc5-98e5-4a0a-936d-4178fa20d3d1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'oauth-discovery.ts:175',message:'Discovery failed - 404 error',data:{status:response.status,statusText:response.statusText,url:resolvedUrl,originalUrl:this.discoveryUrl,errorText:errorText.substring(0,500),stalwartBaseUrl:process.env.STALWART_BASE_URL,networkMode:process.env.NETWORK_MODE},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,D,E'})}).catch(()=>{});
-        // #endregion
-        
         logger.error(`[OAuthDiscovery] Discovery failed: ${response.status} ${response.statusText}, URL: ${this.discoveryUrl}, Response: ${errorText.substring(0, 200)}`);
         throw new Error(`Discovery failed: ${response.status} ${response.statusText}`);
       }

@@ -20,20 +20,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
+    const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
     const isInternalBaseUrl = baseUrl.includes('stalwart') || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1') || /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
-    
-    if (isInternalBaseUrl) {
-      try {
-        const urlObj = new URL(baseUrl);
-        if (urlObj.port === '9080') {
-          urlObj.port = '8080';
-          baseUrl = urlObj.toString();
-          logger.info(`[OAuth] Normalized STALWART_BASE_URL port 9080 -> 8080 for internal requests: ${process.env.STALWART_BASE_URL} -> ${baseUrl}`);
-        }
-      } catch {
-      }
-    }
     
     let discoveryUrl = process.env.OAUTH_DISCOVERY_URL;
     let isPublicDiscoveryUrl = false;
