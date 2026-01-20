@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const authMode = (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer' | 'oauth') || 'basic';
     const shouldUseOAuth = useOAuth !== undefined ? useOAuth : authMode === 'oauth';
     
-    if (shouldUseOAuth) {
+    if (shouldUseOAuth || authMode === 'oauth') {
       const discoveryUrl = process.env.OAUTH_DISCOVERY_URL || 
         (process.env.STALWART_BASE_URL?.replace(/\/$/, '') + '/.well-known/oauth-authorization-server');
       const clientId = process.env.OAUTH_CLIENT_ID || '';
@@ -124,6 +124,13 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         );
       }
+    }
+    
+    if (authMode === 'oauth') {
+      return NextResponse.json(
+        { error: 'OAuth authentication required. Please authorize first.', requiresOAuth: true },
+        { status: 401 }
+      );
     }
     
     if (!password) {
