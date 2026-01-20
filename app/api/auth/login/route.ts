@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createSession } from '@/lib/session';
+import { createSession, regenerateSession, getSession } from '@/lib/session';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { validateOrigin } from '@/lib/csrf';
 import { getMailProvider, getMailProviderForAccount, ensureAccount } from '@/lib/get-provider';
@@ -9,6 +9,8 @@ import { addUserAccount, setActiveAccount, type UserAccount } from '@/lib/storag
 import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
 import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
 import type { Account } from '@/lib/types';
+import { SecurityLogger } from '@/lib/security-logger';
+import { checkBruteForce, recordFailedAttempt, recordSuccess } from '@/lib/brute-force-protection';
 
 const loginSchema = z.object({
   email: z.string().min(1),
@@ -19,15 +21,24 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   if (!validateOrigin(request)) {
+    SecurityLogger.logCsrfViolation(request);
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
   }
 
-  const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-  const rateLimit = checkRateLimit(ip, 'login');
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown';
+
+  const rateLimit = checkRateLimit(ip, 'login', request);
 
   if (!rateLimit.allowed) {
+    SecurityLogger.logRateLimitExceeded(request, ip, 'login');
     return NextResponse.json(
-      { error: 'Too many requests', resetAt: rateLimit.resetAt },
+      {
+        error: 'Too many requests',
+        resetAt: rateLimit.resetAt,
+        blockedUntil: rateLimit.blockedUntil
+      },
       { status: 429 }
     );
   }
@@ -35,6 +46,18 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, password, totpCode, useOAuth } = loginSchema.parse(body);
+
+    const bruteForceCheck = checkBruteForce(ip, email, request);
+    if (!bruteForceCheck.allowed) {
+      SecurityLogger.logLoginBlocked(request, email, bruteForceCheck.reason || 'Brute force protection');
+      return NextResponse.json(
+        {
+          error: bruteForceCheck.reason || 'Too many failed login attempts',
+          blockedUntil: bruteForceCheck.blockedUntil
+        },
+        { status: 429 }
+      );
+    }
 
     const accountId = email;
     const authMode = (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer' | 'oauth') || 'basic';
@@ -124,10 +147,18 @@ export async function POST(request: NextRequest) {
 
         if (!account) {
           logger.error('Account not found in session for:', email);
+          recordFailedAttempt(ip, email);
+          SecurityLogger.logLoginFailed(request, email, 'Account not found in session');
           return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
         }
 
-        await createSession(accountId, email);
+        const existingSession = await getSession(request);
+        const sessionId = existingSession
+          ? await regenerateSession(existingSession.sessionId, accountId, email, request)
+          : await createSession(accountId, email, request);
+
+        recordSuccess(ip, email);
+        SecurityLogger.logLoginSuccess(request, email, accountId);
 
         const userAccount: UserAccount = {
           id: accountId,
@@ -151,6 +182,8 @@ export async function POST(request: NextRequest) {
       } catch (oauthError) {
         const errorMessage = oauthError instanceof Error ? oauthError.message : String(oauthError);
         logger.error('OAuth login error:', errorMessage);
+        recordFailedAttempt(ip, email);
+        SecurityLogger.logLoginFailed(request, email, `OAuth error: ${errorMessage}`);
         
         if (errorMessage.includes('token required') || errorMessage.includes('authorize')) {
           return NextResponse.json(
@@ -228,6 +261,8 @@ export async function POST(request: NextRequest) {
           
           if (!jmapAccount) {
             logger.error('Account not found in session for:', email);
+            recordFailedAttempt(ip, email);
+            SecurityLogger.logLoginFailed(request, email, 'Account not found in session');
             return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
           }
           
@@ -241,6 +276,8 @@ export async function POST(request: NextRequest) {
         } catch (tempError) {
           const errorMessage = tempError instanceof Error ? tempError.message : String(tempError);
           logger.error('Temporary client auth error:', errorMessage);
+          recordFailedAttempt(ip, email);
+          SecurityLogger.logLoginFailed(request, email, `Temporary client auth error: ${errorMessage}`);
           throw tempError;
         }
       } else {
@@ -250,10 +287,18 @@ export async function POST(request: NextRequest) {
 
       if (!account) {
         logger.error('Account not found for:', email);
+        recordFailedAttempt(ip, email);
+        SecurityLogger.logLoginFailed(request, email, 'Account not found');
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
       }
 
-      await createSession(accountId, email);
+      const existingSession = await getSession(request);
+      const sessionId = existingSession
+        ? await regenerateSession(existingSession.sessionId, accountId, email, request)
+        : await createSession(accountId, email, request);
+
+      recordSuccess(ip, email);
+      SecurityLogger.logLoginSuccess(request, email, accountId);
 
       const userAccount: UserAccount = {
         id: accountId,
@@ -271,6 +316,9 @@ export async function POST(request: NextRequest) {
       logger.error('Provider error during login:', providerError);
       const errorMessage = providerError instanceof Error ? providerError.message : String(providerError);
       
+      recordFailedAttempt(ip, email);
+      SecurityLogger.logLoginFailed(request, email, `Provider error: ${errorMessage}`);
+
       if (errorMessage.includes('TOTP code required') || errorMessage.includes('TOTP') || errorMessage.includes('402') || errorMessage.includes('Payment Required')) {
         if (!totpCode) {
           return NextResponse.json({ error: 'Требуется код TOTP', requiresTotp: true }, { status: 401 });
