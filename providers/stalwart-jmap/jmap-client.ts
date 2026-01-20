@@ -258,23 +258,48 @@ export class JMAPClient {
   private normalizeSessionUrls(session: JMAPSession): JMAPSession {
     const baseUrlObj = new URL(this.baseUrl);
     const baseHostname = baseUrlObj.hostname;
+    const baseProtocol = baseUrlObj.protocol;
+    const basePort = baseUrlObj.port;
     
     const rewrite = (raw?: string): string | undefined => {
       if (!raw) return raw;
       try {
         const u = new URL(raw);
         const urlHostname = u.hostname;
+        const urlProtocol = u.protocol;
+        const urlPort = u.port;
         
-        if (urlHostname === 'localhost' || urlHostname === '127.0.0.1') {
-          console.log(`[JMAPClient] Normalizing localhost URL: ${raw} -> replacing hostname with ${baseHostname}`);
+        let needsNormalization = false;
+        
+        if (urlHostname === 'localhost' || urlHostname === '127.0.0.1' || (urlHostname.includes('.') && urlHostname !== baseHostname)) {
+          needsNormalization = true;
+        }
+        
+        if (urlProtocol !== baseProtocol || (basePort && urlPort !== basePort)) {
+          needsNormalization = true;
+        }
+        
+        if (needsNormalization) {
+          if (urlHostname !== baseHostname) {
+            console.log(`[JMAPClient] Normalizing URL: ${raw} -> replacing hostname ${urlHostname} with ${baseHostname}`);
+          }
+          if (urlProtocol !== baseProtocol) {
+            console.log(`[JMAPClient] Normalizing URL: replacing protocol ${urlProtocol} with ${baseProtocol}`);
+          }
+          if (basePort && urlPort !== basePort) {
+            console.log(`[JMAPClient] Normalizing URL: replacing port ${urlPort} with ${basePort}`);
+          }
+          
+          u.protocol = baseProtocol;
           u.hostname = baseHostname;
-          u.port = baseUrlObj.port || u.port;
-        } else if (urlHostname.includes('.') && urlHostname !== baseHostname) {
-          console.warn(`[JMAPClient] ⚠ Session URL contains domain name (${urlHostname}) instead of container name (${baseHostname})`);
-          console.warn(`[JMAPClient] ⚠ This happens when Stalwart server.hostname differs from STALWART_BASE_URL`);
-          console.warn(`[JMAPClient] ⚠ Replacing domain hostname with container hostname for Docker communication`);
-          u.hostname = baseHostname;
-          u.port = baseUrlObj.port || u.port;
+          if (basePort) {
+            u.port = basePort;
+          } else if (u.port && baseProtocol === 'http:' && u.port === '443') {
+            u.port = '';
+          } else if (u.port && baseProtocol === 'https:' && u.port === '80') {
+            u.port = '';
+          }
+          
           console.log(`[JMAPClient] ✓ Normalized URL: ${raw} -> ${u.toString()}`);
         }
         
@@ -402,17 +427,38 @@ export class JMAPClient {
       
       const baseUrlObj = new URL(this.baseUrl);
       const baseHostname = baseUrlObj.hostname;
+      const baseProtocol = baseUrlObj.protocol;
+      const basePort = baseUrlObj.port;
       
       try {
         const discoveryUrlObj = new URL(sessionUrl);
         const discoveryHostname = discoveryUrlObj.hostname;
+        const discoveryProtocol = discoveryUrlObj.protocol;
+        const discoveryPort = discoveryUrlObj.port;
+        
+        let needsNormalization = false;
         
         if (discoveryHostname !== baseHostname && (discoveryHostname.includes('.') || discoveryHostname === 'localhost' || discoveryHostname === '127.0.0.1')) {
-          console.warn(`[JMAPClient] ⚠ Discovery returned URL with different hostname: ${discoveryHostname} (expected: ${baseHostname})`);
-          console.warn(`[JMAPClient] ⚠ Stalwart server.hostname (${discoveryHostname}) differs from STALWART_BASE_URL hostname (${baseHostname})`);
-          console.warn(`[JMAPClient] ⚠ Replacing discovery hostname with baseUrl hostname for Docker container communication`);
+          needsNormalization = true;
+        }
+        
+        if (discoveryProtocol !== baseProtocol || (basePort && discoveryPort !== basePort)) {
+          needsNormalization = true;
+        }
+        
+        if (needsNormalization) {
+          console.warn(`[JMAPClient] ⚠ Discovery returned URL with different hostname/protocol/port: ${discoveryHostname}:${discoveryPort} (${discoveryProtocol}) vs ${baseHostname}:${basePort} (${baseProtocol})`);
+          console.warn(`[JMAPClient] ⚠ Stalwart server configuration differs from STALWART_BASE_URL`);
+          console.warn(`[JMAPClient] ⚠ Replacing with baseUrl values for Docker container communication`);
+          discoveryUrlObj.protocol = baseProtocol;
           discoveryUrlObj.hostname = baseHostname;
-          discoveryUrlObj.port = baseUrlObj.port || discoveryUrlObj.port;
+          if (basePort) {
+            discoveryUrlObj.port = basePort;
+          } else if (discoveryPort && baseProtocol === 'http:' && discoveryPort === '443') {
+            discoveryUrlObj.port = '';
+          } else if (discoveryPort && baseProtocol === 'https:' && discoveryPort === '80') {
+            discoveryUrlObj.port = '';
+          }
           sessionUrl = discoveryUrlObj.toString();
           console.log(`[JMAPClient] ✓ Normalized sessionUrl: ${sessionUrl}`);
         }
