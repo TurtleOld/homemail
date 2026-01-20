@@ -84,7 +84,6 @@ export function AutoSortRuleEditor({
         actions,
         applyToExisting,
       });
-      toast.success('Правило сохранено');
       onClose();
       setName('');
       setFilterQuery('');

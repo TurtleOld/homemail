@@ -155,9 +155,7 @@ function LoginForm() {
               }
             }
             setOauthWindow(null);
-            
-            toast.success('OAuth авторизация успешна');
-            
+
             const loginRes = await fetch('/api/auth/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
