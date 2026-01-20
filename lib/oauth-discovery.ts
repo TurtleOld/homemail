@@ -42,7 +42,7 @@ export class OAuthDiscovery {
         throw new Error(`Discovery failed: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json() as OAuthDiscoveryResponse;
+      let data = await response.json() as OAuthDiscoveryResponse;
 
       if (!data.issuer) {
         throw new Error('Missing issuer in discovery response');
@@ -52,6 +52,44 @@ export class OAuthDiscovery {
       }
       if (!data.token_endpoint) {
         throw new Error('Missing token_endpoint in discovery response');
+      }
+
+      const publicUrl = process.env.STALWART_PUBLIC_URL;
+      if (publicUrl) {
+        const normalizeUrl = (url: string | undefined): string | undefined => {
+          if (!url) return url;
+          try {
+            const urlObj = new URL(url);
+            const isInternal = urlObj.hostname.includes('stalwart') || 
+                              urlObj.hostname === 'localhost' || 
+                              urlObj.hostname === '127.0.0.1' ||
+                              /^\d+\.\d+\.\d+\.\d+$/.test(urlObj.hostname);
+            
+            if (isInternal) {
+              const publicUrlObj = new URL(publicUrl);
+              urlObj.hostname = publicUrlObj.hostname;
+              urlObj.protocol = publicUrlObj.protocol;
+              if (publicUrlObj.port && publicUrlObj.port !== '80' && publicUrlObj.port !== '443') {
+                urlObj.port = publicUrlObj.port;
+              } else if (urlObj.protocol === 'https:') {
+                urlObj.port = '';
+              }
+              const normalized = urlObj.toString();
+              logger.info(`[OAuthDiscovery] Normalized internal URL to public: ${url} -> ${normalized}`);
+              return normalized;
+            }
+          } catch {
+          }
+          return url;
+        };
+
+        data = {
+          ...data,
+          issuer: normalizeUrl(data.issuer) || data.issuer,
+          device_authorization_endpoint: normalizeUrl(data.device_authorization_endpoint) || data.device_authorization_endpoint,
+          token_endpoint: normalizeUrl(data.token_endpoint) || data.token_endpoint,
+          authorization_endpoint: normalizeUrl(data.authorization_endpoint),
+        };
       }
 
       logger.info(`[OAuthDiscovery] Discovery successful, issuer: ${data.issuer}, device_endpoint: ${data.device_authorization_endpoint}`);
