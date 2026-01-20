@@ -8,6 +8,26 @@ export interface OAuthDiscoveryResponse {
   response_types_supported?: string[];
 }
 
+function normalizeInternalPort(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const isInternal = urlObj.hostname.includes('stalwart') || 
+                      urlObj.hostname === 'localhost' || 
+                      urlObj.hostname === '127.0.0.1' ||
+                      /^\d+\.\d+\.\d+\.\d+$/.test(urlObj.hostname);
+    
+    if (isInternal && urlObj.port === '9080') {
+      urlObj.port = '8080';
+      const normalized = urlObj.toString();
+      const { logger } = require('@/lib/logger');
+      logger.info(`[OAuthDiscovery] Normalized internal port 9080 -> 8080: ${url} -> ${normalized}`);
+      return normalized;
+    }
+  } catch {
+  }
+  return url;
+}
+
 export class OAuthDiscovery {
   private readonly discoveryUrl: string;
   private cachedDiscovery: OAuthDiscoveryResponse | null = null;
@@ -15,7 +35,7 @@ export class OAuthDiscovery {
   private readonly CACHE_TTL = 3600000;
 
   constructor(discoveryUrl: string) {
-    this.discoveryUrl = discoveryUrl.replace(/\/$/, '');
+    this.discoveryUrl = normalizeInternalPort(discoveryUrl.replace(/\/$/, ''));
   }
 
   async discover(): Promise<OAuthDiscoveryResponse> {

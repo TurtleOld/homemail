@@ -16,8 +16,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'accountId is required' }, { status: 400 });
     }
 
-    const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
+    let baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
     const isInternalBaseUrl = baseUrl.includes('stalwart') || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1') || /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
+    
+    if (isInternalBaseUrl) {
+      try {
+        const urlObj = new URL(baseUrl);
+        if (urlObj.port === '9080') {
+          urlObj.port = '8080';
+          baseUrl = urlObj.toString();
+          logger.info(`[OAuth] Normalized STALWART_BASE_URL port 9080 -> 8080 for internal requests: ${process.env.STALWART_BASE_URL} -> ${baseUrl}`);
+        }
+      } catch {
+      }
+    }
     
     let discoveryUrl = process.env.OAUTH_DISCOVERY_URL;
     let isPublicDiscoveryUrl = false;
@@ -45,7 +57,7 @@ export async function POST(request: NextRequest) {
       }
     } else if (isPublicDiscoveryUrl && isInternalBaseUrl) {
       const internalDiscoveryUrl = baseUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
-      logger.info(`[OAuth] OAUTH_DISCOVERY_URL is public (${discoveryUrl}), but STALWART_BASE_URL is internal. Using internal URL for request: ${internalDiscoveryUrl}`);
+      logger.info(`[OAuth] OAUTH_DISCOVERY_URL is public (${process.env.OAUTH_DISCOVERY_URL}), but STALWART_BASE_URL is internal. Using internal URL for request: ${internalDiscoveryUrl}`);
       logger.info(`[OAuth] Public URL will be used for normalizing endpoints in discovery response`);
       discoveryUrl = internalDiscoveryUrl;
     } else {
