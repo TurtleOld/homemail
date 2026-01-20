@@ -16,8 +16,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'accountId is required' }, { status: 400 });
     }
 
-    const discoveryUrl = process.env.OAUTH_DISCOVERY_URL || 
-      (process.env.STALWART_BASE_URL?.replace(/\/$/, '') + '/.well-known/oauth-authorization-server');
+    let discoveryUrl = process.env.OAUTH_DISCOVERY_URL;
+    if (!discoveryUrl || discoveryUrl.includes('example.com')) {
+      discoveryUrl = (process.env.STALWART_BASE_URL?.replace(/\/$/, '') || 'http://stalwart:8080') + '/.well-known/oauth-authorization-server';
+      logger.info(`OAuth discovery URL not set or contains example.com, using auto-detected: ${discoveryUrl}`);
+    }
     const clientId = process.env.OAUTH_CLIENT_ID || '';
 
     if (!discoveryUrl || !clientId) {

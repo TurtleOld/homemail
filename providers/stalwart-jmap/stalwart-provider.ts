@@ -29,13 +29,18 @@ interface StalwartConfig {
   oauthClientId?: string;
 }
 
+let oauthDiscoveryUrl = process.env.OAUTH_DISCOVERY_URL;
+if (!oauthDiscoveryUrl || oauthDiscoveryUrl.includes('example.com')) {
+  oauthDiscoveryUrl = (process.env.STALWART_BASE_URL?.replace(/\/$/, '') || 'http://stalwart:8080') + '/.well-known/oauth-authorization-server';
+}
+
 const config: StalwartConfig = {
   baseUrl: process.env.STALWART_BASE_URL || 'http://stalwart:8080',
   smtpHost: process.env.STALWART_SMTP_HOST || 'stalwart',
   smtpPort: parseInt(process.env.STALWART_SMTP_PORT || '587', 10),
   smtpSecure: process.env.STALWART_SMTP_SECURE === 'true',
   authMode: (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer' | 'oauth') || 'basic',
-  oauthDiscoveryUrl: process.env.OAUTH_DISCOVERY_URL || process.env.STALWART_BASE_URL?.replace(/\/$/, '') + '/.well-known/oauth-authorization-server',
+  oauthDiscoveryUrl,
   oauthClientId: process.env.OAUTH_CLIENT_ID || '',
 };
 
