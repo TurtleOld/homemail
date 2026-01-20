@@ -31,7 +31,12 @@ interface StalwartConfig {
 
 let oauthDiscoveryUrl = process.env.OAUTH_DISCOVERY_URL;
 if (!oauthDiscoveryUrl || oauthDiscoveryUrl.includes('example.com')) {
-  oauthDiscoveryUrl = (process.env.STALWART_BASE_URL?.replace(/\/$/, '') || 'http://stalwart:8080') + '/.well-known/oauth-authorization-server';
+  const publicUrl = process.env.STALWART_PUBLIC_URL;
+  if (publicUrl) {
+    oauthDiscoveryUrl = publicUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
+  } else {
+    oauthDiscoveryUrl = (process.env.STALWART_BASE_URL?.replace(/\/$/, '') || 'http://stalwart:8080') + '/.well-known/oauth-authorization-server';
+  }
 }
 
 const config: StalwartConfig = {
