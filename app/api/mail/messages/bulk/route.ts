@@ -50,6 +50,15 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
     }
+    
+    const { logger } = await import('@/lib/logger');
+    logger.error('Error in bulk messages operation:', {
+      accountId: session?.accountId,
+      action: (error as any)?.action || 'unknown',
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

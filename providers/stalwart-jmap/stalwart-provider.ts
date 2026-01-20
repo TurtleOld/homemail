@@ -928,28 +928,39 @@ export class StalwartJMAPProvider implements MailProvider {
           const emailsToMove: Record<string, { mailboxIds: Record<string, boolean> }> = {};
           const emailsToDestroy: string[] = [];
 
-          for (const id of action.ids) {
-            const email = await client.getEmails([id], { accountId: actualAccountId, properties: ['mailboxIds'] });
-            if (email.length > 0) {
-              const currentMailboxIds = email[0].mailboxIds || {};
-              const isInTrash = currentMailboxIds[trashMailbox.id] === true;
+          try {
+            const emails = await client.getEmails(action.ids, { accountId: actualAccountId, properties: ['mailboxIds'] });
+            const emailMap = new Map(emails.map((email) => [email.id, email]));
 
-              if (isInTrash) {
-                emailsToDestroy.push(id);
+            for (const id of action.ids) {
+              const email = emailMap.get(id);
+              if (email) {
+                const currentMailboxIds = email.mailboxIds || {};
+                const isInTrash = currentMailboxIds[trashMailbox.id] === true;
+
+                if (isInTrash) {
+                  emailsToDestroy.push(id);
+                } else {
+                  const newMailboxIds: Record<string, boolean> = {};
+                  newMailboxIds[trashMailbox.id] = true;
+                  emailsToMove[id] = { mailboxIds: newMailboxIds };
+                }
               } else {
-                const newMailboxIds: Record<string, boolean> = {};
-                newMailboxIds[trashMailbox.id] = true;
-                emailsToMove[id] = { mailboxIds: newMailboxIds };
+                emailsToDestroy.push(id);
               }
             }
-          }
 
-          if (Object.keys(emailsToMove).length > 0) {
-            await client.bulkSetEmails(emailsToMove, actualAccountId);
-          }
+            if (Object.keys(emailsToMove).length > 0) {
+              await client.bulkSetEmails(emailsToMove, actualAccountId);
+            }
 
-          if (emailsToDestroy.length > 0) {
-            await client.destroyEmails(emailsToDestroy, actualAccountId);
+            if (emailsToDestroy.length > 0) {
+              await client.destroyEmails(emailsToDestroy, actualAccountId);
+            }
+          } catch (error) {
+            const { logger } = await import('@/lib/logger');
+            logger.error(`Error in bulk delete for account ${accountId}:`, error instanceof Error ? error.message : error);
+            throw error;
           }
         } else {
           await client.destroyEmails(action.ids, actualAccountId);
@@ -962,17 +973,27 @@ export class StalwartJMAPProvider implements MailProvider {
         const spamMailbox = mailboxes.find((mb) => mb.role === 'spam' || mb.role === 'junk');
 
         if (spamMailbox) {
-          const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
-          for (const id of action.ids) {
-            const email = await client.getEmails([id], { accountId: actualAccountId, properties: ['mailboxIds'] });
-            if (email.length > 0) {
-              const newMailboxIds: Record<string, boolean> = {};
-              newMailboxIds[spamMailbox.id] = true;
-              updates[id] = { mailboxIds: newMailboxIds };
+          try {
+            const emails = await client.getEmails(action.ids, { accountId: actualAccountId, properties: ['mailboxIds'] });
+            const emailMap = new Map(emails.map((email) => [email.id, email]));
+            const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
+
+            for (const id of action.ids) {
+              const email = emailMap.get(id);
+              if (email) {
+                const newMailboxIds: Record<string, boolean> = {};
+                newMailboxIds[spamMailbox.id] = true;
+                updates[id] = { mailboxIds: newMailboxIds };
+              }
             }
-          }
-          if (Object.keys(updates).length > 0) {
-            await client.bulkSetEmails(updates, actualAccountId);
+
+            if (Object.keys(updates).length > 0) {
+              await client.bulkSetEmails(updates, actualAccountId);
+            }
+          } catch (error) {
+            const { logger } = await import('@/lib/logger');
+            logger.error(`Error in bulk spam for account ${accountId}:`, error instanceof Error ? error.message : error);
+            throw error;
           }
         }
         return;
@@ -984,37 +1005,57 @@ export class StalwartJMAPProvider implements MailProvider {
         const inboxMailbox = mailboxes.find((mb) => mb.role === 'inbox');
 
         if (archiveMailbox) {
-          const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
-          for (const id of action.ids) {
-            const email = await client.getEmails([id], { accountId: actualAccountId, properties: ['mailboxIds'] });
-            if (email.length > 0) {
-              const currentMailboxIds = email[0].mailboxIds || {};
-              const newMailboxIds: Record<string, boolean> = { ...currentMailboxIds };
-              
-              if (inboxMailbox && currentMailboxIds[inboxMailbox.id]) {
-                delete newMailboxIds[inboxMailbox.id];
+          try {
+            const emails = await client.getEmails(action.ids, { accountId: actualAccountId, properties: ['mailboxIds'] });
+            const emailMap = new Map(emails.map((email) => [email.id, email]));
+            const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
+
+            for (const id of action.ids) {
+              const email = emailMap.get(id);
+              if (email) {
+                const currentMailboxIds = email.mailboxIds || {};
+                const newMailboxIds: Record<string, boolean> = { ...currentMailboxIds };
+                
+                if (inboxMailbox && currentMailboxIds[inboxMailbox.id]) {
+                  delete newMailboxIds[inboxMailbox.id];
+                }
+                
+                newMailboxIds[archiveMailbox.id] = true;
+                updates[id] = { mailboxIds: newMailboxIds };
               }
-              
-              newMailboxIds[archiveMailbox.id] = true;
-              updates[id] = { mailboxIds: newMailboxIds };
             }
-          }
-          if (Object.keys(updates).length > 0) {
-            await client.bulkSetEmails(updates, actualAccountId);
+
+            if (Object.keys(updates).length > 0) {
+              await client.bulkSetEmails(updates, actualAccountId);
+            }
+          } catch (error) {
+            const { logger } = await import('@/lib/logger');
+            logger.error(`Error in bulk archive for account ${accountId}:`, error instanceof Error ? error.message : error);
+            throw error;
           }
         } else if (inboxMailbox) {
-          const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
-          for (const id of action.ids) {
-            const email = await client.getEmails([id], { accountId: actualAccountId, properties: ['mailboxIds'] });
-            if (email.length > 0) {
-              const currentMailboxIds = email[0].mailboxIds || {};
-              const newMailboxIds: Record<string, boolean> = { ...currentMailboxIds };
-              delete newMailboxIds[inboxMailbox.id];
-              updates[id] = { mailboxIds: newMailboxIds };
+          try {
+            const emails = await client.getEmails(action.ids, { accountId: actualAccountId, properties: ['mailboxIds'] });
+            const emailMap = new Map(emails.map((email) => [email.id, email]));
+            const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
+
+            for (const id of action.ids) {
+              const email = emailMap.get(id);
+              if (email) {
+                const currentMailboxIds = email.mailboxIds || {};
+                const newMailboxIds: Record<string, boolean> = { ...currentMailboxIds };
+                delete newMailboxIds[inboxMailbox.id];
+                updates[id] = { mailboxIds: newMailboxIds };
+              }
             }
-          }
-          if (Object.keys(updates).length > 0) {
-            await client.bulkSetEmails(updates, actualAccountId);
+
+            if (Object.keys(updates).length > 0) {
+              await client.bulkSetEmails(updates, actualAccountId);
+            }
+          } catch (error) {
+            const { logger } = await import('@/lib/logger');
+            logger.error(`Error in bulk archive for account ${accountId}:`, error instanceof Error ? error.message : error);
+            throw error;
           }
         }
         return;
