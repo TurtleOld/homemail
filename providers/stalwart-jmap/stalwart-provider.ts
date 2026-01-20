@@ -29,12 +29,22 @@ interface StalwartConfig {
   oauthClientId?: string;
 }
 
+const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
+const isInternalBaseUrl = baseUrl.includes('stalwart') || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1') || /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
+
 let oauthDiscoveryUrl = process.env.OAUTH_DISCOVERY_URL;
+let isPublicDiscoveryUrl = false;
+
+if (oauthDiscoveryUrl) {
+  try {
+    const url = new URL(oauthDiscoveryUrl);
+    isPublicDiscoveryUrl = url.protocol === 'https:' && !url.hostname.includes('localhost') && !url.hostname.includes('127.0.0.1') && !/^\d+\.\d+\.\d+\.\d+$/.test(url.hostname);
+  } catch {
+  }
+}
+
 if (!oauthDiscoveryUrl || oauthDiscoveryUrl.includes('example.com')) {
-  const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
-  const isInternalUrl = baseUrl.includes('stalwart') || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1') || /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
-  
-  if (isInternalUrl) {
+  if (isInternalBaseUrl) {
     oauthDiscoveryUrl = baseUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
     console.log(`[StalwartProvider] Using internal discovery URL from STALWART_BASE_URL: ${oauthDiscoveryUrl}`);
   } else {
@@ -46,6 +56,11 @@ if (!oauthDiscoveryUrl || oauthDiscoveryUrl.includes('example.com')) {
       console.error(`[StalwartProvider] OAuth discovery URL not configured. OAUTH_DISCOVERY_URL: ${process.env.OAUTH_DISCOVERY_URL || 'not set'}, STALWART_PUBLIC_URL: ${process.env.STALWART_PUBLIC_URL || 'not set'}, STALWART_BASE_URL: ${baseUrl}`);
     }
   }
+} else if (isPublicDiscoveryUrl && isInternalBaseUrl) {
+  const internalDiscoveryUrl = baseUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
+  console.log(`[StalwartProvider] OAUTH_DISCOVERY_URL is public (${process.env.OAUTH_DISCOVERY_URL}), but STALWART_BASE_URL is internal. Using internal URL for request: ${internalDiscoveryUrl}`);
+  console.log(`[StalwartProvider] Public URL will be used for normalizing endpoints in discovery response`);
+  oauthDiscoveryUrl = internalDiscoveryUrl;
 } else {
   console.log(`[StalwartProvider] Using explicit OAUTH_DISCOVERY_URL: ${oauthDiscoveryUrl}`);
 }
