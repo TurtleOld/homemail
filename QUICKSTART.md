@@ -117,8 +117,8 @@ sudo certbot --nginx -d your-domain.com
 
 ```env
 MAIL_PROVIDER=stalwart
-STALWART_BASE_URL=https://mail.pavlovteam.ru
-STALWART_SMTP_HOST=mail.pavlovteam.ru
+STALWART_BASE_URL=https://example.com
+STALWART_SMTP_HOST=example.com
 STALWART_SMTP_PORT=587
 STALWART_SMTP_SECURE=false
 STALWART_AUTH_MODE=basic

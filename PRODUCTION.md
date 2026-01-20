@@ -180,7 +180,11 @@ STALWART_BASE_URL=https://mail.pavlovteam.ru
 STALWART_SMTP_HOST=mail.pavlovteam.ru
 STALWART_SMTP_PORT=587
 STALWART_SMTP_SECURE=false
-STALWART_AUTH_MODE=basic
+STALWART_AUTH_MODE=oauth
+
+# OAuth Configuration (требуется если STALWART_AUTH_MODE=oauth)
+OAUTH_DISCOVERY_URL=https://mail.pavlovteam.ru/.well-known/oauth-authorization-server
+OAUTH_CLIENT_ID=your-oauth-client-id
 
 # Application
 NODE_ENV=production
@@ -267,7 +271,7 @@ curl http://localhost:3000/api/health
 
 ### Ошибки подключения к Stalwart
 
-1. Проверьте доступность: `curl https://mail.pavlovteam.ru/.well-known/jmap`
+1. Проверьте доступность: `curl https://example.com/.well-known/jmap`
 2. Проверьте учетные данные в Stalwart
 3. Проверьте firewall правила
 

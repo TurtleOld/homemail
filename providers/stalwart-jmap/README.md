@@ -10,8 +10,8 @@
 
 ```env
 MAIL_PROVIDER=stalwart
-STALWART_BASE_URL=https://mail.pavlovteam.ru
-STALWART_SMTP_HOST=mail.pavlovteam.ru
+STALWART_BASE_URL=https://example.com
+STALWART_SMTP_HOST=example.com
 STALWART_SMTP_PORT=587
 STALWART_SMTP_SECURE=false
 STALWART_AUTH_MODE=basic
@@ -20,8 +20,8 @@ STALWART_AUTH_MODE=basic
 ### Описание переменных
 
 - `MAIL_PROVIDER=stalwart` - включает использование Stalwart provider
-- `STALWART_BASE_URL` - базовый URL сервера (https://mail.pavlovteam.ru)
-- `STALWART_SMTP_HOST` - хост SMTP сервера (mail.pavlovteam.ru)
+- `STALWART_BASE_URL` - базовый URL сервера (https://example.com)
+- `STALWART_SMTP_HOST` - хост SMTP сервера (example.com)
 - `STALWART_SMTP_PORT` - порт SMTP (587 для STARTTLS)
 - `STALWART_SMTP_SECURE` - `false` для STARTTLS, `true` для SMTPS
 - `STALWART_AUTH_MODE` - режим аутентификации (`basic` или `oauth`)
@@ -31,23 +31,23 @@ STALWART_AUTH_MODE=basic
 ### 1. Проверка JMAP Discovery
 
 ```bash
-curl https://mail.pavlovteam.ru/.well-known/jmap
+curl https://example.com/.well-known/jmap
 ```
 
 Ожидаемый ответ:
 ```json
 {
-  "apiUrl": "https://mail.pavlovteam.ru/jmap",
-  "downloadUrl": "https://mail.pavlovteam.ru/download/{accountId}/{blobId}/{name}",
-  "uploadUrl": "https://mail.pavlovteam.ru/upload/{accountId}",
-  "eventSourceUrl": "https://mail.pavlovteam.ru/events/{types}/{closeAfter}/{ping}"
+  "apiUrl": "https://example.com/jmap",
+  "downloadUrl": "https://example.com/download/{accountId}/{blobId}/{name}",
+  "uploadUrl": "https://example.com/upload/{accountId}",
+  "eventSourceUrl": "https://example.com/events/{types}/{closeAfter}/{ping}"
 }
 ```
 
 ### 2. Проверка JMAP Session
 
 ```bash
-curl -X POST https://mail.pavlovteam.ru/jmap \
+curl -X POST https://example.com/jmap \
   -H "Content-Type: application/json" \
   -H "Authorization: Basic $(echo -n 'user@example.com:password' | base64)" \
   -d '{
@@ -59,12 +59,12 @@ curl -X POST https://mail.pavlovteam.ru/jmap \
 ### 3. Проверка SMTP (STARTTLS на порту 587)
 
 ```bash
-telnet mail.pavlovteam.ru 587
+telnet example.com 587
 ```
 
 Или используйте `openssl`:
 ```bash
-openssl s_client -connect mail.pavlovteam.ru:587 -starttls smtp
+openssl s_client -connect example.com:587 -starttls smtp
 ```
 
 ## Создание первого администратора
@@ -128,7 +128,7 @@ sudo systemctl restart stalwart
    ```
 
 5. **Проверьте доступ**:
-   - Веб-интерфейс: `https://mail.pavlovteam.ru`
+   - Веб-интерфейс: `https://example.com`
    - JMAP: используйте учетные данные `admin@pavlovteam.ru` / `admin123`
 
 ### Создание обычных пользователей
@@ -156,7 +156,7 @@ superuser = false
 
 ```toml
 [server]
-hostname = "mail.pavlovteam.ru"
+hostname = "example.com"
 
 [server.listener."https"]
 bind = ["0.0.0.0:443"]
@@ -175,7 +175,7 @@ contact = ["mailto:admin@pavlovteam.ru"]
 ### 2. Проверка доступности HTTPS
 
 ```bash
-curl -I https://mail.pavlovteam.ru/.well-known/jmap
+curl -I https://example.com/.well-known/jmap
 ```
 
 Должен вернуть `200 OK` с валидным SSL сертификатом.
@@ -183,7 +183,7 @@ curl -I https://mail.pavlovteam.ru/.well-known/jmap
 ### 3. Проверка JMAP endpoint
 
 ```bash
-curl https://mail.pavlovteam.ru/jmap
+curl https://example.com/jmap
 ```
 
 Должен вернуть JSON ответ (может требовать аутентификацию).
@@ -255,7 +255,7 @@ NODE_ENV=production
 
 ### Ошибка "JMAP discovery failed"
 
-- Проверьте доступность `https://mail.pavlovteam.ru/.well-known/jmap`
+- Проверьте доступность `https://example.com/.well-known/jmap`
 - Убедитесь, что TLS настроен корректно
 - Проверьте firewall правила
 
@@ -267,7 +267,7 @@ NODE_ENV=production
 
 ### Ошибка "SMTP send failed"
 
-- Проверьте доступность `mail.pavlovteam.ru:587`
+- Проверьте доступность `example.com:587`
 - Убедитесь, что STARTTLS работает
 - Проверьте учетные данные для SMTP auth
 - Проверьте, что порт 587 не заблокирован firewall

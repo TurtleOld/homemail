@@ -71,7 +71,7 @@ sudo systemctl restart stalwart
 
 ### Вариант 3: Через веб-интерфейс Stalwart (если доступен)
 
-1. Откройте `https://mail.pavlovteam.ru` (или ваш домен)
+1. Откройте `https://example.com` (или ваш домен)
 2. Если есть начальная настройка, создайте первого администратора
 3. Войдите и создайте пользователей через веб-интерфейс
 
@@ -80,7 +80,7 @@ sudo systemctl restart stalwart
 ### Тест 1: Проверка JMAP Discovery
 
 ```bash
-curl https://mail.pavlovteam.ru/.well-known/jmap
+curl https://example.com/.well-known/jmap
 ```
 
 Должен вернуть JSON с `apiUrl`, `downloadUrl`, и т.д.
@@ -88,7 +88,7 @@ curl https://mail.pavlovteam.ru/.well-known/jmap
 ### Тест 2: Проверка JMAP Session
 
 ```bash
-curl -X POST https://mail.pavlovteam.ru/jmap \
+curl -X POST https://example.com/jmap \
   -H "Content-Type: application/json" \
   -H "Authorization: Basic $(echo -n 'admin@pavlovteam.ru:your_password' | base64)" \
   -d '{
@@ -143,12 +143,12 @@ superuser = false
 
 1. **Проверьте доступность сервера:**
    ```bash
-   curl -I https://mail.pavlovteam.ru/.well-known/jmap
+   curl -I https://example.com/.well-known/jmap
    ```
 
 2. **Проверьте TLS сертификат:**
    ```bash
-   openssl s_client -connect mail.pavlovteam.ru:443 -servername mail.pavlovteam.ru
+   openssl s_client -connect example.com:443 -servername example.com
    ```
 
 3. **Проверьте логи Stalwart:**
@@ -163,7 +163,7 @@ superuser = false
 1. Убедитесь, что `.env.production` содержит правильные настройки:
    ```env
    MAIL_PROVIDER=stalwart
-   STALWART_BASE_URL=https://mail.pavlovteam.ru
+   STALWART_BASE_URL=https://example.com
    ```
 
 2. Проверьте логи webmail:
