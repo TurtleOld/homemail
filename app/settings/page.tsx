@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star } from 'lucide-react';
+import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import type { Folder, SavedFilter, AutoSortRule } from '@/lib/types';
 import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
 import { ContactsManager } from '@/components/contacts-manager';
+import { MonitoringDashboard } from '@/components/monitoring-dashboard';
 
 interface Signature {
   id: string;
@@ -110,7 +111,7 @@ async function deleteFolder(folderId: string): Promise<void> {
   }
 }
 
-type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'contacts' | 'interface' | 'advanced';
+type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'contacts' | 'interface' | 'advanced' | 'monitoring';
 
 interface Tab {
   id: TabId;
@@ -128,6 +129,7 @@ function getTabs(theme: 'light' | 'dark'): Tab[] {
     { id: 'folders', label: 'Папки', icon: <FolderPlus className="h-4 w-4" /> },
     { id: 'filters', label: 'Фильтры', icon: <Filter className="h-4 w-4" /> },
     { id: 'contacts', label: 'Контакты', icon: <Users className="h-4 w-4" /> },
+    { id: 'monitoring', label: 'Мониторинг', icon: <Activity className="h-4 w-4" /> },
   ];
 }
 
@@ -786,23 +788,36 @@ function FiltersTab() {
           setEditingRule(undefined);
         }}
         onSave={async (ruleData) => {
-          const rule = editingRule
-            ? await saveFilterRule({ ...ruleData, id: editingRule.id })
-            : await saveFilterRule(ruleData);
-          queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
-          if (rule.applyToExisting) {
-            toast.info('Применение правила к существующим письмам...');
-            try {
-              const res = await fetch('/api/mail/filters/rules/apply', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ruleId: rule.id }),
-              });
-              if (!res.ok) throw new Error('Failed to apply rule');
-              toast.success('Правило применено к существующим письмам');
-            } catch (error) {
-              toast.error('Ошибка применения правила к существующим письмам');
+          try {
+            const rule = editingRule
+              ? await saveFilterRule({ ...ruleData, id: editingRule.id })
+              : await saveFilterRule(ruleData);
+            queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
+            
+            if (rule.applyToExisting) {
+              toast.info('Применение правила к существующим письмам...');
+              try {
+                const res = await fetch('/api/mail/filters/rules/apply', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ruleId: rule.id }),
+                });
+                
+                if (!res.ok) {
+                  const errorData = await res.json().catch(() => ({}));
+                  throw new Error(errorData.error || 'Failed to apply rule');
+                }
+                
+                toast.success('Правило сохранено и применено к существующим письмам');
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Ошибка применения правила к существующим письмам');
+                toast.success('Правило сохранено, но не применено к существующим письмам');
+              }
+            } else {
+              toast.success('Правило сохранено');
             }
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Ошибка сохранения правила');
           }
         }}
         folders={folders}
@@ -1349,6 +1364,7 @@ export default function SettingsPage() {
             {activeTab === 'folders' && <FoldersTab />}
             {activeTab === 'filters' && <FiltersTab />}
             {activeTab === 'contacts' && <ContactsManager />}
+            {activeTab === 'monitoring' && <MonitoringDashboard />}
           </div>
         </div>
       </div>
