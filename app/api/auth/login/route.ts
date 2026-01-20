@@ -42,13 +42,22 @@ export async function POST(request: NextRequest) {
     
     if (shouldUseOAuth || authMode === 'oauth') {
       let discoveryUrl = process.env.OAUTH_DISCOVERY_URL;
+
       if (!discoveryUrl || discoveryUrl.includes('example.com')) {
-        const publicUrl = process.env.STALWART_PUBLIC_URL;
-        if (publicUrl) {
-          discoveryUrl = publicUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
-          logger.info(`[OAuth] Discovery URL determined from STALWART_PUBLIC_URL: ${discoveryUrl}`);
+        const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
+        const isInternalUrl = baseUrl.includes('stalwart') || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1') || /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
+
+        if (isInternalUrl) {
+          discoveryUrl = baseUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
+          logger.info(`[OAuth] Using internal discovery URL from STALWART_BASE_URL: ${discoveryUrl}`);
         } else {
-          logger.error(`[OAuth] Discovery URL not configured. OAUTH_DISCOVERY_URL: ${process.env.OAUTH_DISCOVERY_URL || 'not set'}, STALWART_PUBLIC_URL: ${process.env.STALWART_PUBLIC_URL || 'not set'}`);
+          const publicUrl = process.env.STALWART_PUBLIC_URL;
+          if (publicUrl) {
+            discoveryUrl = publicUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
+            logger.info(`[OAuth] Discovery URL determined from STALWART_PUBLIC_URL: ${discoveryUrl}`);
+          } else {
+            logger.error(`[OAuth] Discovery URL not configured. OAUTH_DISCOVERY_URL: ${process.env.OAUTH_DISCOVERY_URL || 'not set'}, STALWART_PUBLIC_URL: ${process.env.STALWART_PUBLIC_URL || 'not set'}, STALWART_BASE_URL: ${baseUrl}`);
+          }
         }
       }
       const clientId = process.env.OAUTH_CLIENT_ID || '';
