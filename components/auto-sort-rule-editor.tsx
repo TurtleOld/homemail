@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -24,16 +24,38 @@ export function AutoSortRuleEditor({
   folders,
   existingRule,
 }: AutoSortRuleEditorProps) {
-  const [name, setName] = useState(existingRule?.name || '');
-  const [enabled, setEnabled] = useState(existingRule?.enabled ?? true);
-  const [filterQuery, setFilterQuery] = useState(
-    existingRule?.filterGroup ? FilterQueryParser.buildQuery(existingRule.filterGroup) : ''
-  );
-  const [actions, setActions] = useState<AutoSortAction[]>(
-    existingRule?.actions || [{ type: 'moveToFolder', folderId: folders.find((f) => f.role === 'inbox')?.id || '' }]
-  );
-  const [applyToExisting, setApplyToExisting] = useState(existingRule?.applyToExisting ?? false);
+  const [name, setName] = useState('');
+  const [enabled, setEnabled] = useState(true);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [actions, setActions] = useState<AutoSortAction[]>([
+    { type: 'moveToFolder', folderId: folders.find((f) => f.role === 'inbox')?.id || '' }
+  ]);
+  const [applyToExisting, setApplyToExisting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Обновляем состояния при изменении existingRule или открытии диалога
+  useEffect(() => {
+    if (open && existingRule) {
+      setName(existingRule.name || '');
+      setEnabled(existingRule.enabled ?? true);
+      setFilterQuery(
+        existingRule.filterGroup ? FilterQueryParser.buildQuery(existingRule.filterGroup) : ''
+      );
+      setActions(
+        existingRule.actions && existingRule.actions.length > 0
+          ? existingRule.actions
+          : [{ type: 'moveToFolder', folderId: folders.find((f) => f.role === 'inbox')?.id || '' }]
+      );
+      setApplyToExisting(existingRule.applyToExisting ?? false);
+    } else if (open && !existingRule) {
+      // Сброс для создания нового правила
+      setName('');
+      setEnabled(true);
+      setFilterQuery('');
+      setActions([{ type: 'moveToFolder', folderId: folders.find((f) => f.role === 'inbox')?.id || '' }]);
+      setApplyToExisting(false);
+    }
+  }, [open, existingRule, folders]);
 
   const handleAddAction = () => {
     setActions([...actions, { type: 'moveToFolder', folderId: folders[0]?.id || '' }]);
