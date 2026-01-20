@@ -47,9 +47,6 @@ export async function POST(request: NextRequest) {
         if (publicUrl) {
           discoveryUrl = publicUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
           logger.info(`OAuth discovery URL determined from STALWART_PUBLIC_URL: ${discoveryUrl}`);
-        } else {
-          discoveryUrl = (process.env.STALWART_BASE_URL?.replace(/\/$/, '') || 'http://stalwart:8080') + '/.well-known/oauth-authorization-server';
-          logger.info(`OAuth discovery URL not set, using STALWART_BASE_URL: ${discoveryUrl}`);
         }
       }
       const clientId = process.env.OAUTH_CLIENT_ID || '';
