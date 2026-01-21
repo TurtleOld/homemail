@@ -34,6 +34,7 @@ interface MessageViewerProps {
   hasSelection?: boolean;
   isMobile?: boolean;
   onBack?: () => void;
+  error?: Error | null;
 }
 
 async function getLabels(): Promise<Label[]> {
@@ -70,6 +71,7 @@ export function MessageViewer({
   hasSelection = false,
   isMobile = false,
   onBack,
+  error,
 }: MessageViewerProps) {
   const localeSettings = useLocaleSettings();
   const markedAsReadRef = useRef<Set<string>>(new Set());
@@ -109,32 +111,42 @@ export function MessageViewer({
   }, [message?.id]);
 
   const hasRemoteImages = useMemo(() => {
-    if (!message) return false;
-    const htmlBody = message.body?.html;
-    if (!htmlBody || typeof htmlBody !== 'string') return false;
-    return /<img[^>]+src=["'](https?:\/\/[^"']+)["'][^>]*>/gi.test(htmlBody);
+    if (!message || !message.body) return false;
+    try {
+      const htmlBody = message.body?.html;
+      if (!htmlBody || typeof htmlBody !== 'string') return false;
+      return /<img[^>]+src=["'](https?:\/\/[^"']+)["'][^>]*>/gi.test(htmlBody);
+    } catch (error) {
+      console.error('Error checking remote images:', error);
+      return false;
+    }
   }, [message]);
 
   const effectiveAllowImages = allowRemoteImages || localAllowImages;
 
   const sanitizedHtml = useMemo(() => {
-    if (!message) return '';
+    if (!message || !message.body) return '';
     
-    const htmlBody = message.body?.html;
-    const textBody = message.body?.text;
-    
-    if (htmlBody && typeof htmlBody === 'string' && htmlBody.trim().length > 0) {
-      return sanitizeHtml(htmlBody, effectiveAllowImages);
-    }
-    if (textBody && typeof textBody === 'string' && textBody.trim().length > 0) {
-      const escaped = textBody
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;')
-        .replace(/\n/g, '<br>');
-      return `<p>${escaped}</p>`;
+    try {
+      const htmlBody = message.body?.html;
+      const textBody = message.body?.text;
+      
+      if (htmlBody && typeof htmlBody === 'string' && htmlBody.trim().length > 0) {
+        return sanitizeHtml(htmlBody, effectiveAllowImages);
+      }
+      if (textBody && typeof textBody === 'string' && textBody.trim().length > 0) {
+        const escaped = textBody
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;')
+          .replace(/\n/g, '<br>');
+        return `<p>${escaped}</p>`;
+      }
+    } catch (error) {
+      console.error('Error sanitizing HTML:', error);
+      return '';
     }
     
     return '';
@@ -254,7 +266,7 @@ export function MessageViewer({
   }, [message, onMarkRead]);
 
   useEffect(() => {
-    if (!message) return;
+    if (!message || !message.flags) return;
     if (message.flags.unread && !markedAsReadRef.current.has(message.id)) {
       markedAsReadRef.current.add(message.id);
       handleMarkRead();
@@ -278,6 +290,18 @@ export function MessageViewer({
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-5/6" />
           <Skeleton className="h-4 w-4/5" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 mb-4 opacity-50 text-destructive" />
+          <p className="text-destructive font-medium mb-2">Ошибка загрузки письма</p>
+          <p className="text-sm">{error.message || 'Не удалось загрузить письмо'}</p>
         </div>
       </div>
     );
@@ -309,6 +333,7 @@ export function MessageViewer({
   };
 
   const handleToggleImportant = async () => {
+    if (!message || !message.flags) return;
     const newImportant = !message.flags.important;
     try {
       await fetch(`/api/mail/messages/${message.id}/flags`, {
@@ -351,20 +376,20 @@ export function MessageViewer({
             <h2 className="text-lg font-semibold max-md:text-base break-words">{message.subject || '(без темы)'}</h2>
             <div className="mt-1 text-sm text-muted-foreground max-md:text-xs">
               <div className="break-words">
-                <strong>От:</strong> {message.from.name ? `${message.from.name} <${message.from.email}>` : message.from.email}
+                <strong>От:</strong> {message.from?.name ? `${message.from.name} <${message.from.email || ''}>` : message.from?.email || 'Неизвестно'}
               </div>
-              {message.to.length > 0 && (
+              {message.to && message.to.length > 0 && (
                 <div className="break-words">
-                  <strong>Кому:</strong> {message.to.map((t) => (t.name ? `${t.name} <${t.email}>` : t.email)).join(', ')}
+                  <strong>Кому:</strong> {message.to.map((t) => (t?.name ? `${t.name} <${t.email || ''}>` : t?.email || '')).join(', ')}
                 </div>
               )}
               {message.cc && message.cc.length > 0 && (
                 <div className="break-words">
-                  <strong>Копия:</strong> {message.cc.map((c) => (c.name ? `${c.name} <${c.email}>` : c.email)).join(', ')}
+                  <strong>Копия:</strong> {message.cc.map((c) => (c?.name ? `${c.name} <${c.email || ''}>` : c?.email || '')).join(', ')}
                 </div>
               )}
               <div>
-                <strong>Дата:</strong> {formatDate(message.date, localeSettings)}
+                <strong>Дата:</strong> {message.date ? formatDate(message.date, localeSettings) : 'Неизвестно'}
               </div>
             </div>
             {messageLabelObjects.length > 0 && (
@@ -400,23 +425,23 @@ export function MessageViewer({
               variant="ghost" 
               size="icon" 
               onClick={handleStar} 
-              title={message.flags.starred ? 'Убрать из избранного' : 'Добавить в избранное'}
-              aria-label={message.flags.starred ? 'Убрать из избранного' : 'Добавить в избранное'}
+              title={message.flags?.starred ? 'Убрать из избранного' : 'Добавить в избранное'}
+              aria-label={message.flags?.starred ? 'Убрать из избранного' : 'Добавить в избранное'}
             >
-              {message.flags.starred ? <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" /> : <StarOff className="h-4 w-4" />}
+              {message.flags?.starred ? <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" /> : <StarOff className="h-4 w-4" />}
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={handleToggleImportant}
-              title={message.flags.important ? 'Убрать важность' : 'Отметить как важное'}
-              aria-label={message.flags.important ? 'Убрать важность' : 'Отметить как важное'}
+              title={message.flags?.important ? 'Убрать важность' : 'Отметить как важное'}
+              aria-label={message.flags?.important ? 'Убрать важность' : 'Отметить как важное'}
             >
               <AlertCircle
-                className={`h-4 w-4 ${message.flags.important ? 'fill-orange-500 text-orange-500' : ''}`}
+                className={`h-4 w-4 ${message.flags?.important ? 'fill-orange-500 text-orange-500' : ''}`}
               />
             </Button>
-            {message.flags.unread && (
+            {message.flags && message.flags.unread && (
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -480,7 +505,7 @@ export function MessageViewer({
             <Languages className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
             <span className="max-md:hidden">Перевести</span>
           </Button>
-          {message && message.body?.text?.includes('-----BEGIN PGP MESSAGE-----') && (
+          {message && message.body && message.body.text && message.body.text.includes('-----BEGIN PGP MESSAGE-----') && (
             <Button 
               variant="outline" 
               size="sm" 
@@ -677,7 +702,7 @@ export function MessageViewer({
         </div>
       </div>
       <div className="flex-1 overflow-auto flex flex-col max-md:pb-4">
-        {message.attachments.length > 0 && (
+        {message.attachments && message.attachments.length > 0 && (
           <div className="border-b bg-muted/30 p-4 max-md:p-2 flex-shrink-0">
             <h3 className="mb-2 text-sm font-semibold max-md:text-xs">Вложения ({message.attachments.length}):</h3>
             <div className="space-y-2">
@@ -761,11 +786,11 @@ export function MessageViewer({
           </div>
         )}
       </div>
-        {showTranslator && message && (
+        {showTranslator && message && message.body && (
           <div className="mb-4 p-4 border rounded-lg">
             <MessageTranslator
-              originalText={message.body?.text || message.body?.html?.replace(/<[^>]*>/g, '') || ''}
-              originalHtml={message.body?.html}
+              originalText={message.body.text || message.body.html?.replace(/<[^>]*>/g, '') || ''}
+              originalHtml={message.body.html}
             />
           </div>
         )}

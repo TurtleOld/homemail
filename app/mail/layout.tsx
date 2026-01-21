@@ -323,17 +323,29 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     return allMessages;
   }, [messagesData, quickFilter, settings?.ui]);
 
-  const { data: selectedMessage, isLoading: isMessageLoading } = useQuery<MessageDetail>({
+  const { data: selectedMessage, isLoading: isMessageLoading, error: messageError } = useQuery<MessageDetail>({
     queryKey: ['message', selectedMessageId],
     queryFn: async () => {
       if (!selectedMessageId) return null;
-      const res = await fetch(`/api/mail/messages/${selectedMessageId}`);
-      if (res.status === 401) {
-        router.push('/login?redirect=/mail');
-        throw new Error('Unauthorized');
+      try {
+        const res = await fetch(`/api/mail/messages/${selectedMessageId}`);
+        if (res.status === 401) {
+          router.push('/login?redirect=/mail');
+          throw new Error('Unauthorized');
+        }
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ error: 'Failed to fetch message' }));
+          throw new Error(errorData.error || 'Failed to fetch message');
+        }
+        const data = await res.json();
+        if (!data || !data.id) {
+          throw new Error('Invalid message data received');
+        }
+        return data;
+      } catch (error) {
+        console.error('Error fetching message:', error);
+        throw error;
       }
-      if (!res.ok) throw new Error('Failed to fetch message');
-      return res.json();
     },
     enabled: !!selectedMessageId,
     retry: (failureCount, error) => {
@@ -341,6 +353,12 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         return false;
       }
       return failureCount < 2;
+    },
+    onError: (error) => {
+      console.error('Message query error:', error);
+      if (error instanceof Error && error.message !== 'Unauthorized') {
+        toast.error('Ошибка загрузки письма: ' + error.message);
+      }
     },
   });
 
@@ -1027,6 +1045,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           allowRemoteImages={allowRemoteImages}
           isLoading={isMessageLoading}
           hasSelection={!!selectedMessageId}
+          error={messageError}
           isMobile={isMobile}
           />
           </div>
