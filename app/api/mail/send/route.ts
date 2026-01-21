@@ -28,6 +28,7 @@ const sendSchema = z.object({
       })
     )
     .optional(),
+  requestReadReceipt: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -133,6 +134,9 @@ export async function POST(request: NextRequest) {
     const provider = process.env.MAIL_PROVIDER === 'stalwart'
       ? getMailProviderForAccount(session.accountId)
       : getMailProvider();
+    const { writeStorage } = await import('@/lib/storage');
+    const { DeliveryTracking } = await import('@/lib/types');
+
     const messageId = await provider.sendMessage(session.accountId, {
       to: validatedData.to,
       cc: validatedData.cc,
@@ -145,6 +149,39 @@ export async function POST(request: NextRequest) {
         data: Buffer.from(att.data, 'base64'),
       })),
     });
+
+    if (validatedData.requestReadReceipt) {
+      const { DeliveryTracking } = await import('@/lib/types');
+      const tracking: DeliveryTracking = {
+        messageId,
+        status: 'sent',
+        sentAt: new Date(),
+        recipients: [
+          ...validatedData.to.map((email) => ({ email, status: 'pending' as const })),
+          ...(validatedData.cc || []).map((email) => ({ email, status: 'pending' as const })),
+          ...(validatedData.bcc || []).map((email) => ({ email, status: 'pending' as const })),
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      await writeStorage(`delivery:${session.accountId}:${messageId}`, tracking);
+    }
+
+    if (validatedData.requestReadReceipt) {
+      const tracking: DeliveryTracking = {
+        messageId,
+        status: 'sent',
+        sentAt: new Date(),
+        recipients: [
+          ...validatedData.to.map((email) => ({ email, status: 'pending' as const })),
+          ...(validatedData.cc || []).map((email) => ({ email, status: 'pending' as const })),
+          ...(validatedData.bcc || []).map((email) => ({ email, status: 'pending' as const })),
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      await writeStorage(`delivery:${session.accountId}:${messageId}`, tracking);
+    }
 
     if (validatedData.draftId) {
       try {
