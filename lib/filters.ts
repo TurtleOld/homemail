@@ -244,10 +244,10 @@ export function applyRulesToMessages(
   const enabledRules = rules.filter((rule) => rule.enabled);
 
   for (const message of messages) {
-    const matchedRule = enabledRules.find((rule) => matchFilterGroup(message, rule.filterGroup));
+    const matchedRule = enabledRules.find((rule) => matchFilterGroup(message, rule.conditions));
     if (matchedRule) {
       const moveAction = matchedRule.actions.find((action) => action.type === 'moveToFolder');
-      if (moveAction && moveAction.type === 'moveToFolder' && moveAction.folderId !== sourceFolderId) {
+      if (moveAction && moveAction.type === 'moveToFolder' && moveAction.folderId && moveAction.folderId !== sourceFolderId) {
         if (!moves[moveAction.folderId]) {
           moves[moveAction.folderId] = [];
         }

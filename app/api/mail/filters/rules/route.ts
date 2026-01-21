@@ -11,7 +11,7 @@ const autoSortRuleSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1).max(100),
   enabled: z.boolean(),
-  filterGroup: z.any(),
+  conditions: z.any(),
   actions: z.array(z.any()),
   applyToExisting: z.boolean().optional(),
 });
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         ...existing,
         name: data.name,
         enabled: data.enabled,
-        filterGroup: data.filterGroup,
+        conditions: data.conditions,
         actions: data.actions,
         applyToExisting: data.applyToExisting ?? existing.applyToExisting,
         updatedAt: now,
@@ -96,11 +96,12 @@ export async function POST(request: NextRequest) {
       rules[index] = rule;
     } else {
       rule = {
-        id: `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `rule_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         name: data.name,
         enabled: data.enabled,
-        filterGroup: data.filterGroup,
+        conditions: data.conditions,
         actions: data.actions,
+        priority: 0,
         applyToExisting: data.applyToExisting ?? false,
         createdAt: now,
         updatedAt: now,

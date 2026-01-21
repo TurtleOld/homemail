@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import type { AutoSortRule, AutoSortAction, FilterGroup, Folder } from '@/lib/types';
+import type { AutoSortRule, FilterGroup, Folder } from '@/lib/types';
 import { FilterQueryParser } from '@/lib/filter-parser';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,7 +27,7 @@ export function AutoSortRuleEditor({
   const [name, setName] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [filterQuery, setFilterQuery] = useState('');
-  const [actions, setActions] = useState<AutoSortAction[]>([
+  const [actions, setActions] = useState<AutoSortRule['actions']>([
     { type: 'moveToFolder', folderId: folders.find((f) => f.role === 'inbox')?.id || '' }
   ]);
   const [applyToExisting, setApplyToExisting] = useState(false);
@@ -39,7 +39,7 @@ export function AutoSortRuleEditor({
       setName(existingRule.name || '');
       setEnabled(existingRule.enabled ?? true);
       setFilterQuery(
-        existingRule.filterGroup ? FilterQueryParser.buildQuery(existingRule.filterGroup) : ''
+        existingRule.conditions ? FilterQueryParser.buildQuery(existingRule.conditions) : ''
       );
       setActions(
         existingRule.actions && existingRule.actions.length > 0
@@ -65,7 +65,7 @@ export function AutoSortRuleEditor({
     setActions(actions.filter((_, i) => i !== index));
   };
 
-  const handleActionChange = (index: number, action: AutoSortAction) => {
+  const handleActionChange = (index: number, action: AutoSortRule['actions'][0]) => {
     const newActions = [...actions];
     newActions[index] = action;
     setActions(newActions);
@@ -102,8 +102,9 @@ export function AutoSortRuleEditor({
       await onSave({
         name: name.trim(),
         enabled,
-        filterGroup: parsed.filterGroup,
+        conditions: parsed.filterGroup,
         actions,
+        priority: 0,
         applyToExisting,
       });
       onClose();
@@ -153,34 +154,33 @@ export function AutoSortRuleEditor({
                 <select
                   value={action.type}
                   onChange={(e) => {
-                    const newAction: AutoSortAction =
+                    const newAction: AutoSortRule['actions'][0] =
                       e.target.value === 'moveToFolder'
                         ? { type: 'moveToFolder', folderId: folders[0]?.id || '' }
-                        : e.target.value === 'addLabel'
-                        ? { type: 'addLabel', label: '' }
+                        : e.target.value === 'label'
+                        ? { type: 'label', payload: { labelIds: [] } }
                         : e.target.value === 'markRead'
                         ? { type: 'markRead' }
                         : e.target.value === 'markImportant'
                         ? { type: 'markImportant' }
                         : e.target.value === 'autoArchive'
-                        ? { type: 'autoArchive', days: 30 }
+                        ? { type: 'autoArchive', payload: { days: 30 } }
                         : e.target.value === 'autoDelete'
-                        ? { type: 'autoDelete', days: 30 }
+                        ? { type: 'autoDelete', payload: { days: 30 } }
                         : e.target.value === 'forward'
-                        ? { type: 'forward', email: '' }
-                        : { type: 'notify', service: 'telegram', target: '' };
+                        ? { type: 'forward', payload: { email: '' } }
+                        : { type: 'delete' };
                     handleActionChange(index, newAction);
                   }}
                   className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm text-foreground dark:bg-background dark:text-foreground dark:border-border"
                 >
                   <option value="moveToFolder">Переместить в папку</option>
-                  <option value="addLabel">Добавить метку</option>
+                  <option value="label">Добавить метку</option>
                   <option value="markRead">Пометить прочитанным</option>
                   <option value="markImportant">Пометить важным</option>
                   <option value="autoArchive">Авто-архивировать через N дней</option>
                   <option value="autoDelete">Авто-удалить через N дней</option>
                   <option value="forward">Переслать на email</option>
-                  <option value="notify">Уведомить (Telegram/Matrix)</option>
                 </select>
 
                 {action.type === 'moveToFolder' && (
@@ -199,10 +199,10 @@ export function AutoSortRuleEditor({
                   </select>
                 )}
 
-                {action.type === 'addLabel' && (
+                {action.type === 'label' && (
                   <Input
-                    value={action.label}
-                    onChange={(e) => handleActionChange(index, { ...action, label: e.target.value })}
+                    value={action.payload?.labelIds?.[0] || ''}
+                    onChange={(e) => handleActionChange(index, { ...action, payload: { labelIds: e.target.value ? [e.target.value] : [] } })}
                     placeholder="Название метки"
                     className="flex-1"
                   />
@@ -211,9 +211,9 @@ export function AutoSortRuleEditor({
                 {(action.type === 'autoArchive' || action.type === 'autoDelete') && (
                   <Input
                     type="number"
-                    value={action.days}
+                    value={action.payload?.days || 30}
                     onChange={(e) =>
-                      handleActionChange(index, { ...action, days: parseInt(e.target.value, 10) || 30 })
+                      handleActionChange(index, { ...action, payload: { days: parseInt(e.target.value, 10) || 30 } })
                     }
                     placeholder="Дней"
                     className="w-24"
@@ -223,36 +223,13 @@ export function AutoSortRuleEditor({
                 {action.type === 'forward' && (
                   <Input
                     type="email"
-                    value={action.email}
-                    onChange={(e) => handleActionChange(index, { ...action, email: e.target.value })}
+                    value={action.payload?.email || ''}
+                    onChange={(e) => handleActionChange(index, { ...action, payload: { email: e.target.value } })}
                     placeholder="email@example.com"
                     className="flex-1"
                   />
                 )}
 
-                {action.type === 'notify' && (
-                  <>
-                    <select
-                      value={action.service}
-                      onChange={(e) =>
-                        handleActionChange(index, {
-                          ...action,
-                          service: e.target.value as 'telegram' | 'matrix',
-                        })
-                      }
-                      className="rounded border border-input bg-background px-2 py-1 text-sm text-foreground dark:bg-background dark:text-foreground dark:border-border"
-                    >
-                      <option value="telegram">Telegram</option>
-                      <option value="matrix">Matrix</option>
-                    </select>
-                    <Input
-                      value={action.target}
-                      onChange={(e) => handleActionChange(index, { ...action, target: e.target.value })}
-                      placeholder="ID чата/канала"
-                      className="flex-1"
-                    />
-                  </>
-                )}
 
                 <Button
                   variant="ghost"

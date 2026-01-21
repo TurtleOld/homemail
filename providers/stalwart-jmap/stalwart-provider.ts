@@ -598,6 +598,7 @@ export class StalwartJMAPProvider implements MailProvider {
           'id',
           'threadId',
           'from',
+          'to',
           'subject',
           'receivedAt',
           'preview',
@@ -609,6 +610,7 @@ export class StalwartJMAPProvider implements MailProvider {
 
       const messages: MessageListItem[] = emails.map((email) => {
         const from = email.from?.[0] || { email: 'unknown' };
+        const to = email.to || [];
         const isUnread = !email.keywords?.['$seen'];
         const isStarred = email.keywords?.['$flagged'] === true;
         const isImportant = email.keywords?.['$important'] === true;
@@ -620,6 +622,10 @@ export class StalwartJMAPProvider implements MailProvider {
             email: from.email,
             name: from.name,
           },
+          to: to.map((addr) => ({
+            email: addr.email || '',
+            name: addr.name,
+          })),
           subject: email.subject || '(без темы)',
           snippet: email.preview || '',
           date: new Date(email.receivedAt),
@@ -830,8 +836,6 @@ export class StalwartJMAPProvider implements MailProvider {
 
       return {
         id: email.id,
-        threadId: email.threadId || email.id,
-        headers: {},
         from: {
           email: from.email,
           name: from.name,
@@ -1501,10 +1505,10 @@ export class StalwartJMAPProvider implements MailProvider {
 
       return {
         id: email.id,
-        to: email.to?.map((t) => t.email),
+        to: email.to?.map((t) => t.email) || [],
         cc: email.cc?.map((c) => c.email),
         bcc: email.bcc?.map((b) => b.email),
-        subject: email.subject,
+        subject: email.subject || '',
         html,
       };
     } catch (error) {

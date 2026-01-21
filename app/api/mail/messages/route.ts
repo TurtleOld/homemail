@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { FilterQueryParser } from '@/lib/filter-parser';
 import { readStorage } from '@/lib/storage';
-import type { MessageFilter } from '@/lib/types';
+import type { FilterGroup, MessageFilter } from '@/lib/types';
 
 const querySchema = z.object({
   folderId: z.string(),
@@ -37,21 +37,26 @@ export async function GET(request: NextRequest) {
       let messageFilter: MessageFilter | undefined;
       if (params.messageFilter) {
         try {
-          messageFilter = JSON.parse(params.messageFilter) as MessageFilter;
+          const parsed = JSON.parse(params.messageFilter);
+          if (parsed.filterGroup || parsed.quickFilter || parsed.securityFilter) {
+            messageFilter = parsed as MessageFilter;
+          } else {
+            messageFilter = { filterGroup: parsed as FilterGroup };
+          }
           console.log('[messages] Parsed messageFilter:', JSON.stringify(messageFilter, null, 2));
         } catch (error) {
           console.warn('[messages] Failed to parse messageFilter as JSON, trying as query:', error);
           const parsed = FilterQueryParser.parse(params.messageFilter);
           messageFilter = {
-            quickFilter: parsed.quickFilter,
             filterGroup: parsed.filterGroup,
+            quickFilter: parsed.quickFilter,
           };
         }
       } else if (params.q) {
         const parsed = FilterQueryParser.parse(params.q);
         messageFilter = {
-          quickFilter: parsed.quickFilter,
           filterGroup: parsed.filterGroup,
+          quickFilter: parsed.quickFilter,
         };
       }
 

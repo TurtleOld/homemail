@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
       const filename = `messages_export_${Date.now()}.zip`;
 
-      return new NextResponse(zipBuffer, {
+      return new NextResponse(new Uint8Array(zipBuffer), {
         headers: {
           'Content-Type': 'application/zip',
           'Content-Disposition': `attachment; filename="${filename}"`,

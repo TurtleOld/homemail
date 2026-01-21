@@ -27,12 +27,12 @@ export async function checkMessageMatchesRule(
     ruleName: rule.name,
     messageId: message.id,
     from: 'from' in message ? message.from.email : 'N/A',
-    filterGroup: JSON.stringify(rule.filterGroup),
+    filterGroup: JSON.stringify(rule.conditions),
   });
 
   let messageToCheck: MessageListItem | MessageDetail = message;
   
-  if (!('body' in message) && hasBodyCondition(rule.filterGroup)) {
+  if (!('body' in message) && hasBodyCondition(rule.conditions)) {
     try {
       await new Promise((resolve) => setTimeout(resolve, 50));
       const fullMessage = await provider.getMessage(accountId, message.id);
@@ -49,7 +49,7 @@ export async function checkMessageMatchesRule(
     }
   }
 
-  const matches = await checkMessageMatchesFilterGroup(messageToCheck, rule.filterGroup, provider, accountId, folderId);
+  const matches = await checkMessageMatchesFilterGroup(messageToCheck, rule.conditions, provider, accountId, folderId);
   
   console.error('[apply-auto-sort-rules] Rule check result:', {
     ruleName: rule.name,
@@ -250,14 +250,14 @@ export async function applyRuleActions(
         case 'markImportant':
           await provider.updateMessageFlags(accountId, messageId, { starred: true });
           break;
-        case 'addLabel':
+        case 'label':
           break;
         case 'autoArchive': {
           const message = await provider.getMessage(accountId, messageId);
           if (message) {
             const messageDate = new Date(message.date);
             const daysSinceMessage = Math.floor((Date.now() - messageDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (daysSinceMessage >= action.days) {
+            if (action.payload?.days && daysSinceMessage >= action.payload.days) {
               const folders = await provider.getFolders(accountId);
               const archiveFolder = folders.find((f) => f.role === 'trash' || f.name.toLowerCase().includes('archive'));
               if (archiveFolder) {
@@ -276,7 +276,7 @@ export async function applyRuleActions(
           if (message) {
             const messageDate = new Date(message.date);
             const daysSinceMessage = Math.floor((Date.now() - messageDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (daysSinceMessage >= action.days) {
+            if (action.payload?.days && daysSinceMessage >= action.payload.days) {
               await provider.bulkUpdateMessages(accountId, {
                 ids: [messageId],
                 action: 'delete',
@@ -286,7 +286,6 @@ export async function applyRuleActions(
           break;
         }
         case 'forward':
-        case 'notify':
           break;
       }
     } catch (error) {

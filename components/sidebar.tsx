@@ -225,7 +225,7 @@ export function Sidebar({
     return rootFolders;
   }, [folders]);
 
-  const renderFolderItem = useCallback((folder: Folder & { children: Folder[] }, level = 0) => {
+  const renderFolderItem = useCallback((folder: Folder & { children?: Folder[] }, level = 0) => {
     return (
       <div key={folder.id}>
         <button
@@ -285,7 +285,7 @@ export function Sidebar({
             </span>
           )}
         </button>
-        {folder.children.length > 0 && (
+        {folder.children && folder.children.length > 0 && (
           <div className="ml-4">
             {folder.children.map((child) => renderFolderItem(child, level + 1))}
           </div>
@@ -305,7 +305,7 @@ export function Sidebar({
         <div className="flex-1 overflow-auto p-2">
           <nav className="space-y-2">
             {organizedFolders.map((folder) => {
-              const renderCollapsedFolder = (f: Folder & { children: Folder[] }) => (
+              const renderCollapsedFolder = (f: Folder & { children?: Folder[] }) => (
                 <div key={f.id}>
                   <button
                     onClick={() => onFolderSelect(f.id)}
@@ -318,7 +318,7 @@ export function Sidebar({
                   >
                     {folderIcons[f.role] || folderIcons.custom}
                   </button>
-                  {f.children.length > 0 && (
+                  {f.children && f.children.length > 0 && (
                     <div className="ml-2">
                       {f.children.map((child) => renderCollapsedFolder(child))}
                     </div>

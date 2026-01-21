@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { writeStorage, readStorage } from '@/lib/storage';
 import { validateEmailList, sanitizeEmail } from '@/lib/email-validator';
 import { SecurityLogger } from '@/lib/security-logger';
+import type { DeliveryTracking } from '@/lib/types';
 
 const sendSchema = z.object({
   to: z.array(z.string()).min(1),
@@ -134,8 +135,6 @@ export async function POST(request: NextRequest) {
     const provider = process.env.MAIL_PROVIDER === 'stalwart'
       ? getMailProviderForAccount(session.accountId)
       : getMailProvider();
-    const { writeStorage } = await import('@/lib/storage');
-    const { DeliveryTracking } = await import('@/lib/types');
 
     const messageId = await provider.sendMessage(session.accountId, {
       to: validatedData.to,
@@ -151,7 +150,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (validatedData.requestReadReceipt) {
-      const { DeliveryTracking } = await import('@/lib/types');
       const tracking: DeliveryTracking = {
         messageId,
         status: 'sent',

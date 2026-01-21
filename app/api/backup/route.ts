@@ -36,7 +36,7 @@ export async function GET() {
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
     const filename = `backup_${session.accountId}_${Date.now()}.zip`;
 
-    return new NextResponse(zipBuffer, {
+    return new NextResponse(new Uint8Array(zipBuffer), {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${filename}"`,

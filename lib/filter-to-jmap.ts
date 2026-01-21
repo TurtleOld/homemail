@@ -1,4 +1,4 @@
-import type { FilterGroup, FilterCondition, QuickFilterType, SecurityFilter } from './types';
+import type { FilterGroup, FilterCondition, QuickFilterType } from './types';
 
 export interface JMAPEmailFilter {
   inMailbox?: string;
@@ -21,7 +21,7 @@ export interface JMAPEmailFilter {
 export function convertFilterToJMAP(
   filterGroup?: FilterGroup,
   quickFilter?: QuickFilterType,
-  securityFilter?: SecurityFilter,
+  securityFilter?: any,
   folderId?: string
 ): JMAPEmailFilter {
   const jmapFilter: JMAPEmailFilter = {};
@@ -184,7 +184,7 @@ function applyCondition(filter: JMAPEmailFilter, condition: FilterCondition): vo
   }
 }
 
-function applySecurityFilter(filter: JMAPEmailFilter, securityFilter: SecurityFilter): void {
+function applySecurityFilter(filter: JMAPEmailFilter, securityFilter: any): void {
   filter.header = filter.header || [];
 
   if (securityFilter.spf) {

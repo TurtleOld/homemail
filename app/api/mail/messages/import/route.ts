@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { validateOrigin } from '@/lib/csrf';
 import { logger } from '@/lib/logger';
-import { SimpleParser } from 'mailparser';
+import { simpleParser } from 'mailparser';
 
 const importSchema = z.object({
   emlContent: z.string().min(1),
@@ -30,16 +30,25 @@ export async function POST(request: NextRequest) {
       ? getMailProviderForAccount(session.accountId)
       : getMailProvider();
 
-    const parsed = await SimpleParser.parse(data.emlContent);
+    const parsed = await simpleParser(data.emlContent);
 
-    const from = parsed.from?.value[0];
-    if (!from) {
+    const fromAddr = Array.isArray(parsed.from) 
+      ? parsed.from[0]
+      : parsed.from?.value?.[0];
+    if (!fromAddr) {
       return NextResponse.json({ error: 'Invalid EML: missing From header' }, { status: 400 });
     }
+    const from = typeof fromAddr === 'string' ? { address: fromAddr, name: '' } : fromAddr;
 
-    const to = parsed.to?.value.map((addr) => addr.address) || [];
-    const cc = parsed.cc?.value.map((addr) => addr.address) || [];
-    const bcc = parsed.bcc?.value.map((addr) => addr.address) || [];
+    const to = Array.isArray(parsed.to) 
+      ? parsed.to.map((addr) => typeof addr === 'string' ? addr : (addr as any).address || addr)
+      : parsed.to?.value?.map((addr: any) => typeof addr === 'string' ? addr : addr.address) || [];
+    const cc = Array.isArray(parsed.cc)
+      ? parsed.cc.map((addr) => typeof addr === 'string' ? addr : (addr as any).address || addr)
+      : parsed.cc?.value?.map((addr: any) => typeof addr === 'string' ? addr : addr.address) || [];
+    const bcc = Array.isArray(parsed.bcc)
+      ? parsed.bcc.map((addr) => typeof addr === 'string' ? addr : (addr as any).address || addr)
+      : parsed.bcc?.value?.map((addr: any) => typeof addr === 'string' ? addr : addr.address) || [];
 
     const subject = parsed.subject || '';
     const html = parsed.html || parsed.textAsHtml || '';

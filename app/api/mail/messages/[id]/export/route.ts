@@ -212,9 +212,9 @@ export async function GET(
         }
 
         const filename = `${message.subject || 'message'}.pdf`.replaceAll(/[^a-zA-Z0-9._-]/g, '_');
-        const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+        const pdfArrayBuffer = doc.output('arraybuffer');
 
-        return new NextResponse(pdfBuffer, {
+        return new NextResponse(new Uint8Array(pdfArrayBuffer), {
           headers: {
             'Content-Type': 'application/pdf',
             'Content-Disposition': `attachment; filename="${filename}"`,

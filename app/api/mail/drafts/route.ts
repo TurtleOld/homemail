@@ -26,11 +26,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const draft = draftSchema.parse(body);
+    const parsed = draftSchema.parse(body);
 
     const provider = process.env.MAIL_PROVIDER === 'stalwart'
       ? getMailProviderForAccount(session.accountId)
       : getMailProvider();
+    const draft = {
+      ...parsed,
+      to: parsed.to || [],
+      subject: parsed.subject || '',
+      html: parsed.html || '',
+    };
     const draftId = await provider.saveDraft(session.accountId, draft);
 
     return NextResponse.json({ success: true, id: draftId });

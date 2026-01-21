@@ -813,7 +813,7 @@ async function getFilterRules(): Promise<AutoSortRule[]> {
   return res.json();
 }
 
-async function saveFilterRule(rule: { id?: string; name: string; enabled: boolean; filterGroup: any; actions: any[]; applyToExisting?: boolean }): Promise<AutoSortRule> {
+async function saveFilterRule(rule: { id?: string; name: string; enabled: boolean; conditions: any; actions: any[]; applyToExisting?: boolean }): Promise<AutoSortRule> {
   const res = await fetch('/api/mail/filters/rules', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1725,7 +1725,7 @@ function FoldersTab() {
     });
   };
 
-  const renderFolderTree = (folder: Folder & { children: Folder[] }, level = 0): React.ReactNode => {
+  const renderFolderTree = (folder: Folder & { children?: Folder[] }, level = 0): React.ReactNode => {
     return (
       <div key={folder.id}>
         <div
@@ -1734,7 +1734,7 @@ function FoldersTab() {
           }`}
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            {folder.children.length > 0 && (
+            {folder.children && folder.children.length > 0 && (
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             )}
             <span className="font-medium truncate">{folder.name}</span>
@@ -1760,7 +1760,7 @@ function FoldersTab() {
             </Button>
           </div>
         </div>
-        {folder.children.map((child) => renderFolderTree(child, level + 1))}
+        {folder.children?.map((child) => renderFolderTree(child, level + 1))}
       </div>
     );
   };

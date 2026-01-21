@@ -12,7 +12,7 @@ export function groupMessagesByThread(messages: MessageListItem[]): ThreadGroup[
   const threadMap = new Map<string, MessageListItem[]>();
 
   for (const message of messages) {
-    const threadId = message.threadId || message.id;
+    const threadId = ('threadId' in message && typeof (message as any).threadId === 'string' ? (message as any).threadId : message.id) as string;
     if (!threadMap.has(threadId)) {
       threadMap.set(threadId, []);
     }

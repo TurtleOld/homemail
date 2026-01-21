@@ -50,6 +50,12 @@ interface UserSettings {
     sortOrder: 'asc' | 'desc';
     groupBy: 'none' | 'date' | 'sender';
   };
+  notifications?: {
+    enabled?: boolean;
+    browser?: boolean;
+    onlyImportant?: boolean;
+    sound?: boolean;
+  };
 }
 
 const Compose = dynamic(

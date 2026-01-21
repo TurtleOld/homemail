@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     const moveToFolderAction = rule.actions.find((a) => a.type === 'moveToFolder');
     let destinationFolderId: string | null = null;
     
-    if (moveToFolderAction && moveToFolderAction.type === 'moveToFolder') {
+    if (moveToFolderAction && moveToFolderAction.type === 'moveToFolder' && moveToFolderAction.folderId) {
       destinationFolderId = moveToFolderAction.folderId;
       
       if (destinationFolderId === 'inbox' || destinationFolderId === 'sent' || destinationFolderId === 'drafts' || destinationFolderId === 'trash' || destinationFolderId === 'spam') {
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       destinationFolderId,
       foldersToSearch: foldersToSearch.map((f) => ({ id: f.id, name: f.name, role: f.role })),
       limit,
-      filterGroup: JSON.stringify(rule.filterGroup),
+      filterGroup: JSON.stringify(rule.conditions),
     });
     
     const allMessages: MessageListItem[] = [];
@@ -121,8 +121,8 @@ export async function POST(request: NextRequest) {
     
     const messagesToProcess = allMessages.slice(0, limit);
 
-    const needsBodyCheck = rule.filterGroup.conditions.some((c) => c.field === 'body') ||
-      (rule.filterGroup.groups && rule.filterGroup.groups.some((g) => 
+    const needsBodyCheck = rule.conditions.conditions.some((c) => c.field === 'body') ||
+      (rule.conditions.groups && rule.conditions.groups.some((g) => 
         g.conditions.some((c) => c.field === 'body') ||
         (g.groups && g.groups.some((sg) => sg.conditions.some((c) => c.field === 'body')))
       ));

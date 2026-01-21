@@ -51,6 +51,7 @@ export type MessageFlags = {
 
 export type MessageListItem = {
   id: string;
+  threadId?: string;
   from: { email: string; name?: string };
   to: Array<{ email: string; name?: string }>;
   subject: string;
@@ -161,10 +162,12 @@ export type AutoSortRule = {
   enabled: boolean;
   conditions: FilterGroup;
   actions: Array<{
-    type: 'move' | 'label' | 'markRead' | 'markImportant' | 'delete' | 'forward' | 'autoReply' | 'autoArchive' | 'autoDelete';
+    type: 'move' | 'moveToFolder' | 'label' | 'markRead' | 'markImportant' | 'delete' | 'forward' | 'autoReply' | 'autoArchive' | 'autoDelete';
+    folderId?: string;
     payload?: { folderId?: string; labelIds?: string[]; email?: string; templateId?: string; days?: number };
   }>;
   priority: number;
+  applyToExisting?: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -223,4 +226,10 @@ export type PGPKey = {
   fingerprint: string;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type MessageFilter = {
+  filterGroup?: FilterGroup;
+  quickFilter?: QuickFilterType;
+  securityFilter?: any;
 };

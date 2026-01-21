@@ -61,7 +61,7 @@ function parseCSV(content: string): Contact[] {
       columns: true,
       skip_empty_lines: true,
       trim: true,
-    });
+    }) as Record<string, string>[];
     
     for (const record of records) {
       const email = record.Email || record.email || record.EMAIL;

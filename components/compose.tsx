@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File, Clock, ChevronDown, FileText, Lock } from 'lucide-react';
+import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File, Clock, ChevronDown, FileText, Lock, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { validateEmail, parseEmailList } from '@/lib/utils';
 import { toast } from 'sonner';
