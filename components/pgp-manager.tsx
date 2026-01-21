@@ -193,6 +193,29 @@ export function PGPManager() {
         </p>
       </div>
 
+      <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4 space-y-3">
+        <h3 className="font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+          <Key className="h-5 w-5" />
+          Инструкция по использованию PGP шифрования
+        </h3>
+        <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
+          <p className="font-medium">Для отправки зашифрованных писем необходимо:</p>
+          <ol className="list-decimal list-inside space-y-1 ml-2">
+            <li>Получить публичный PGP ключ от получателя (файл с расширением .asc или .pub)</li>
+            <li>Импортировать публичный ключ получателя, используя кнопку "Импортировать ключ" выше</li>
+            <li>Убедиться, что email адрес в импортированном ключе точно совпадает с email адресом получателя</li>
+            <li>При создании письма отметить галочку "Зашифровать письмо (PGP)"</li>
+          </ol>
+          <p className="font-medium mt-3">Важно:</p>
+          <ul className="list-disc list-inside space-y-1 ml-2">
+            <li>Для каждого получателя нужен отдельный публичный ключ</li>
+            <li>Email адрес в ключе должен точно совпадать с адресом получателя (регистр не важен)</li>
+            <li>Если у получателя несколько ключей, импортируйте тот, который он использует для шифрования</li>
+            <li>Для расшифровки входящих писем нужен ваш приватный ключ (создается при генерации ключа)</li>
+          </ul>
+        </div>
+      </div>
+
       <div className="flex gap-4 mb-6">
         <Button onClick={() => setShowGenerate(true)}>
           <Plus className="h-4 w-4 mr-2" />

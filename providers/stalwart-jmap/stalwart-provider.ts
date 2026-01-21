@@ -1168,6 +1168,9 @@ export class StalwartJMAPProvider implements MailProvider {
         }
       }
 
+      const isEncrypted = message.html.includes('-----BEGIN PGP MESSAGE-----');
+      const bodyType = isEncrypted ? 'text/plain' : 'text/html';
+      
       const emailBody: any = {
         mailboxIds: { [sentMailbox.id]: true },
         from,
@@ -1178,7 +1181,7 @@ export class StalwartJMAPProvider implements MailProvider {
         },
         bodyStructure: {
           partId: 'body',
-          type: 'text/html',
+          type: bodyType,
         },
         bodyValues: {
           body: {
@@ -1382,18 +1385,19 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error('Drafts mailbox not found');
       }
 
-      const creds = await getUserCredentials(accountId);
-      if (!creds) {
-        throw new Error('User credentials not found');
-      }
-
-      // Проверяем, что creds.email является валидным email адресом
-      validateEmail(creds.email, 'credentials');
-
+      let fromEmail: string;
       const account = await this.getAccount(accountId);
-      const fromEmail = account?.email || creds.email;
+      if (account && account.email) {
+        fromEmail = account.email;
+      } else {
+        const creds = await getUserCredentials(accountId);
+        if (!creds) {
+          throw new Error('User credentials not found. Please log in again.');
+        }
+        validateEmail(creds.email, 'credentials');
+        fromEmail = creds.email;
+      }
       
-      // Проверяем, что fromEmail является валидным email адресом
       validateEmail(fromEmail, 'fromEmail');
       const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
       const to = (draft.to || []).map((email) => ({ email }));

@@ -316,7 +316,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           });
           if (res.ok) {
             const data = await res.json();
-            html = `<pre>${data.encryptedMessage}</pre>`;
+            html = data.encryptedMessage;
           } else {
             const errorData = await res.json().catch(() => ({}));
             const missingRecipients = errorData.missingRecipients || allRecipients;
