@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { Virtuoso } from 'react-virtuoso';
-import type { MessageListItem } from '@/lib/types';
+import type { MessageListItem, Label } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
 import { Star, StarOff, Mail, MailOpen, Paperclip, AlertCircle } from 'lucide-react';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { groupMessagesByThread } from '@/lib/thread-utils';
 import { ThreadItem } from './thread-item';
+import { useQuery } from '@tanstack/react-query';
 
 interface MessageListProps {
   messages: MessageListItem[];
@@ -28,6 +29,14 @@ interface MessageListProps {
   conversationView?: boolean;
   density?: 'compact' | 'comfortable' | 'spacious';
   groupBy?: 'none' | 'date' | 'sender';
+}
+
+async function getLabels(): Promise<Label[]> {
+  const res = await fetch('/api/mail/labels');
+  if (!res.ok) {
+    throw new Error('Failed to load labels');
+  }
+  return res.json();
 }
 
 export const MessageItem = memo(function MessageItem({
@@ -56,6 +65,15 @@ export const MessageItem = memo(function MessageItem({
   density?: 'compact' | 'comfortable' | 'spacious';
 }) {
   const localeSettings = useLocaleSettings();
+  const { data: labels = [] } = useQuery({
+    queryKey: ['labels'],
+    queryFn: getLabels,
+  });
+
+  const messageLabels = useMemo(() => {
+    if (!message.labels || message.labels.length === 0) return [];
+    return labels.filter((label) => message.labels?.includes(label.id));
+  }, [message.labels, labels]);
   const densityClasses = {
     compact: 'p-2 gap-2',
     comfortable: 'p-3 gap-3',
@@ -178,6 +196,27 @@ export const MessageItem = memo(function MessageItem({
             </div>
             {message.snippet && (
               <div className={cn('mt-1 max-md:mt-0.5 truncate text-muted-foreground', density === 'compact' ? 'text-[10px]' : 'text-xs', 'max-md:text-[10px]')}>{message.snippet}</div>
+            )}
+            {messageLabels.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {messageLabels.slice(0, 3).map((label) => (
+                  <span
+                    key={label.id}
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium max-md:text-[8px]"
+                    style={{
+                      backgroundColor: `${label.color || '#3b82f6'}20`,
+                      color: label.color || '#3b82f6',
+                    }}
+                  >
+                    {label.name}
+                  </span>
+                ))}
+                {messageLabels.length > 3 && (
+                  <span className="text-[10px] text-muted-foreground max-md:text-[8px]">
+                    +{messageLabels.length - 3}
+                  </span>
+                )}
+              </div>
             )}
           </div>
           <div className="flex-shrink-0 max-md:hidden">

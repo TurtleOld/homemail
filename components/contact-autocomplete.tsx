@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { Contact } from '@/lib/types';
-import { User, Mail } from 'lucide-react';
+import type { Contact, ContactGroup } from '@/lib/types';
+import { User, Mail, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 
@@ -21,6 +21,14 @@ async function searchContacts(query: string): Promise<Contact[]> {
     return [];
   }
   const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query)}`);
+  if (!res.ok) {
+    return [];
+  }
+  return res.json();
+}
+
+async function getContactGroups(): Promise<ContactGroup[]> {
+  const res = await fetch('/api/contacts/groups');
   if (!res.ok) {
     return [];
   }
@@ -47,6 +55,20 @@ export function ContactAutocomplete({
     enabled: value.length > 0 && isOpen,
     staleTime: 5000,
   });
+
+  const { data: groups = [] } = useQuery<ContactGroup[]>({
+    queryKey: ['contact-groups'],
+    queryFn: getContactGroups,
+    staleTime: 60000,
+  });
+
+  const groupContacts = useMemo(() => {
+    if (!value.startsWith('@')) return [];
+    const groupName = value.substring(1).toLowerCase();
+    const group = groups.find((g) => g.name.toLowerCase().startsWith(groupName));
+    if (!group) return [];
+    return contacts.filter((c) => c.groups?.includes(group.id));
+  }, [value, groups, contacts]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -132,7 +154,31 @@ export function ContactAutocomplete({
     }
   }, [highlightedIndex]);
 
-  const showSuggestions = isOpen && contacts.length > 0 && !isLoading;
+  const handleGroupSelect = useCallback((group: ContactGroup) => {
+    const groupContacts = contacts.filter((c) => c.groups?.includes(group.id));
+    if (groupContacts.length === 0) {
+      return;
+    }
+    
+    if (multiple) {
+      const emails = value.split(',').map((e) => e.trim()).filter(Boolean);
+      const groupEmails = groupContacts.map((c) => c.name ? `${c.name} <${c.email}>` : c.email);
+      const newEmails = groupEmails.filter((e) => !emails.some((existing) => existing.includes(e.split('<')[1]?.split('>')[0] || e)));
+      onChange([...emails, ...newEmails].join(', '));
+    } else {
+      const firstContact = groupContacts[0];
+      if (firstContact) {
+        const emailToSet = firstContact.name ? `${firstContact.name} <${firstContact.email}>` : firstContact.email;
+        onChange(emailToSet);
+      }
+    }
+    setIsOpen(false);
+    inputRef.current?.focus();
+  }, [value, onChange, multiple, contacts]);
+
+  const displayContacts = value.startsWith('@') ? groupContacts : contacts;
+  const showGroupSuggestions = value.startsWith('@') && groups.some((g) => g.name.toLowerCase().startsWith(value.substring(1).toLowerCase()));
+  const showSuggestions = isOpen && (displayContacts.length > 0 || showGroupSuggestions) && !isLoading;
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
@@ -151,7 +197,31 @@ export function ContactAutocomplete({
           ref={listRef}
           className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto"
         >
-          {contacts.map((contact, index) => (
+          {value.startsWith('@') && showGroupSuggestions && (
+            <>
+              {groups
+                .filter((g) => g.name.toLowerCase().startsWith(value.substring(1).toLowerCase()))
+                .map((group) => {
+                  const groupContactCount = contacts.filter((c) => c.groups?.includes(group.id)).length;
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => handleGroupSelect(group)}
+                      className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-muted transition-colors"
+                    >
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{group.name}</div>
+                        <div className="text-sm text-muted-foreground">{groupContactCount} контактов</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              {displayContacts.length > 0 && <div className="border-t my-1" />}
+            </>
+          )}
+          {displayContacts.map((contact, index) => (
             <button
               key={contact.id}
               type="button"
