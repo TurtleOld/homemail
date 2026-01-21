@@ -171,13 +171,13 @@ export function Sidebar({
       { label: 'IMAP/JMAP', status: serverStatus.imapJmap },
       {
         label: 'Очередь',
-        status: (serverStatus.queueSize === null ? 'unknown' : serverStatus.queueSize > 0 ? 'down' : 'up') as ServiceStatus,
+        status: (serverStatus.queueSize === null ? 'unknown' : 'up') as ServiceStatus,
         value: serverStatus.queueSize === null ? 'н/д' : serverStatus.queueSize.toString(),
       },
       {
         label: 'Ошибки',
         status: (serverStatus.deliveryErrors === null ? 'unknown' : serverStatus.deliveryErrors > 0 ? 'down' : 'up') as ServiceStatus,
-        value: serverStatus.deliveryErrors === null ? 'н/д' : serverStatus.deliveryErrors.toString(),
+        value: serverStatus.deliveryErrors === null ? 'н/д' : (serverStatus.deliveryErrors === 0 ? '0' : serverStatus.deliveryErrors.toString()),
       },
     ];
   }, [serverStatus]);
