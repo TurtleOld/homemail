@@ -83,6 +83,29 @@
       transition-duration: 0.01ms !important;
     }
   }
+
+  .high-contrast {
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 0 0% 0%;
+    filter: contrast(1.2);
+  }
+
+  .dark.high-contrast {
+    --border: 0 0% 80%;
+    --input: 0 0% 80%;
+    --ring: 0 0% 100%;
+  }
+
+  .reduced-motion * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  [style*="--font-size-base"] {
+    font-size: var(--font-size-base, 16px);
+  }
 }
 
 @layer utilities {
