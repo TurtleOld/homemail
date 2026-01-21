@@ -10,7 +10,7 @@ import { MessageViewer } from '@/components/message-viewer';
 import { QuickFilters } from '@/components/quick-filters';
 import type { Folder, Account, MessageListItem, MessageDetail, Draft, QuickFilterType, FilterGroup } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft, Folder as FolderIcon, Inbox, Send, AlertTriangle, AlertCircle, Archive, MessageSquare } from 'lucide-react';
+import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft, Folder as FolderIcon, Inbox, Send, AlertTriangle, AlertCircle, Archive, MessageSquare, FileDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,7 @@ import { useDebounce } from '@/lib/hooks';
 import { FilterQueryParser } from '@/lib/filter-parser';
 import { useSwipeable } from 'react-swipeable';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 
 interface MinimizedDraft {
   id: string;
@@ -129,6 +130,12 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     },
     staleTime: 60 * 1000,
   });
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default' && settings?.notifications?.browser) {
+      Notification.requestPermission();
+    }
+  }, [settings?.notifications?.browser]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -353,6 +360,44 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       eventSource.addEventListener('message.new', async (event: MessageEvent) => {
         queryClient.invalidateQueries({ queryKey: ['messages'] });
         queryClient.invalidateQueries({ queryKey: ['folders'] });
+        
+        const notificationsEnabled = settings?.notifications?.enabled !== false;
+        const browserNotifications = settings?.notifications?.browser !== false;
+        const onlyImportant = settings?.notifications?.onlyImportant === true;
+        
+        if (notificationsEnabled && browserNotifications && 'Notification' in window && Notification.permission === 'granted') {
+          try {
+            const data = JSON.parse(event.data);
+            const messageId = data.messageId || data.id;
+            
+            if (messageId) {
+              const res = await fetch(`/api/mail/messages/${messageId}`);
+              if (res.ok) {
+                const message = await res.json();
+                if (message && (!onlyImportant || message.flags?.important)) {
+                  const notification = new Notification('Новое письмо', {
+                    body: `${message.from.name || message.from.email}: ${message.subject || '(без темы)'}`,
+                    icon: '/icons/mail-icon.png',
+                    tag: message.id,
+                    requireInteraction: false,
+                  });
+                  
+                  notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                  };
+                  
+                  if (settings?.notifications?.sound) {
+                    const audio = new Audio('/sounds/notification.mp3');
+                    audio.play().catch(() => {});
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error showing notification:', error);
+          }
+        }
       });
 
       eventSource.addEventListener('mailbox.counts', () => {
@@ -391,7 +436,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
       setRealtimeConnected(false);
     };
-  }, [queryClient]);
+  }, [queryClient, settings]);
 
   const updateMessageInList = useCallback(
     (messageId: string, updater: (message: MessageListItem) => MessageListItem) => {
@@ -471,6 +516,43 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       queryClient.invalidateQueries({ queryKey: ['folders'] });
     } catch (error) {
       toast.error('Ошибка соединения');
+    }
+  };
+
+  const handleBulkExport = async () => {
+    if (selectedIds.size === 0) {
+      toast.error('Выберите письма для экспорта');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/mail/messages/bulk/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageIds: Array.from(selectedIds),
+          format: 'zip',
+        }),
+      });
+
+      if (!res.ok) {
+        toast.error('Ошибка экспорта писем');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `messages_export_${Date.now()}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`Экспортировано ${selectedIds.size} писем`);
+    } catch (error) {
+      toast.error('Ошибка экспорта');
     }
   };
 
@@ -1012,6 +1094,16 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             >
               <AlertCircle className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">Важное</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkExport}
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label="Экспортировать письма"
+            >
+              <FileDown className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+              <span className="max-md:hidden">Экспорт</span>
             </Button>
             {(() => {
               const currentFolder = folders.find((f) => f.id === selectedFolderId);

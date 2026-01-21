@@ -1260,6 +1260,112 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   }
 
+  async importMessage(
+    accountId: string,
+    message: {
+      from: { email: string; name?: string };
+      to: Array<{ email: string }>;
+      cc?: Array<{ email: string }>;
+      bcc?: Array<{ email: string }>;
+      subject: string;
+      html: string;
+      date: Date;
+      attachments?: Array<{ filename: string; mime: string; data: Buffer }>;
+      folderId?: string;
+    }
+  ): Promise<string> {
+    try {
+      const client = await this.getClient(accountId);
+      const session = await client.getSession();
+      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      
+      const mailboxes = await client.getMailboxes(actualAccountId);
+      const targetFolderId = message.folderId || 'inbox';
+      const targetMailbox = mailboxes.find((mb) => mb.id === targetFolderId || mb.role === targetFolderId);
+      
+      if (!targetMailbox) {
+        throw new Error(`Target folder ${targetFolderId} not found`);
+      }
+
+      const emailAttachments: Array<{ blobId: string; type: string; name: string; size: number }> = [];
+      
+      if (message.attachments && message.attachments.length > 0) {
+        for (const att of message.attachments) {
+          const blobId = await client.uploadBlob(att.data, actualAccountId, att.mime);
+          emailAttachments.push({
+            blobId,
+            type: att.mime,
+            name: att.filename,
+            size: att.data.length,
+          });
+        }
+      }
+
+      const emailBody: any = {
+        mailboxIds: { [targetMailbox.id]: true },
+        from: [{ email: message.from.email, name: message.from.name }],
+        to: message.to,
+        subject: message.subject,
+        receivedAt: message.date.toISOString(),
+        keywords: {
+          '$seen': false,
+        },
+        bodyStructure: {
+          partId: 'body',
+          type: 'text/html',
+        },
+        bodyValues: {
+          body: {
+            value: message.html,
+          },
+        },
+      };
+
+      if (message.cc && message.cc.length > 0) {
+        emailBody.cc = message.cc;
+      }
+      if (message.bcc && message.bcc.length > 0) {
+        emailBody.bcc = message.bcc;
+      }
+
+      if (emailAttachments.length > 0) {
+        emailBody.attachments = emailAttachments;
+      }
+
+      const response = await client.request([
+        [
+          'Email/set',
+          {
+            accountId: actualAccountId,
+            create: {
+              message1: emailBody,
+            },
+          },
+          '0',
+        ],
+      ]);
+
+      const setResponse = response.methodResponses[0];
+      if (setResponse[0] !== 'Email/set') {
+        throw new Error('Invalid email create response');
+      }
+
+      if ('type' in setResponse[1] && setResponse[1].type === 'error') {
+        const errorDesc = (setResponse[1] as any).description || 'Unknown error';
+        throw new Error(`JMAP email import error: ${errorDesc}`);
+      }
+
+      const data = setResponse[1] as { created?: Record<string, { id: string }> };
+      if (!data.created || Object.keys(data.created).length === 0) {
+        throw new Error('Failed to import email');
+      }
+
+      return Object.values(data.created)[0].id;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async saveDraft(accountId: string, draft: Draft): Promise<string> {
     try {
       const client = await this.getClient(accountId);
@@ -1515,6 +1621,45 @@ export class StalwartJMAPProvider implements MailProvider {
         role: 'custom',
         unreadCount: newMailbox.unreadEmails || 0,
       };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async updateFolder(accountId: string, folderId: string, updates: { name?: string; parentId?: string | null }): Promise<Folder> {
+    try {
+      const client = await this.getClient(accountId);
+      const session = await client.getSession();
+      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+
+      const updatesPayload: any = {};
+      if (updates.name) {
+        updatesPayload.name = updates.name;
+      }
+      if (updates.parentId !== undefined) {
+        updatesPayload.parentId = updates.parentId || null;
+      }
+
+      await client.request([
+        [
+          'Mailbox/set',
+          {
+            accountId: actualAccountId,
+            update: {
+              [folderId]: updatesPayload,
+            },
+          },
+          '0',
+        ],
+      ]);
+
+      const folders = await this.getFolders(accountId);
+      const updatedFolder = folders.find((f) => f.id === folderId);
+      if (!updatedFolder) {
+        throw new Error('Folder not found after update');
+      }
+
+      return updatedFolder;
     } catch (error) {
       throw error;
     }

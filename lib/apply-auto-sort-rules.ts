@@ -252,8 +252,39 @@ export async function applyRuleActions(
           break;
         case 'addLabel':
           break;
-        case 'autoArchive':
-        case 'autoDelete':
+        case 'autoArchive': {
+          const message = await provider.getMessage(accountId, messageId);
+          if (message) {
+            const messageDate = new Date(message.date);
+            const daysSinceMessage = Math.floor((Date.now() - messageDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysSinceMessage >= action.days) {
+              const folders = await provider.getFolders(accountId);
+              const archiveFolder = folders.find((f) => f.role === 'trash' || f.name.toLowerCase().includes('archive'));
+              if (archiveFolder) {
+                await provider.bulkUpdateMessages(accountId, {
+                  ids: [messageId],
+                  action: 'move',
+                  payload: { folderId: archiveFolder.id },
+                });
+              }
+            }
+          }
+          break;
+        }
+        case 'autoDelete': {
+          const message = await provider.getMessage(accountId, messageId);
+          if (message) {
+            const messageDate = new Date(message.date);
+            const daysSinceMessage = Math.floor((Date.now() - messageDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysSinceMessage >= action.days) {
+              await provider.bulkUpdateMessages(accountId, {
+                ids: [messageId],
+                action: 'delete',
+              });
+            }
+          }
+          break;
+        }
         case 'forward':
         case 'notify':
           break;

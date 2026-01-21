@@ -51,6 +51,7 @@ export interface MailProvider {
   getDraft(accountId: string, draftId: string): Promise<Draft | null>;
   getAttachment(accountId: string, messageId: string, attachmentId: string): Promise<Attachment & { data: Buffer } | null>;
   createFolder(accountId: string, name: string, parentId?: string): Promise<Folder>;
+  updateFolder?(accountId: string, folderId: string, updates: { name?: string; parentId?: string | null }): Promise<Folder>;
   deleteFolder(accountId: string, folderId: string): Promise<void>;
   subscribeToUpdates(
     accountId: string,
