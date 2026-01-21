@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Folder, Account } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -204,6 +204,96 @@ export function Sidebar({
     router.push('/settings');
   };
 
+  const organizedFolders = useMemo(() => {
+    const folderMap = new Map<string, Folder & { children: Folder[] }>();
+    const rootFolders: (Folder & { children: Folder[] })[] = [];
+
+    folders.forEach((folder) => {
+      folderMap.set(folder.id, { ...folder, children: [] });
+    });
+
+    folders.forEach((folder) => {
+      const folderWithChildren = folderMap.get(folder.id)!;
+      if (folder.parentId && folderMap.has(folder.parentId)) {
+        const parent = folderMap.get(folder.parentId)!;
+        parent.children.push(folderWithChildren);
+      } else {
+        rootFolders.push(folderWithChildren);
+      }
+    });
+
+    return rootFolders;
+  }, [folders]);
+
+  const renderFolderItem = useCallback((folder: Folder & { children: Folder[] }, level = 0) => {
+    return (
+      <div key={folder.id}>
+        <button
+          onClick={() => onFolderSelect(folder.id)}
+          onDragOver={(e) => {
+            if (onDropMessage) {
+              e.preventDefault();
+              e.stopPropagation();
+              setDraggedOverFolderId(folder.id);
+            }
+          }}
+          onDragLeave={() => {
+            if (onDropMessage) {
+              setDraggedOverFolderId(null);
+            }
+          }}
+          onDrop={(e) => {
+            if (onDropMessage) {
+              e.preventDefault();
+              e.stopPropagation();
+              setDraggedOverFolderId(null);
+              try {
+                const data = e.dataTransfer.getData('application/json');
+                if (data) {
+                  const parsed = JSON.parse(data);
+                  if (parsed.type === 'message' && parsed.id) {
+                    onDropMessage(parsed.id, folder.id);
+                  }
+                } else {
+                  const messageId = e.dataTransfer.getData('text/plain');
+                  if (messageId) {
+                    onDropMessage(messageId, folder.id);
+                  }
+                }
+              } catch (error) {
+                console.error('Error handling drop:', error);
+              }
+            }
+          }}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-all duration-200 hover:bg-muted active:bg-muted/70 max-md:min-h-[44px] touch-manipulation hover:shadow-sm',
+            selectedFolderId === folder.id && 'bg-muted font-medium shadow-sm',
+            draggedOverFolderId === folder.id && 'bg-primary/20 ring-2 ring-primary ring-offset-1',
+            level > 0 && 'ml-4'
+          )}
+        >
+          {folderIcons[folder.role] || folderIcons.custom}
+          <span className="flex-1 truncate">{folder.name}</span>
+          {folder.role === 'drafts' && folder.unreadCount > 0 && (
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+              {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
+            </span>
+          )}
+          {folder.role !== 'drafts' && folder.unreadCount > 0 && (
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+              {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
+            </span>
+          )}
+        </button>
+        {folder.children.length > 0 && (
+          <div className="ml-4">
+            {folder.children.map((child) => renderFolderItem(child, level + 1))}
+          </div>
+        )}
+      </div>
+    );
+  }, [selectedFolderId, draggedOverFolderId, onFolderSelect, onDropMessage]);
+
   if (isCollapsed && !isMobile) {
     return (
       <div className="flex h-full w-16 flex-col border-r bg-muted/30">
@@ -214,55 +304,29 @@ export function Sidebar({
         </div>
         <div className="flex-1 overflow-auto p-2">
           <nav className="space-y-2">
-            {folders.map((folder) => (
-              <button
-                key={folder.id}
-                onClick={() => onFolderSelect(folder.id)}
-                onDragOver={(e) => {
-                  if (onDropMessage) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setDraggedOverFolderId(folder.id);
-                  }
-                }}
-                onDragLeave={() => {
-                  if (onDropMessage) {
-                    setDraggedOverFolderId(null);
-                  }
-                }}
-                onDrop={(e) => {
-                  if (onDropMessage) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setDraggedOverFolderId(null);
-                    try {
-                      const data = e.dataTransfer.getData('application/json');
-                      if (data) {
-                        const parsed = JSON.parse(data);
-                        if (parsed.type === 'message' && parsed.id) {
-                          onDropMessage(parsed.id, folder.id);
-                        }
-                      } else {
-                        const messageId = e.dataTransfer.getData('text/plain');
-                        if (messageId) {
-                          onDropMessage(messageId, folder.id);
-                        }
-                      }
-                    } catch (error) {
-                      console.error('Error handling drop:', error);
-                    }
-                  }
-                }}
-                className={cn(
-                  'flex w-full items-center justify-center rounded-md p-2 text-sm transition-colors hover:bg-muted',
-                  selectedFolderId === folder.id && 'bg-muted font-medium',
-                  draggedOverFolderId === folder.id && 'bg-primary/20 ring-2 ring-primary ring-offset-1 scale-105'
-                )}
-                title={folder.name}
-              >
-                {folderIcons[folder.role] || folderIcons.custom}
-              </button>
-            ))}
+            {organizedFolders.map((folder) => {
+              const renderCollapsedFolder = (f: Folder & { children: Folder[] }) => (
+                <div key={f.id}>
+                  <button
+                    onClick={() => onFolderSelect(f.id)}
+                    className={cn(
+                      'flex w-full items-center justify-center rounded-md p-2 text-sm transition-colors hover:bg-muted',
+                      selectedFolderId === f.id && 'bg-muted font-medium',
+                      draggedOverFolderId === f.id && 'bg-primary/20 ring-2 ring-primary ring-offset-1 scale-105'
+                    )}
+                    title={f.name}
+                  >
+                    {folderIcons[f.role] || folderIcons.custom}
+                  </button>
+                  {f.children.length > 0 && (
+                    <div className="ml-2">
+                      {f.children.map((child) => renderCollapsedFolder(child))}
+                    </div>
+                  )}
+                </div>
+              );
+              return renderCollapsedFolder(folder);
+            })}
           </nav>
         </div>
         <div className="border-t p-2">
@@ -343,65 +407,7 @@ export function Sidebar({
       </div>
       <div className="flex-1 overflow-auto">
         <nav className="p-2">
-          {folders.map((folder) => (
-            <button
-              key={folder.id}
-              onClick={() => onFolderSelect(folder.id)}
-              onDragOver={(e) => {
-                if (onDropMessage) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDraggedOverFolderId(folder.id);
-                }
-              }}
-              onDragLeave={() => {
-                if (onDropMessage) {
-                  setDraggedOverFolderId(null);
-                }
-              }}
-              onDrop={(e) => {
-                if (onDropMessage) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDraggedOverFolderId(null);
-                  try {
-                    const data = e.dataTransfer.getData('application/json');
-                    if (data) {
-                      const parsed = JSON.parse(data);
-                      if (parsed.type === 'message' && parsed.id) {
-                        onDropMessage(parsed.id, folder.id);
-                      }
-                    } else {
-                      const messageId = e.dataTransfer.getData('text/plain');
-                      if (messageId) {
-                        onDropMessage(messageId, folder.id);
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Error handling drop:', error);
-                  }
-                }
-              }}
-              className={cn(
-                'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-all duration-200 hover:bg-muted active:bg-muted/70 max-md:min-h-[44px] touch-manipulation hover:shadow-sm',
-                selectedFolderId === folder.id && 'bg-muted font-medium shadow-sm',
-                draggedOverFolderId === folder.id && 'bg-primary/20 ring-2 ring-primary ring-offset-1'
-              )}
-            >
-              {folderIcons[folder.role] || folderIcons.custom}
-              <span className="flex-1">{folder.name}</span>
-              {folder.role === 'drafts' && folder.unreadCount > 0 && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                  {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
-                </span>
-              )}
-              {folder.role !== 'drafts' && folder.unreadCount > 0 && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                  {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
-                </span>
-              )}
-            </button>
-          ))}
+          {organizedFolders.map((folder) => renderFolderItem(folder))}
         </nav>
       </div>
       <div className="border-t p-2">
