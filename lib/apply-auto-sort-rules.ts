@@ -1,6 +1,16 @@
 import type { AutoSortRule, MessageListItem, MessageDetail, FilterGroup, FilterCondition } from './types';
 import type { MailProvider } from '@/providers/mail-provider';
 
+function hasBodyCondition(group: FilterGroup): boolean {
+  if (group.conditions.some((c) => c.field === 'body')) {
+    return true;
+  }
+  if (group.groups) {
+    return group.groups.some((g) => hasBodyCondition(g));
+  }
+  return false;
+}
+
 export async function checkMessageMatchesRule(
   message: MessageListItem | MessageDetail,
   rule: AutoSortRule,
@@ -20,26 +30,38 @@ export async function checkMessageMatchesRule(
     filterGroup: JSON.stringify(rule.filterGroup),
   });
 
-  const matches = checkMessageMatchesFilterGroup(message, rule.filterGroup, provider, accountId, folderId);
+  let messageToCheck: MessageListItem | MessageDetail = message;
+  
+  if (!('body' in message) && hasBodyCondition(rule.filterGroup)) {
+    const fullMessage = await provider.getMessage(accountId, message.id);
+    if (fullMessage) {
+      messageToCheck = fullMessage;
+      console.error('[apply-auto-sort-rules] Loaded full message for body check:', message.id);
+    }
+  }
+
+  const matches = await checkMessageMatchesFilterGroup(messageToCheck, rule.filterGroup, provider, accountId, folderId);
   
   console.error('[apply-auto-sort-rules] Rule check result:', {
     ruleName: rule.name,
     messageId: message.id,
-    from: 'from' in message ? message.from.email : 'N/A',
+    from: 'from' in messageToCheck ? messageToCheck.from.email : 'N/A',
     matches,
   });
   return matches;
 }
 
-function checkMessageMatchesFilterGroup(
+async function checkMessageMatchesFilterGroup(
   message: MessageListItem | MessageDetail,
   group: FilterGroup,
   provider: MailProvider,
   accountId: string,
   folderId: string
-): boolean {
-  const conditionResults = group.conditions.map((condition) =>
-    checkMessageMatchesCondition(message, condition)
+): Promise<boolean> {
+  const conditionResults = await Promise.all(
+    group.conditions.map((condition) =>
+      checkMessageMatchesCondition(message, condition)
+    )
   );
 
   let result: boolean;
@@ -50,8 +72,10 @@ function checkMessageMatchesFilterGroup(
   }
 
   if (group.groups) {
-    const groupResults = group.groups.map((subGroup) =>
-      checkMessageMatchesFilterGroup(message, subGroup, provider, accountId, folderId)
+    const groupResults = await Promise.all(
+      group.groups.map((subGroup) =>
+        checkMessageMatchesFilterGroup(message, subGroup, provider, accountId, folderId)
+      )
     );
     if (group.logic === 'AND') {
       result = result && groupResults.every((r) => r);
@@ -63,10 +87,10 @@ function checkMessageMatchesFilterGroup(
   return result;
 }
 
-function checkMessageMatchesCondition(
+async function checkMessageMatchesCondition(
   message: MessageListItem | MessageDetail,
   condition: FilterCondition
-): boolean {
+): Promise<boolean> {
   const { field, operator, value } = condition;
 
   switch (field) {
