@@ -30,6 +30,8 @@ export type Folder = {
   name: string;
   role: FolderRole;
   unreadCount: number;
+  parentId?: string;
+  color?: string;
 };
 
 export type Label = {
@@ -49,14 +51,32 @@ export type MessageFlags = {
 
 export type MessageListItem = {
   id: string;
-  threadId: string;
   from: { email: string; name?: string };
+  to: Array<{ email: string; name?: string }>;
   subject: string;
   snippet: string;
   date: Date;
   flags: MessageFlags;
-  size: number;
   labels?: string[];
+  size: number;
+};
+
+export type MessageDetail = {
+  id: string;
+  from: { email: string; name?: string };
+  to: Array<{ email: string; name?: string }>;
+  cc?: Array<{ email: string; name?: string }>;
+  bcc?: Array<{ email: string; name?: string }>;
+  subject: string;
+  date: Date;
+  body: { html?: string; text?: string };
+  attachments: Attachment[];
+  flags: MessageFlags;
+  labels?: string[];
+  replyTo?: Array<{ email: string; name?: string }>;
+  inReplyTo?: string;
+  references?: string[];
+  messageId?: string;
 };
 
 export type Attachment = {
@@ -66,57 +86,30 @@ export type Attachment = {
   size: number;
 };
 
-export type MessageDetail = {
-  id: string;
-  threadId: string;
-  headers: Record<string, string>;
-  from: { email: string; name?: string };
-  to: Array<{ email: string; name?: string }>;
-  cc?: Array<{ email: string; name?: string }>;
-  bcc?: Array<{ email: string; name?: string }>;
-  subject: string;
-  date: Date;
-  body: {
-    text?: string;
-    html?: string;
-  };
-  attachments: Attachment[];
-  flags: MessageFlags;
-  labels?: string[];
-};
-
 export type Draft = {
   id?: string;
-  to?: string[];
+  to: string[];
   cc?: string[];
   bcc?: string[];
-  subject?: string;
-  html?: string;
-  lastSavedAt?: Date;
-};
-
-export type BulkAction = {
-  ids: string[];
-  action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar' | 'markImportant' | 'unmarkImportant';
-  payload?: {
-    folderId?: string;
-  };
+  subject: string;
+  html: string;
+  attachments?: Array<{ filename: string; mime: string; data: Buffer }>;
 };
 
 export type QuickFilterType =
   | 'unread'
   | 'read'
-  | 'hasAttachments'
-  | 'attachmentsImages'
-  | 'attachmentsDocuments'
-  | 'attachmentsArchives'
   | 'starred'
   | 'important'
   | 'drafts'
   | 'sent'
   | 'incoming'
   | 'bounce'
-  | 'bulk';
+  | 'bulk'
+  | 'hasAttachments'
+  | 'attachmentsImages'
+  | 'attachmentsDocuments'
+  | 'attachmentsArchives';
 
 export type FilterField =
   | 'from'
@@ -130,7 +123,9 @@ export type FilterField =
   | 'tags'
   | 'size'
   | 'messageId'
-  | 'status';
+  | 'status'
+  | 'attachment'
+  | 'filename';
 
 export type FilterOperator = 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'matches' | 'gt' | 'gte' | 'lt' | 'lte' | 'between' | 'in' | 'notIn';
 
@@ -157,42 +152,75 @@ export type SavedFilter = {
   quickFilter?: QuickFilterType;
   isPinned?: boolean;
   createdAt: Date;
-  updatedAt: Date;
+  updatedAt?: Date;
 };
 
 export type AutoSortRule = {
   id: string;
   name: string;
   enabled: boolean;
-  filterGroup: FilterGroup;
-  actions: AutoSortAction[];
-  applyToExisting?: boolean;
+  conditions: FilterGroup;
+  actions: Array<{
+    type: 'move' | 'label' | 'markRead' | 'markImportant' | 'delete' | 'forward' | 'autoReply' | 'autoArchive' | 'autoDelete';
+    payload?: { folderId?: string; labelIds?: string[]; email?: string; templateId?: string; days?: number };
+  }>;
+  priority: number;
   createdAt: Date;
   updatedAt: Date;
 };
 
-export type AutoSortAction =
-  | { type: 'moveToFolder'; folderId: string }
-  | { type: 'addLabel'; label: string }
-  | { type: 'markRead' }
-  | { type: 'markImportant' }
-  | { type: 'autoArchive'; days: number }
-  | { type: 'autoDelete'; days: number }
-  | { type: 'forward'; email: string }
-  | { type: 'notify'; service: 'telegram' | 'matrix'; target: string };
-
-export type SecurityFilter = {
-  spf?: 'pass' | 'fail' | 'none';
-  dkim?: 'pass' | 'fail' | 'none';
-  dmarc?: 'pass' | 'fail' | 'none';
-  externalDomain?: boolean;
-  suspiciousDomain?: boolean;
-  dangerousAttachments?: boolean;
+export type EmailTemplate = {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  category?: string;
+  variables: string[];
+  createdAt: Date;
+  updatedAt: Date;
 };
 
-export type MessageFilter = {
-  quickFilter?: QuickFilterType;
-  filterGroup?: FilterGroup;
-  securityFilter?: SecurityFilter;
-  savedFilterId?: string;
+export type EmailSubscription = {
+  id: string;
+  senderEmail: string;
+  senderName?: string;
+  category?: string;
+  unsubscribeUrl?: string;
+  listUnsubscribe?: string;
+  lastMessageDate: Date;
+  messageCount: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+
+export type DeliveryTracking = {
+  messageId: string;
+  status: DeliveryStatus;
+  sentAt: Date;
+  deliveredAt?: Date;
+  readAt?: Date;
+  failedAt?: Date;
+  failureReason?: string;
+  recipients: Array<{
+    email: string;
+    status: DeliveryStatus;
+    deliveredAt?: Date;
+    readAt?: Date;
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type PGPKey = {
+  id: string;
+  email: string;
+  name?: string;
+  publicKey: string;
+  privateKey?: string;
+  fingerprint: string;
+  createdAt: Date;
+  updatedAt: Date;
 };

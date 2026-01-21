@@ -1,16 +1,26 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key } from 'lucide-react';
 import type { Folder, SavedFilter, AutoSortRule } from '@/lib/types';
 import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
 import { ContactsManager } from '@/components/contacts-manager';
 import { MonitoringDashboard } from '@/components/monitoring-dashboard';
+import { LabelsManager } from '@/components/labels-manager';
+import { EmailImport } from '@/components/email-import';
+import { EmailTemplatesManager } from '@/components/email-templates-manager';
+import { StatisticsDashboard } from '@/components/statistics-dashboard';
+import { BackupRestore } from '@/components/backup-restore';
+import { AutoArchiveSettings } from '@/components/auto-archive-settings';
+import { AccessibilitySettings } from '@/components/accessibility-settings';
+import { CustomHotkeysSettings } from '@/components/custom-hotkeys-settings';
+import { SubscriptionManager } from '@/components/subscription-manager';
+import { PGPManager } from '@/components/pgp-manager';
 
 interface Signature {
   id: string;
@@ -59,6 +69,22 @@ interface UserSettings {
     sortOrder: 'asc' | 'desc';
     groupBy: 'none' | 'date' | 'sender';
   };
+  notifications?: {
+    enabled: boolean;
+    browser: boolean;
+    sound: boolean;
+    onlyImportant?: boolean;
+  };
+  customTheme?: {
+    name: string;
+    colors: {
+      primary?: string;
+      secondary?: string;
+      accent?: string;
+      background?: string;
+      foreground?: string;
+    };
+  };
 }
 
 async function getSettings(): Promise<UserSettings> {
@@ -88,11 +114,11 @@ async function getFolders(): Promise<Folder[]> {
   return res.json();
 }
 
-async function createFolder(name: string): Promise<Folder> {
+async function createFolder(name: string, parentId?: string): Promise<Folder> {
   const res = await fetch('/api/mail/folders', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, parentId }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -111,7 +137,7 @@ async function deleteFolder(folderId: string): Promise<void> {
   }
 }
 
-type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'contacts' | 'interface' | 'advanced' | 'monitoring';
+type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'contacts' | 'interface' | 'advanced' | 'monitoring' | 'labels' | 'import' | 'templates' | 'notifications' | 'statistics' | 'backup' | 'archive' | 'accessibility' | 'hotkeys' | 'subscriptions' | 'pgp';
 
 interface Tab {
   id: TabId;
@@ -125,10 +151,21 @@ function getTabs(theme: 'light' | 'dark'): Tab[] {
     { id: 'theme', label: 'Тема', icon: theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" /> },
     { id: 'autoReply', label: 'Автоответ', icon: <Mail className="h-4 w-4" /> },
     { id: 'interface', label: 'Интерфейс', icon: <Layout className="h-4 w-4" /> },
+    { id: 'notifications', label: 'Уведомления', icon: <Bell className="h-4 w-4" /> },
+    { id: 'accessibility', label: 'Доступность', icon: <Accessibility className="h-4 w-4" /> },
+    { id: 'hotkeys', label: 'Горячие клавиши', icon: <Keyboard className="h-4 w-4" /> },
+    { id: 'subscriptions', label: 'Подписки', icon: <Rss className="h-4 w-4" /> },
+    { id: 'pgp', label: 'PGP/GPG', icon: <Key className="h-4 w-4" /> },
     { id: 'advanced', label: 'Расширенные', icon: <Globe className="h-4 w-4" /> },
     { id: 'folders', label: 'Папки', icon: <FolderPlus className="h-4 w-4" /> },
+    { id: 'labels', label: 'Метки', icon: <Tag className="h-4 w-4" /> },
     { id: 'filters', label: 'Фильтры', icon: <Filter className="h-4 w-4" /> },
     { id: 'contacts', label: 'Контакты', icon: <Users className="h-4 w-4" /> },
+    { id: 'templates', label: 'Шаблоны', icon: <FileText className="h-4 w-4" /> },
+    { id: 'import', label: 'Импорт', icon: <Upload className="h-4 w-4" /> },
+    { id: 'statistics', label: 'Статистика', icon: <BarChart3 className="h-4 w-4" /> },
+    { id: 'backup', label: 'Резервное копирование', icon: <Database className="h-4 w-4" /> },
+    { id: 'archive', label: 'Архивация', icon: <Archive className="h-4 w-4" /> },
     { id: 'monitoring', label: 'Мониторинг', icon: <Activity className="h-4 w-4" /> },
   ];
 }
@@ -449,74 +486,288 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
   );
 }
 
+const PRESET_THEMES = [
+  { id: 'blue', name: 'Синяя', icon: '💙' },
+  { id: 'green', name: 'Зеленая', icon: '💚' },
+  { id: 'purple', name: 'Фиолетовая', icon: '💜' },
+  { id: 'orange', name: 'Оранжевая', icon: '🧡' },
+];
+
 function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => initialSettings.theme || 'light');
+  const [selectedPreset, setSelectedPreset] = useState<string>(() => initialSettings.customTheme?.name || 'light');
+  const [customColors, setCustomColors] = useState(() => initialSettings.customTheme?.colors || {});
+  const [showCustom, setShowCustom] = useState(false);
+
+  const hexToHsl = (hex: string): string => {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r:
+          h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+          break;
+        case g:
+          h = ((b - r) / d + 2) / 6;
+          break;
+        case b:
+          h = ((r - g) / d + 4) / 6;
+          break;
+      }
+    }
+
+    return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+  };
+
+  const applyTheme = (themeId: string, colors?: { primary?: string; secondary?: string; accent?: string }) => {
+    const root = document.documentElement;
+    
+    if (themeId === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+
+    if (colors) {
+      if (colors.primary) {
+        const hsl = hexToHsl(colors.primary);
+        root.style.setProperty('--primary', hsl);
+      }
+      if (colors.secondary) {
+        const hsl = hexToHsl(colors.secondary);
+        root.style.setProperty('--secondary', hsl);
+      }
+      if (colors.accent) {
+        const hsl = hexToHsl(colors.accent);
+        root.style.setProperty('--accent', hsl);
+      }
+    } else {
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--secondary');
+      root.style.removeProperty('--accent');
+    }
+  };
 
   const saveMutation = useMutation({
-    mutationFn: (newTheme: 'light' | 'dark') => saveSettings({ ...initialSettings, theme: newTheme }),
-    onSuccess: (_, newTheme) => {
+    mutationFn: (settings: UserSettings) => saveSettings(settings),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Тема изменена');
-      const root = document.documentElement;
-      if (newTheme === 'dark') {
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-      }
+      toast.success('Тема сохранена');
     },
     onError: () => {
       toast.error('Ошибка сохранения темы');
     },
   });
 
+  const getPresetColors = (presetId: string) => {
+    const presets: Record<string, { primary?: string; secondary?: string; accent?: string }> = {
+      blue: { primary: '#3b82f6', accent: '#60a5fa' },
+      green: { primary: '#10b981', accent: '#34d399' },
+      purple: { primary: '#8b5cf6', accent: '#a78bfa' },
+      orange: { primary: '#f59e0b', accent: '#fbbf24' },
+    };
+    return presets[presetId] || {};
+  };
+
+  const handlePresetSelect = (presetId: string) => {
+    setSelectedPreset(presetId);
+    setShowCustom(false);
+    
+    if (presetId === 'light' || presetId === 'dark') {
+      setTheme(presetId);
+      applyTheme(presetId);
+      saveMutation.mutate({ ...initialSettings, theme: presetId, customTheme: undefined });
+    } else {
+      const presetColors = getPresetColors(presetId);
+      applyTheme(theme, presetColors);
+      saveMutation.mutate({
+        ...initialSettings,
+        theme,
+        customTheme: { name: presetId, colors: presetColors },
+      });
+    }
+  };
+
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme);
-    const root = document.documentElement;
-    if (newTheme === 'dark') {
-      root.classList.add('dark');
+    if (selectedPreset === 'light' || selectedPreset === 'dark') {
+      handlePresetSelect(newTheme);
     } else {
-      root.classList.remove('dark');
+      applyTheme(newTheme, customColors);
     }
-    saveMutation.mutate(newTheme);
+  };
+
+  const handleCustomColorChange = (colorType: 'primary' | 'secondary' | 'accent', value: string) => {
+    const newColors = { ...customColors, [colorType]: value };
+    setCustomColors(newColors);
+    applyTheme(theme, newColors);
+  };
+
+  const handleSaveCustom = () => {
+    saveMutation.mutate({
+      ...initialSettings,
+      theme,
+      customTheme: { name: 'custom', colors: customColors },
+    });
+    setSelectedPreset('custom');
   };
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold mb-4">Тема оформления</h2>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => handleThemeChange('light')}
-              className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
-                theme === 'light'
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border hover:border-primary/50'
-              }`}
-            >
-              <Sun className={`h-8 w-8 ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`} />
-              <span className={`font-medium ${theme === 'light' ? 'text-primary' : 'text-foreground'}`}>
-                Светлая
-              </span>
-            </button>
-            <button
-              onClick={() => handleThemeChange('dark')}
-              className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
-                theme === 'dark'
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border hover:border-primary/50'
-              }`}
-            >
-              <Moon className={`h-8 w-8 ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`} />
-              <span className={`font-medium ${theme === 'dark' ? 'text-primary' : 'text-foreground'}`}>
-                Темная
-              </span>
-            </button>
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-sm font-medium mb-3">Базовые темы</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => handlePresetSelect('light')}
+                className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
+                  selectedPreset === 'light' && !showCustom
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <Sun className={`h-8 w-8 ${selectedPreset === 'light' && !showCustom ? 'text-primary' : 'text-muted-foreground'}`} />
+                <span className={`font-medium ${selectedPreset === 'light' && !showCustom ? 'text-primary' : 'text-foreground'}`}>
+                  Светлая
+                </span>
+              </button>
+              <button
+                onClick={() => handlePresetSelect('dark')}
+                className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
+                  selectedPreset === 'dark' && !showCustom
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <Moon className={`h-8 w-8 ${selectedPreset === 'dark' && !showCustom ? 'text-primary' : 'text-muted-foreground'}`} />
+                <span className={`font-medium ${selectedPreset === 'dark' && !showCustom ? 'text-primary' : 'text-foreground'}`}>
+                  Темная
+                </span>
+              </button>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Выберите тему оформления интерфейса почты
-          </p>
+
+          <div>
+            <h3 className="text-sm font-medium mb-3">Цветовые схемы</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {PRESET_THEMES.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => handlePresetSelect(preset.id)}
+                  className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all ${
+                    selectedPreset === preset.id && !showCustom
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <span className="text-2xl">{preset.icon}</span>
+                  <span className={`text-sm font-medium ${selectedPreset === preset.id && !showCustom ? 'text-primary' : 'text-foreground'}`}>
+                    {preset.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium mb-3">Кастомная цветовая схема</h3>
+            <Button
+              variant="outline"
+              onClick={() => setShowCustom(!showCustom)}
+              className="w-full"
+            >
+              {showCustom ? 'Скрыть настройки' : 'Показать настройки цветов'}
+            </Button>
+            {showCustom && (
+              <div className="mt-4 space-y-4 p-4 rounded-lg border bg-card">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Основной цвет</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={customColors.primary || '#3b82f6'}
+                      onChange={(e) => handleCustomColorChange('primary', e.target.value)}
+                      className="h-10 w-20 rounded border cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={customColors.primary || '#3b82f6'}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                          handleCustomColorChange('primary', value);
+                        }
+                      }}
+                      placeholder="#3b82f6"
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Вторичный цвет</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={customColors.secondary || '#64748b'}
+                      onChange={(e) => handleCustomColorChange('secondary', e.target.value)}
+                      className="h-10 w-20 rounded border cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={customColors.secondary || '#64748b'}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                          handleCustomColorChange('secondary', value);
+                        }
+                      }}
+                      placeholder="#64748b"
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Акцентный цвет</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={customColors.accent || '#8b5cf6'}
+                      onChange={(e) => handleCustomColorChange('accent', e.target.value)}
+                      className="h-10 w-20 rounded border cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={customColors.accent || '#8b5cf6'}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                          handleCustomColorChange('accent', value);
+                        }
+                      }}
+                      placeholder="#8b5cf6"
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleSaveCustom} className="w-full">
+                  Сохранить кастомную схему
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -998,6 +1249,140 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
   );
 }
 
+function NotificationsTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
+  const queryClient = useQueryClient();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => initialSettings.notifications?.enabled ?? true);
+  const [browserNotifications, setBrowserNotifications] = useState(() => initialSettings.notifications?.browser ?? true);
+  const [soundNotifications, setSoundNotifications] = useState(() => initialSettings.notifications?.sound ?? false);
+  const [onlyImportant, setOnlyImportant] = useState(() => initialSettings.notifications?.onlyImportant ?? false);
+
+  const saveMutation = useMutation({
+    mutationFn: () => saveSettings({
+      ...initialSettings,
+      notifications: {
+        enabled: notificationsEnabled,
+        browser: browserNotifications,
+        sound: soundNotifications,
+        onlyImportant,
+      },
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      toast.success('Настройки уведомлений сохранены');
+      
+      if (browserNotifications && 'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') {
+            toast.success('Разрешение на уведомления получено');
+          } else if (permission === 'denied') {
+            toast.error('Уведомления заблокированы. Разрешите их в настройках браузера.');
+          }
+        });
+      }
+    },
+    onError: () => {
+      toast.error('Ошибка сохранения настроек уведомлений');
+    },
+  });
+
+  const handleSave = () => {
+    saveMutation.mutate();
+  };
+
+  const handleRequestPermission = () => {
+    if ('Notification' in window) {
+      Notification.requestPermission().then((permission) => {
+        if (permission === 'granted') {
+          setBrowserNotifications(true);
+          toast.success('Разрешение на уведомления получено');
+        } else if (permission === 'denied') {
+          toast.error('Уведомления заблокированы');
+        }
+      });
+    } else {
+      toast.error('Браузер не поддерживает уведомления');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Уведомления</h2>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="notificationsEnabled"
+              checked={notificationsEnabled}
+              onChange={(e) => setNotificationsEnabled(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            <label htmlFor="notificationsEnabled" className="text-sm font-medium">
+              Включить уведомления
+            </label>
+          </div>
+
+          {notificationsEnabled && (
+            <div className="space-y-4 pl-6">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="browserNotifications"
+                  checked={browserNotifications}
+                  onChange={(e) => setBrowserNotifications(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <label htmlFor="browserNotifications" className="text-sm font-medium">
+                  Браузерные уведомления
+                </label>
+                {browserNotifications && 'Notification' in window && Notification.permission === 'default' && (
+                  <Button variant="outline" size="sm" onClick={handleRequestPermission}>
+                    Запросить разрешение
+                  </Button>
+                )}
+                {browserNotifications && 'Notification' in window && Notification.permission === 'denied' && (
+                  <span className="text-xs text-destructive">Уведомления заблокированы</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="soundNotifications"
+                  checked={soundNotifications}
+                  onChange={(e) => setSoundNotifications(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <label htmlFor="soundNotifications" className="text-sm font-medium">
+                  Звуковые уведомления
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="onlyImportant"
+                  checked={onlyImportant}
+                  onChange={(e) => setOnlyImportant(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <label htmlFor="onlyImportant" className="text-sm font-medium">
+                  Только для важных писем
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saveMutation.isPending}>
+          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
   const [forwardingEnabled, setForwardingEnabled] = useState(() => initialSettings.forwarding?.enabled || false);
@@ -1203,23 +1588,96 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
   );
 }
 
+function ImportTab() {
+  const [importOpen, setImportOpen] = useState(false);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Импорт писем</h2>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Импортируйте письма из EML файлов в ваш почтовый ящик. Вы можете выбрать папку для импорта.
+          </p>
+          <Button onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Импортировать письма
+          </Button>
+        </div>
+      </div>
+      <EmailImport open={importOpen} onClose={() => setImportOpen(false)} />
+    </div>
+  );
+}
+
 function FoldersTab() {
   const queryClient = useQueryClient();
   const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderParentId, setNewFolderParentId] = useState<string>('');
+  const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
+  const [editFolderName, setEditFolderName] = useState('');
+  const [editFolderParentId, setEditFolderParentId] = useState<string>('');
   const { data: folders = [], isLoading } = useQuery({
     queryKey: ['folders'],
     queryFn: getFolders,
   });
 
+  const organizedFolders = useMemo(() => {
+    const folderMap = new Map<string, Folder & { children: Folder[] }>();
+    const rootFolders: (Folder & { children: Folder[] })[] = [];
+
+    folders.forEach((folder) => {
+      folderMap.set(folder.id, { ...folder, children: [] });
+    });
+
+    folders.forEach((folder) => {
+      const folderWithChildren = folderMap.get(folder.id)!;
+      if (folder.parentId && folderMap.has(folder.parentId)) {
+        const parent = folderMap.get(folder.parentId)!;
+        parent.children.push(folderWithChildren);
+      } else {
+        rootFolders.push(folderWithChildren);
+      }
+    });
+
+    return rootFolders;
+  }, [folders]);
+
   const createMutation = useMutation({
-    mutationFn: createFolder,
+    mutationFn: (data: { name: string; parentId?: string }) => createFolder(data.name, data.parentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       setNewFolderName('');
+      setNewFolderParentId('');
       toast.success('Папка создана');
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Ошибка создания папки');
+    },
+  });
+
+  const updateFolderMutation = useMutation({
+    mutationFn: async ({ id, name, parentId }: { id: string; name: string; parentId?: string }) => {
+      const res = await fetch(`/api/mail/folders/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, parentId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update folder');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      setEditingFolder(null);
+      setEditFolderName('');
+      setEditFolderParentId('');
+      toast.success('Папка обновлена');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Ошибка обновления папки');
     },
   });
 
@@ -1239,7 +1697,72 @@ function FoldersTab() {
       toast.error('Введите название папки');
       return;
     }
-    createMutation.mutate(newFolderName.trim());
+    createMutation.mutate({
+      name: newFolderName.trim(),
+      parentId: newFolderParentId || undefined,
+    });
+  };
+
+  const handleEdit = (folder: Folder) => {
+    setEditingFolder(folder);
+    setEditFolderName(folder.name);
+    setEditFolderParentId(folder.parentId || '');
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingFolder || !editFolderName.trim()) {
+      toast.error('Введите название папки');
+      return;
+    }
+    if (editFolderParentId === editingFolder.id) {
+      toast.error('Папка не может быть родительской для самой себя');
+      return;
+    }
+    updateFolderMutation.mutate({
+      id: editingFolder.id,
+      name: editFolderName.trim(),
+      parentId: editFolderParentId || undefined,
+    });
+  };
+
+  const renderFolderTree = (folder: Folder & { children: Folder[] }, level = 0): React.ReactNode => {
+    return (
+      <div key={folder.id}>
+        <div
+          className={`flex items-center justify-between rounded-md border bg-card p-3 ${
+            level > 0 ? 'ml-6' : ''
+          }`}
+        >
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {folder.children.length > 0 && (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+            <span className="font-medium truncate">{folder.name}</span>
+            {folder.parentId && (
+              <span className="text-xs text-muted-foreground">(подпапка)</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleEdit(folder)}
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDelete(folder.id, folder.name, folder.role)}
+              disabled={deleteMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        {folder.children.map((child) => renderFolderTree(child, level + 1))}
+      </div>
+    );
   };
 
   const handleDelete = (folderId: string, folderName: string, role: string) => {
@@ -1276,27 +1799,14 @@ function FoldersTab() {
           </div>
 
           {isLoading && <p className="text-sm text-muted-foreground">Загрузка папок...</p>}
-          {!isLoading && customFolders.length === 0 && (
+          {!isLoading && organizedFolders.filter((f) => f.role === 'custom').length === 0 && (
             <p className="text-sm text-muted-foreground">Нет пользовательских папок</p>
           )}
-          {!isLoading && customFolders.length > 0 && (
+          {!isLoading && organizedFolders.filter((f) => f.role === 'custom').length > 0 && (
             <div className="space-y-2">
-              {customFolders.map((folder) => (
-                <div
-                  key={folder.id}
-                  className="flex items-center justify-between rounded-md border bg-card p-3"
-                >
-                  <span className="text-sm font-medium">{folder.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(folder.id, folder.name, folder.role)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+              {organizedFolders
+                .filter((f) => f.role === 'custom')
+                .map((folder) => renderFolderTree(folder))}
             </div>
           )}
         </div>
@@ -1362,10 +1872,21 @@ export default function SettingsPage() {
             {activeTab === 'theme' && <ThemeTab initialSettings={settings} />}
             {activeTab === 'autoReply' && <AutoReplyTab initialSettings={settings} />}
             {activeTab === 'interface' && <InterfaceTab initialSettings={settings} />}
+            {activeTab === 'notifications' && <NotificationsTab initialSettings={settings} />}
+            {activeTab === 'accessibility' && <AccessibilitySettings />}
+            {activeTab === 'hotkeys' && <CustomHotkeysSettings />}
+            {activeTab === 'subscriptions' && <SubscriptionManager />}
+            {activeTab === 'pgp' && <PGPManager />}
             {activeTab === 'advanced' && <AdvancedTab initialSettings={settings} />}
             {activeTab === 'folders' && <FoldersTab />}
+            {activeTab === 'labels' && <LabelsManager />}
             {activeTab === 'filters' && <FiltersTab />}
             {activeTab === 'contacts' && <ContactsManager />}
+            {activeTab === 'templates' && <EmailTemplatesManager />}
+            {activeTab === 'import' && <ImportTab />}
+            {activeTab === 'statistics' && <StatisticsDashboard />}
+            {activeTab === 'backup' && <BackupRestore />}
+            {activeTab === 'archive' && <AutoArchiveSettings />}
             {activeTab === 'monitoring' && <MonitoringDashboard />}
           </div>
         </div>
