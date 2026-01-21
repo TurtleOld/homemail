@@ -48,38 +48,70 @@ export async function POST(request: NextRequest) {
       ? getMailProviderForAccount(session.accountId)
       : getMailProvider();
 
-    let targetFolderId = folderId || 'inbox';
+    const folders = await provider.getFolders(session.accountId);
     
-    if (targetFolderId === 'inbox' || targetFolderId === 'sent' || targetFolderId === 'drafts' || targetFolderId === 'trash' || targetFolderId === 'spam') {
-      const folders = await provider.getFolders(session.accountId);
-      const targetFolder = folders.find((f) => f.role === targetFolderId);
-      if (targetFolder) {
-        targetFolderId = targetFolder.id;
-        console.error('[filter-rules/apply] Resolved folder role to ID:', {
-          role: folderId || 'inbox',
-          id: targetFolderId,
-        });
-      } else {
-        console.error('[filter-rules/apply] Warning: Could not find folder with role:', targetFolderId);
+    const moveToFolderAction = rule.actions.find((a) => a.type === 'moveToFolder');
+    let destinationFolderId: string | null = null;
+    
+    if (moveToFolderAction && moveToFolderAction.type === 'moveToFolder') {
+      destinationFolderId = moveToFolderAction.folderId;
+      
+      if (destinationFolderId === 'inbox' || destinationFolderId === 'sent' || destinationFolderId === 'drafts' || destinationFolderId === 'trash' || destinationFolderId === 'spam') {
+        const destinationFolder = folders.find((f) => f.role === destinationFolderId);
+        if (destinationFolder) {
+          destinationFolderId = destinationFolder.id;
+        }
       }
     }
+    
+    const foldersToSearch = folders.filter((f) => {
+      if (f.role === 'trash') {
+        return false;
+      }
+      if (destinationFolderId && f.id === destinationFolderId) {
+        return false;
+      }
+      return true;
+    });
     
     console.error('[filter-rules/apply] Starting rule application:', {
       ruleId,
       ruleName: rule.name,
-      originalFolderId: folderId,
-      targetFolderId,
+      destinationFolderId,
+      foldersToSearch: foldersToSearch.map((f) => ({ id: f.id, name: f.name, role: f.role })),
       limit,
       filterGroup: JSON.stringify(rule.filterGroup),
     });
     
-    const result = await provider.getMessages(session.accountId, targetFolderId, {
-      limit,
-    });
-
-    if (!result || !result.messages || result.messages.length === 0) {
+    const allMessages: MessageListItem[] = [];
+    const messagesPerFolder = Math.ceil(limit / Math.max(foldersToSearch.length, 1));
+    
+    for (const folder of foldersToSearch) {
+      if (allMessages.length >= limit) {
+        break;
+      }
+      
+      try {
+        const remainingLimit = limit - allMessages.length;
+        const folderLimit = Math.min(messagesPerFolder, remainingLimit, 1000);
+        
+        const result = await provider.getMessages(session.accountId, folder.id, {
+          limit: folderLimit,
+        });
+        
+        if (result && result.messages && result.messages.length > 0) {
+          allMessages.push(...result.messages);
+        }
+      } catch (error) {
+        console.error(`[filter-rules/apply] Error getting messages from folder ${folder.id}:`, error);
+      }
+    }
+    
+    if (allMessages.length === 0) {
       return NextResponse.json({ applied: 0, total: 0 });
     }
+    
+    const messagesToProcess = allMessages.slice(0, limit);
 
     const needsBodyCheck = rule.filterGroup.conditions.some((c) => c.field === 'body') ||
       (rule.filterGroup.groups && rule.filterGroup.groups.some((g) => 
@@ -89,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     const messagesToCheck: Array<{ message: MessageListItem | MessageDetail; needsBody: boolean }> = [];
     
-    for (const message of result.messages) {
+    for (const message of messagesToProcess) {
       const needsBody = !!(needsBodyCheck && !('body' in message));
       messagesToCheck.push({ message, needsBody });
     }
@@ -132,7 +164,7 @@ export async function POST(request: NextRequest) {
           rule,
           provider,
           session.accountId,
-          targetFolderId
+          'inbox'
         );
 
         if (matches) {
@@ -148,14 +180,15 @@ export async function POST(request: NextRequest) {
     console.error('[filter-rules/apply] Applied rule:', {
       ruleId,
       ruleName: rule.name,
-      folderId: targetFolderId,
-      total: result.messages.length,
+      destinationFolderId,
+      foldersSearched: foldersToSearch.length,
+      total: messagesToProcess.length,
       applied: appliedCount,
     });
 
     return NextResponse.json({
       applied: appliedCount,
-      total: result.messages.length,
+      total: messagesToProcess.length,
     });
   } catch (error) {
     console.error('[filter-rules/apply] Error applying rule:', error);
