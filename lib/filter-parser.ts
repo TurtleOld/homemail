@@ -16,6 +16,9 @@ export class FilterQueryParser {
     'message-id': 'messageId',
     'messageid': 'messageId',
     'id': 'messageId',
+    'attachment': 'attachment',
+    'attachments': 'attachment',
+    'filename': 'filename',
   };
 
   private static readonly QUICK_FILTERS: Record<string, QuickFilterType> = {
