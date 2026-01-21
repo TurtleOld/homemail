@@ -45,18 +45,28 @@ export async function POST(request: NextRequest) {
 
     const openpgp = await import('openpgp');
     const publicKey = await openpgp.readKey({ armoredKey: data.keyData });
+    const fingerprint = publicKey.getFingerprint();
+
+    const keys = await readStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
+
+    const existingKey = keys.find((k) => k.fingerprint === fingerprint);
+    if (existingKey) {
+      return NextResponse.json(
+        { error: 'Ключ с таким отпечатком уже существует' },
+        { status: 409 }
+      );
+    }
 
     const key: PGPKey = {
       id: `key_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       email: data.email,
       name: data.name,
       publicKey: data.keyData,
-      fingerprint: publicKey.getFingerprint(),
+      fingerprint: fingerprint,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-    const keys = await readStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
     keys.push(key);
     await writeStorage(`pgpKeys:${session.accountId}`, keys);
 

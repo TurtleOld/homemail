@@ -262,13 +262,13 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
     const toList = parseEmailList(to);
     if (toList.length === 0) {
-      toast.error('??????? ??????????');
+      toast.error('Укажите получателя');
       return;
     }
 
     for (const email of toList) {
       if (!validateEmail(email)) {
-        toast.error(`???????? email: ${email}`);
+        toast.error(`Неверный email: ${email}`);
         return;
       }
     }
@@ -344,7 +344,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             sendAt: sendAt.toISOString(),
           };
         } else {
-          toast.error('????? ???????? ?????? ???? ? ???????');
+          toast.error('Дата отправки должна быть в будущем');
           setSending(false);
           return;
         }
@@ -358,7 +358,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        const errorMessage = data.error || data.details || `?????? ???????? (${res.status})`;
+        const errorMessage = data.error || data.details || `Ошибка отправки (${res.status})`;
         console.error('Send error:', errorMessage, data);
         toast.error(errorMessage);
         setSending(false);
@@ -367,7 +367,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
       const responseData = await res.json();
       if (responseData.scheduled) {
-        toast.success(`?????? ????????????? ?? ${new Date(responseData.sendAt).toLocaleString('ru-RU')}`);
+        toast.success(`Письмо запланировано на ${new Date(responseData.sendAt).toLocaleString('ru-RU')}`);
         onClose();
         setSending(false);
         return;
@@ -401,11 +401,11 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         }
       }
 
-      toast.success('?????? ??????????');
+      toast.success('Письмо отправлено');
       onClose();
     } catch (error) {
       console.error('Send error:', error);
-      const errorMessage = error instanceof Error ? error.message : '?????? ??????????';
+      const errorMessage = error instanceof Error ? error.message : 'Ошибка отправки';
       toast.error(errorMessage);
     } finally {
       setSending(false);
@@ -434,7 +434,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       const file = files[i];
       
       if (file.size > MAX_FILE_SIZE) {
-        toast.error(`???? "${file.name}" ??????? ???????. ???????????? ??????: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB`);
+        toast.error(`Файл "${file.name}" слишком большой. Максимальный размер: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB`);
         continue;
       }
 
@@ -448,7 +448,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         });
       } catch (error) {
         console.error('Error reading file:', error);
-        toast.error(`?????? ?????? ????? "${file.name}"`);
+        toast.error(`Ошибка чтения файла "${file.name}"`);
       }
     }
 
@@ -516,14 +516,14 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] max-md:max-w-full max-md:max-h-full max-md:h-full max-md:rounded-none max-md:m-0 flex flex-col">
         <DialogHeader>
-          <DialogTitle className="max-md:text-base">{replyTo ? '????????' : forwardFrom ? '?????????' : '????? ??????'}</DialogTitle>
+          <DialogTitle className="max-md:text-base">{replyTo ? 'Ответить' : forwardFrom ? 'Переслать' : 'Новое сообщение'}</DialogTitle>
         </DialogHeader>
         <div className="flex-1 overflow-auto space-y-4 max-md:space-y-2">
           <div>
             <ContactAutocomplete
               value={to}
               onChange={setTo}
-              placeholder="????"
+              placeholder="Кому"
               className="mb-2"
               multiple
             />
@@ -531,7 +531,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
               <ContactAutocomplete
                 value={cc}
                 onChange={setCc}
-                placeholder="?????"
+                placeholder="Копия"
                 className="mb-2"
                 multiple
               />
@@ -540,7 +540,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
               <ContactAutocomplete
                 value={bcc}
                 onChange={setBcc}
-                placeholder="??????? ?????"
+                placeholder="Скрытая копия"
                 className="mb-2"
                 multiple
               />
@@ -551,36 +551,36 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
                 onClick={() => setShowCc(!showCc)}
                 className="text-primary hover:underline"
               >
-                {showCc ? '??????' : '?????'}
+                {showCc ? 'Скрыть' : 'Копия'}
               </button>
               <button
                 type="button"
                 onClick={() => setShowBcc(!showBcc)}
                 className="text-primary hover:underline"
               >
-                {showBcc ? '??????' : '??????? ?????'}
+                {showBcc ? 'Скрыть' : 'Скрытая копия'}
               </button>
             </div>
           </div>
           <Input
-            placeholder="????"
+            placeholder="Тема"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             className="max-md:text-sm"
           />
           {signatures.length > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">???????:</span>
+              <span className="text-sm text-muted-foreground">Подпись:</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="max-md:text-xs">
-                    {selectedSignatureId ? signatures.find(s => s.id === selectedSignatureId)?.name || '??????? ???????' : '??? ???????'}
+                    {selectedSignatureId ? signatures.find(s => s.id === selectedSignatureId)?.name || 'Подпись с телефоном' : 'Без подписи'}
                     <ChevronDown className="ml-2 h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   <DropdownMenuItem onClick={() => setSelectedSignatureId(null)}>
-                    ??? ???????
+                    Без подписи
                   </DropdownMenuItem>
                   {signatures.map((sig) => (
                     <DropdownMenuItem
@@ -591,7 +591,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
                       <div className="flex items-center gap-2">
                         <span>{sig.name}</span>
                         {sig.isDefault && (
-                          <span className="text-xs text-muted-foreground">(?? ?????????)</span>
+                          <span className="text-xs text-muted-foreground">(по умолчанию)</span>
                         )}
                       </div>
                     </DropdownMenuItem>
@@ -602,7 +602,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           )}
           {attachments.length > 0 && (
             <div className="border rounded-md p-2 max-md:p-1.5 bg-muted/30">
-              <div className="text-sm font-medium mb-2 max-md:text-xs">???????? ({attachments.length}):</div>
+              <div className="text-sm font-medium mb-2 max-md:text-xs">Вложения ({attachments.length}):</div>
               <div className="space-y-1">
                 {attachments.map((att) => (
                   <div
@@ -623,7 +623,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
                       size="sm"
                       onClick={() => removeAttachment(att.id)}
                       className="h-7 w-7 max-md:h-6 max-md:w-6 p-0 flex-shrink-0"
-                      aria-label={`??????? ???????? ${att.file.name}`}
+                      aria-label={`Удалить вложение ${att.file.name}`}
                     >
                       <X className="h-4 w-4 max-md:h-3 max-md:w-3" />
                     </Button>
@@ -655,10 +655,10 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             >
               <Paperclip className="h-6 w-6 max-md:h-5 max-md:w-5 text-muted-foreground mb-2" />
               <span className="text-sm text-muted-foreground max-md:text-xs text-center">
-                ?????????? ????? ???? ??? ??????? ??? ??????
+                Перетащите файл сюда или нажмите для выбора
               </span>
               <span className="text-xs text-muted-foreground/70 max-md:text-[10px] mt-1">
-                ???????????? ?????? ?????: {(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB
+                Максимальный размер файла: {(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB
               </span>
             </label>
           </div>
@@ -742,7 +742,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             />
             <label htmlFor="scheduledSend" className="text-sm font-medium flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              ?????????? ????????
+              Запланировать отправку
             </label>
           </div>
           {scheduledSend && (
@@ -797,10 +797,10 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         </div>
         <DialogFooter className="max-md:flex-col max-md:gap-2">
           <Button variant="outline" onClick={handleClose} className="max-md:w-full">
-            ??????
+            Отмена
           </Button>
           <Button onClick={handleSend} disabled={sending || saving} className="max-md:w-full">
-            {sending ? '????????...' : saving ? '??????????...' : scheduledSend ? '????????????? ????????' : '?????????'}
+            {sending ? 'Отправка...' : saving ? 'Сохранение...' : scheduledSend ? 'Запланировать отправку' : 'Отправить'}
           </Button>
         </DialogFooter>
       </DialogContent>
