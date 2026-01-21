@@ -1382,6 +1382,8 @@ export class StalwartJMAPProvider implements MailProvider {
       const draftsMailbox = mailboxes.find((mb) => mb.role === 'drafts');
 
       if (!draftsMailbox) {
+        const { logger } = await import('@/lib/logger');
+        logger.error(`[saveDraft] Drafts mailbox not found. Available mailboxes: ${mailboxes.map(mb => `${mb.name} (${mb.role || 'no role'})`).join(', ')}`);
         throw new Error('Drafts mailbox not found');
       }
 
@@ -1431,6 +1433,8 @@ export class StalwartJMAPProvider implements MailProvider {
                 accountId: actualAccountId,
                 update: {
                   [draft.id]: {
+                    mailboxIds: { [draftsMailbox.id]: true },
+                    keywords: { '$draft': true },
                     bodyValues: draftEmail.bodyValues,
                     subject: draftEmail.subject,
                     to,
