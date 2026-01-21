@@ -251,6 +251,11 @@ export function MessageViewer({
     ].join('');
   }, [sanitizedHtml, isDark]);
 
+  const messageLabelObjects = useMemo(() => {
+    if (!message?.labels) return [];
+    return labels.filter((label) => message.labels?.includes(label.id));
+  }, [message?.labels, labels]);
+
   const handleMarkRead = useCallback(async () => {
     if (!message) return;
     try {
@@ -362,11 +367,6 @@ export function MessageViewer({
     const newLabelIds = currentLabelIds.filter((id) => id !== labelId);
     updateLabelsMutation.mutate({ messageId: message.id, labelIds: newLabelIds });
   };
-
-  const messageLabelObjects = useMemo(() => {
-    if (!message?.labels) return [];
-    return labels.filter((label) => message.labels?.includes(label.id));
-  }, [message?.labels, labels]);
 
   return (
     <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden max-md:border-l-0" role="region" aria-label="Просмотр письма">

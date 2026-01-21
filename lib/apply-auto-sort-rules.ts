@@ -1,8 +1,12 @@
 import type { AutoSortRule, MessageListItem, MessageDetail, FilterGroup, FilterCondition } from './types';
 import type { MailProvider } from '@/providers/mail-provider';
 
+function isValidFilterGroup(group: FilterGroup | undefined | null): group is FilterGroup {
+  return !!group && Array.isArray(group.conditions) && group.conditions.length > 0;
+}
+
 function hasBodyCondition(group: FilterGroup): boolean {
-  if (group.conditions.some((c) => c.field === 'body')) {
+  if (group.conditions?.some((c) => c.field === 'body')) {
     return true;
   }
   if (group.groups) {
@@ -20,6 +24,11 @@ export async function checkMessageMatchesRule(
 ): Promise<boolean> {
   if (!rule.enabled) {
     console.error('[apply-auto-sort-rules] Rule disabled:', rule.name);
+    return false;
+  }
+
+  if (!isValidFilterGroup(rule.conditions)) {
+    console.error('[apply-auto-sort-rules] Rule has invalid conditions:', rule.name);
     return false;
   }
 
@@ -67,10 +76,13 @@ async function checkMessageMatchesFilterGroup(
   accountId: string,
   folderId: string
 ): Promise<boolean> {
+  if (!isValidFilterGroup(group)) {
+    console.error('[apply-auto-sort-rules] Invalid filter group:', group);
+    return false;
+  }
+
   const conditionResults = await Promise.all(
-    group.conditions.map((condition) =>
-      checkMessageMatchesCondition(message, condition)
-    )
+    group.conditions.map((condition) => checkMessageMatchesCondition(message, condition))
   );
 
   let result: boolean;
