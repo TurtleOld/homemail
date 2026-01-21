@@ -159,7 +159,7 @@ function LoginForm() {
             const loginRes = await fetch('/api/auth/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, password: '', totpCode: undefined }),
+              body: JSON.stringify({ email, password: '', totpCode: undefined, useOAuth: true }),
             });
 
             const loginData = await loginRes.json();

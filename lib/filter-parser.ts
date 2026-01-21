@@ -212,11 +212,15 @@ export class FilterQueryParser {
 
       const field = this.FIELD_PREFIXES[fieldName];
       if (field) {
-        const operator = this.detectOperator(value);
+        let cleanValue = value;
+        if (value.startsWith('has:')) {
+          cleanValue = value.substring(4);
+        }
+        const operator = this.detectOperator(cleanValue);
         const condition: FilterCondition = {
           field,
           operator: negate ? this.negateOperator(operator) : operator,
-          value: this.parseValue(field, value, operator),
+          value: this.parseValue(field, cleanValue, operator),
           caseSensitive: false,
         };
 

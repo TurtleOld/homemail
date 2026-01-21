@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { Toaster } from '@/components/ui/toast';
 import { PerformanceReporter } from '@/components/performance-reporter';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -18,10 +19,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   );
+  const pathname = usePathname();
 
   useEffect(() => {
     const applyTheme = async () => {
-      const pathname = window.location.pathname;
       if (pathname === '/login' || pathname.startsWith('/login')) {
         document.documentElement.classList.remove('dark');
         return;
@@ -37,6 +38,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           } else {
             document.documentElement.classList.remove('dark');
           }
+        } else {
+          document.documentElement.classList.remove('dark');
         }
       } catch (error) {
         document.documentElement.classList.remove('dark');
@@ -44,7 +47,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     };
 
     applyTheme();
-  }, []);
+  }, [pathname]);
 
   return (
     <QueryClientProvider client={queryClient}>

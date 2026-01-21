@@ -906,58 +906,89 @@ export class JMAPClient {
       fetchHTMLBodyValues?: boolean;
     }
   ): Promise<JMAPEmail[]> {
-    const targetAccountId = options?.accountId || this.accountId;
-    const properties = options?.properties;
-    const requestBody: any = {
-      accountId: targetAccountId,
-      ids,
-      properties: properties || [
-        'id',
-        'threadId',
-        'mailboxIds',
-        'keywords',
-        'size',
-        'receivedAt',
-        'hasAttachment',
-        'preview',
-        'subject',
-        'from',
-        'to',
-        'cc',
-        'bcc',
-        'bodyStructure',
-        'bodyValues',
-        'textBody',
-        'htmlBody',
-      ],
-    };
-
-    if (options?.fetchTextBodyValues !== undefined) {
-      requestBody.fetchTextBodyValues = options.fetchTextBodyValues;
-    }
-    if (options?.fetchHTMLBodyValues !== undefined) {
-      requestBody.fetchHTMLBodyValues = options.fetchHTMLBodyValues;
+    if (ids.length === 0) {
+      return [];
     }
 
-    const response = await this.request([
-      [
-        'Email/get',
-        requestBody,
-        '0',
-      ],
-    ]);
+    const BATCH_SIZE = 500;
+    const allEmails: JMAPEmail[] = [];
 
-    const getResponse = response.methodResponses[0];
-    if (getResponse[0] !== 'Email/get') {
-      throw new Error('Invalid email get response');
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const batchIds = ids.slice(i, i + BATCH_SIZE);
+      const targetAccountId = options?.accountId || this.accountId;
+      const properties = options?.properties;
+      const requestBody: any = {
+        accountId: targetAccountId,
+        ids: batchIds,
+        properties: properties || [
+          'id',
+          'threadId',
+          'mailboxIds',
+          'keywords',
+          'size',
+          'receivedAt',
+          'hasAttachment',
+          'preview',
+          'subject',
+          'from',
+          'to',
+          'cc',
+          'bcc',
+          'bodyStructure',
+          'bodyValues',
+          'textBody',
+          'htmlBody',
+        ],
+      };
+
+      if (options?.fetchTextBodyValues !== undefined) {
+        requestBody.fetchTextBodyValues = options.fetchTextBodyValues;
+      }
+      if (options?.fetchHTMLBodyValues !== undefined) {
+        requestBody.fetchHTMLBodyValues = options.fetchHTMLBodyValues;
+      }
+
+      const response = await this.request([
+        [
+          'Email/get',
+          requestBody,
+          '0',
+        ],
+      ]);
+
+      if (!response || !response.methodResponses || response.methodResponses.length === 0) {
+        console.error('[JMAPClient] Invalid response structure:', JSON.stringify(response, null, 2));
+        throw new Error('Invalid email get response: missing methodResponses');
+      }
+
+      const getResponse = response.methodResponses[0];
+      if (!Array.isArray(getResponse) || getResponse.length < 2) {
+        console.error('[JMAPClient] Invalid getResponse structure:', JSON.stringify(getResponse, null, 2));
+        throw new Error('Invalid email get response: unexpected response structure');
+      }
+
+      if (getResponse[0] !== 'Email/get') {
+        console.error('[JMAPClient] Unexpected method name:', getResponse[0], 'Expected: Email/get');
+        console.error('[JMAPClient] Full response:', JSON.stringify(response, null, 2));
+        throw new Error(`Invalid email get response: expected 'Email/get', got '${getResponse[0]}'`);
+      }
+
+      if ('type' in getResponse[1] && getResponse[1].type === 'error') {
+        const errorDesc = (getResponse[1] as any).description || 'Unknown error';
+        console.error('[JMAPClient] Email/get error:', errorDesc);
+        throw new Error(`JMAP email get error: ${errorDesc}`);
+      }
+
+      const data = getResponse[1] as { list: JMAPEmail[] };
+      if (!data || typeof data !== 'object') {
+        console.error('[JMAPClient] Invalid data structure:', JSON.stringify(getResponse[1], null, 2));
+        throw new Error('Invalid email get response: missing or invalid data');
+      }
+
+      allEmails.push(...(data.list || []));
     }
 
-    if ('type' in getResponse[1] && getResponse[1].type === 'error') {
-      throw new Error(`JMAP email get error: ${(getResponse[1] as any).description}`);
-    }
-
-    const data = getResponse[1] as { list: JMAPEmail[] };
-    return data.list || [];
+    return allEmails;
   }
 
   async setEmailFlags(
