@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import type { AutoSortRule } from '@/lib/types';
+import type { AutoSortRule, MessageListItem, MessageDetail } from '@/lib/types';
 import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort-rules';
 
 const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         (g.groups && g.groups.some((sg) => sg.conditions.some((c) => c.field === 'body')))
       ));
 
-    const messagesToCheck: Array<{ message: typeof result.messages[0]; needsBody: boolean }> = [];
+    const messagesToCheck: Array<{ message: MessageListItem | MessageDetail; needsBody: boolean }> = [];
     
     for (const message of result.messages) {
       const needsBody = !!(needsBodyCheck && !('body' in message));
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
               if (fullMessage) {
                 const item = messagesToCheck.find((m) => m.message.id === msg.id);
                 if (item) {
-                  item.message = fullMessage as typeof result.messages[0];
+                  item.message = fullMessage;
                   item.needsBody = false;
                 }
               }
