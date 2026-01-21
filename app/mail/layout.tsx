@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -356,14 +356,25 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     },
   });
 
+  const errorShownRef = useRef<string | null>(null);
+  
   useEffect(() => {
-    if (messageError) {
-      console.error('Message query error:', messageError);
-      if (messageError instanceof Error && messageError.message !== 'Unauthorized') {
+    if (messageError && messageError instanceof Error) {
+      const errorKey = `${selectedMessageId}-${messageError.message}`;
+      if (errorShownRef.current !== errorKey && messageError.message !== 'Unauthorized') {
+        errorShownRef.current = errorKey;
+        console.error('Message query error:', messageError);
         toast.error('Ошибка загрузки письма: ' + messageError.message);
       }
+    } else if (!messageError) {
+      errorShownRef.current = null;
     }
-  }, [messageError]);
+  }, [messageError, selectedMessageId]);
+
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   useEffect(() => {
     let eventSource: EventSource | null = null;
@@ -388,9 +399,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         queryClient.invalidateQueries({ queryKey: ['messages'] });
         queryClient.invalidateQueries({ queryKey: ['folders'] });
         
-        const notificationsEnabled = settings?.notifications?.enabled !== false;
-        const browserNotifications = settings?.notifications?.browser !== false;
-        const onlyImportant = settings?.notifications?.onlyImportant === true;
+        const currentSettings = settingsRef.current;
+        const notificationsEnabled = currentSettings?.notifications?.enabled !== false;
+        const browserNotifications = currentSettings?.notifications?.browser !== false;
+        const onlyImportant = currentSettings?.notifications?.onlyImportant === true;
         
         if (notificationsEnabled && browserNotifications && 'Notification' in window && Notification.permission === 'granted') {
           try {
@@ -403,7 +415,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 const message = await res.json();
                 if (message && (!onlyImportant || message.flags?.important)) {
                   const notification = new Notification('Новое письмо', {
-                    body: `${message.from.name || message.from.email}: ${message.subject || '(без темы)'}`,
+                    body: `${message.from?.name || message.from?.email || 'Неизвестно'}: ${message.subject || '(без темы)'}`,
                     icon: '/icons/mail-icon.png',
                     tag: message.id,
                     requireInteraction: false,
@@ -414,7 +426,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     notification.close();
                   };
                   
-                  if (settings?.notifications?.sound) {
+                  if (currentSettings?.notifications?.sound) {
                     const audio = new Audio('/sounds/notification.mp3');
                     audio.play().catch(() => {});
                   }
@@ -463,7 +475,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
       setRealtimeConnected(false);
     };
-  }, [queryClient, settings]);
+  }, [queryClient]);
 
   const updateMessageInList = useCallback(
     (messageId: string, updater: (message: MessageListItem) => MessageListItem) => {

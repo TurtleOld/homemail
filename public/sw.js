@@ -30,6 +30,14 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  if (url.pathname.startsWith('/api/mail/realtime') || 
+      url.pathname.startsWith('/api/') ||
+      event.request.method !== 'GET') {
+    return fetch(event.request);
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
