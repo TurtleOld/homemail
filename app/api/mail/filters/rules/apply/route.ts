@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     const messagesToCheck: Array<{ message: typeof result.messages[0]; needsBody: boolean }> = [];
     
     for (const message of result.messages) {
-      const needsBody = needsBodyCheck && !('body' in message);
+      const needsBody = !!(needsBodyCheck && !('body' in message));
       messagesToCheck.push({ message, needsBody });
     }
 
