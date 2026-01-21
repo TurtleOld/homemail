@@ -269,6 +269,14 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     },
   });
 
+  const uiSettings = useMemo(() => {
+    return settings?.ui || {
+      sortBy: 'date' as const,
+      sortOrder: 'desc' as const,
+      groupBy: 'none' as const,
+    };
+  }, [settings?.ui?.sortBy, settings?.ui?.sortOrder, settings?.ui?.groupBy]);
+
   const messages = useMemo(() => {
     let allMessages = messagesData?.pages.flatMap((p) => p.messages) || [];
     
@@ -290,12 +298,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         return msg.flags.hasAttachments;
       });
     }
-
-    const uiSettings = settings?.ui || {
-      sortBy: 'date',
-      sortOrder: 'desc',
-      groupBy: 'none',
-    };
 
     allMessages.sort((a, b) => {
       let comparison = 0;
@@ -321,7 +323,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     });
     
     return allMessages;
-  }, [messagesData, quickFilter, settings?.ui]);
+  }, [messagesData, quickFilter, uiSettings]);
 
   const { data: selectedMessage, isLoading: isMessageLoading, error: messageError } = useQuery<MessageDetail>({
     queryKey: ['message', selectedMessageId],
@@ -379,9 +381,27 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
+    let invalidateTimeout: NodeJS.Timeout | null = null;
+    let lastInvalidateTime = 0;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
     const baseReconnectDelay = 1000;
+
+    const debouncedInvalidate = (queryKey: string[], delay = 500) => {
+      const now = Date.now();
+      if (now - lastInvalidateTime < delay) {
+        if (invalidateTimeout) {
+          clearTimeout(invalidateTimeout);
+        }
+        invalidateTimeout = setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey });
+          lastInvalidateTime = Date.now();
+        }, delay);
+      } else {
+        queryClient.invalidateQueries({ queryKey });
+        lastInvalidateTime = now;
+      }
+    };
 
     const connect = () => {
       if (eventSource) {
@@ -396,8 +416,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       });
 
       eventSource.addEventListener('message.new', async (event: MessageEvent) => {
-        queryClient.invalidateQueries({ queryKey: ['messages'] });
-        queryClient.invalidateQueries({ queryKey: ['folders'] });
+        debouncedInvalidate(['messages']);
+        debouncedInvalidate(['folders']);
         
         const currentSettings = settingsRef.current;
         const notificationsEnabled = currentSettings?.notifications?.enabled !== false;
@@ -440,11 +460,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       });
 
       eventSource.addEventListener('mailbox.counts', () => {
-        queryClient.invalidateQueries({ queryKey: ['folders'] });
+        debouncedInvalidate(['folders']);
       });
 
       eventSource.addEventListener('message.updated', () => {
-        queryClient.invalidateQueries({ queryKey: ['messages'] });
+        debouncedInvalidate(['messages']);
       });
 
       eventSource.addEventListener('ping', () => {
@@ -469,6 +489,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     return () => {
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
+      }
+      if (invalidateTimeout) {
+        clearTimeout(invalidateTimeout);
       }
       if (eventSource) {
         eventSource.close();
