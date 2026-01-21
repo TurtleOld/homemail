@@ -27,9 +27,28 @@ export async function POST(request: NextRequest) {
 
     const keys = await readStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
     const recipientKeys = keys.filter((key) => data.recipientEmails.includes(key.email));
+    const recipientEmailsWithKeys = new Set(recipientKeys.map((key) => key.email));
+    const missingRecipients = data.recipientEmails.filter((email) => !recipientEmailsWithKeys.has(email));
 
     if (recipientKeys.length === 0) {
-      return NextResponse.json({ error: 'No PGP keys found for recipients' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: 'No PGP keys found for recipients',
+          missingRecipients: missingRecipients,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (missingRecipients.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'Some recipients are missing PGP keys',
+          missingRecipients: missingRecipients,
+          foundRecipients: data.recipientEmails.filter((email) => recipientEmailsWithKeys.has(email)),
+        },
+        { status: 400 }
+      );
     }
 
     const openpgp = await import('openpgp');

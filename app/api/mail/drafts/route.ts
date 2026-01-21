@@ -3,14 +3,15 @@ import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { validateOrigin } from '@/lib/csrf';
+import { logger } from '@/lib/logger';
 
 const draftSchema = z.object({
   id: z.string().optional(),
-  to: z.array(z.string().email()).optional(),
+  to: z.array(z.string().email()).optional().default([]),
   cc: z.array(z.string().email()).optional(),
   bcc: z.array(z.string().email()).optional(),
-  subject: z.string().optional(),
-  html: z.string().optional(),
+  subject: z.string().optional().default(''),
+  html: z.string().optional().default(''),
 });
 
 export async function POST(request: NextRequest) {
@@ -33,7 +34,9 @@ export async function POST(request: NextRequest) {
       : getMailProvider();
     const draft = {
       ...parsed,
-      to: parsed.to || [],
+      to: parsed.to && parsed.to.length > 0 ? parsed.to : [],
+      cc: parsed.cc && parsed.cc.length > 0 ? parsed.cc : undefined,
+      bcc: parsed.bcc && parsed.bcc.length > 0 ? parsed.bcc : undefined,
       subject: parsed.subject || '',
       html: parsed.html || '',
     };
@@ -42,8 +45,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, id: draftId });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      logger.error('[drafts] Validation error:', error.errors);
       return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    logger.error('[drafts] Error saving draft:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json(
+      { error: 'Failed to save draft', message: errorMessage },
+      { status: 500 }
+    );
   }
 }

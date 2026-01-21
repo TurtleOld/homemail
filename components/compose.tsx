@@ -233,13 +233,26 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         }),
       });
 
-    if (res.ok) {
+      if (res.ok) {
         const data = await res.json();
         setDraftId(data.id);
-      setIsDirty(false);
+        setIsDirty(false);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMessage = errorData.message || errorData.error || 'Не удалось сохранить черновик';
+        console.error('Failed to save draft:', errorMessage, errorData);
+        toast.error('Ошибка сохранения черновика', {
+          description: errorMessage,
+          duration: 5000,
+        });
       }
     } catch (error) {
       console.error('Failed to save draft:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Не удалось сохранить черновик';
+      toast.error('Ошибка сохранения черновика', {
+        description: errorMessage,
+        duration: 5000,
+      });
     } finally {
       setSaving(false);
     }
@@ -305,13 +318,30 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             const data = await res.json();
             html = `<pre>${data.encryptedMessage}</pre>`;
           } else {
-            toast.error('Не удалось зашифровать сообщение. Проверьте наличие PGP ключей для получателей.');
+            const errorData = await res.json().catch(() => ({}));
+            const missingRecipients = errorData.missingRecipients || allRecipients;
+            
+            let description = '';
+            
+            if (missingRecipients.length > 0) {
+              description += `Отсутствуют ключи для: ${missingRecipients.join(', ')}\n\n`;
+            }
+            
+            description += 'Для шифрования необходимо:\n';
+            description += '1. Получить публичный PGP ключ от получателя\n';
+            description += '2. Импортировать его в Настройки → PGP/GPG\n';
+            description += '3. Убедиться, что email ключа совпадает с адресом получателя';
+            
+            toast.error('Не удалось зашифровать сообщение', {
+              description: description,
+              duration: 12000,
+            });
             setSending(false);
             return;
           }
         } catch (error) {
           console.error('Encryption error:', error);
-          toast.error('Ошибка шифрования');
+          toast.error('Ошибка шифрования. Проверьте подключение к серверу.');
           setSending(false);
           return;
         }

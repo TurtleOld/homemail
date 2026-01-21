@@ -1396,9 +1396,9 @@ export class StalwartJMAPProvider implements MailProvider {
       // Проверяем, что fromEmail является валидным email адресом
       validateEmail(fromEmail, 'fromEmail');
       const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
-      const to = draft.to?.map((email) => ({ email })) || [];
-      const cc = draft.cc?.map((email) => ({ email }));
-      const bcc = draft.bcc?.map((email) => ({ email }));
+      const to = (draft.to || []).map((email) => ({ email }));
+      const cc = draft.cc && draft.cc.length > 0 ? draft.cc.map((email) => ({ email })) : undefined;
+      const bcc = draft.bcc && draft.bcc.length > 0 ? draft.bcc.map((email) => ({ email })) : undefined;
 
       const draftEmail = {
         mailboxIds: { [draftsMailbox.id]: true },
