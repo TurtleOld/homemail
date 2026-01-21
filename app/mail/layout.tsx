@@ -354,13 +354,16 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
       return failureCount < 2;
     },
-    onError: (error) => {
-      console.error('Message query error:', error);
-      if (error instanceof Error && error.message !== 'Unauthorized') {
-        toast.error('Ошибка загрузки письма: ' + error.message);
-      }
-    },
   });
+
+  useEffect(() => {
+    if (messageError) {
+      console.error('Message query error:', messageError);
+      if (messageError instanceof Error && messageError.message !== 'Unauthorized') {
+        toast.error('Ошибка загрузки письма: ' + messageError.message);
+      }
+    }
+  }, [messageError]);
 
   useEffect(() => {
     let eventSource: EventSource | null = null;
