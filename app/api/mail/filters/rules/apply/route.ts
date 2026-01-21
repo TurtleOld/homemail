@@ -86,14 +86,15 @@ export async function POST(request: NextRequest) {
     const allMessages: MessageListItem[] = [];
     const messagesPerFolder = Math.ceil(limit / Math.max(foldersToSearch.length, 1));
     
-    for (const folder of foldersToSearch) {
+    for (let i = 0; i < foldersToSearch.length; i++) {
+      const folder = foldersToSearch[i];
       if (allMessages.length >= limit) {
         break;
       }
       
       try {
         const remainingLimit = limit - allMessages.length;
-        const folderLimit = Math.min(messagesPerFolder, remainingLimit, 1000);
+        const folderLimit = Math.min(messagesPerFolder, remainingLimit, 500);
         
         const result = await provider.getMessages(session.accountId, folder.id, {
           limit: folderLimit,
@@ -102,8 +103,15 @@ export async function POST(request: NextRequest) {
         if (result && result.messages && result.messages.length > 0) {
           allMessages.push(...result.messages);
         }
+        
+        if (i < foldersToSearch.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
       } catch (error) {
         console.error(`[filter-rules/apply] Error getting messages from folder ${folder.id}:`, error);
+        if (error instanceof Error && error.message.includes('Too Many Requests')) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
       }
     }
     
@@ -130,12 +138,15 @@ export async function POST(request: NextRequest) {
     
     if (messagesNeedingBody.length > 0) {
       console.error(`[filter-rules/apply] Loading ${messagesNeedingBody.length} full messages for body check...`);
-      const BATCH_SIZE = 50;
+      const BATCH_SIZE = 20;
       for (let i = 0; i < messagesNeedingBody.length; i += BATCH_SIZE) {
         const batch = messagesNeedingBody.slice(i, i + BATCH_SIZE);
         await Promise.all(
-          batch.map(async (msg) => {
+          batch.map(async (msg, idx) => {
             try {
+              if (idx > 0) {
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
               const fullMessage = await provider.getMessage(session.accountId, msg.id);
               if (fullMessage) {
                 const item = messagesToCheck.find((m) => m.message.id === msg.id);
@@ -146,19 +157,27 @@ export async function POST(request: NextRequest) {
               }
             } catch (error) {
               console.error(`[filter-rules/apply] Error loading message ${msg.id}:`, error);
+              if (error instanceof Error && error.message.includes('Too Many Requests')) {
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+              }
             }
           })
         );
         
         if (i + BATCH_SIZE < messagesNeedingBody.length) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
     }
 
     let appliedCount = 0;
-    for (const { message } of messagesToCheck) {
+    for (let i = 0; i < messagesToCheck.length; i++) {
+      const { message } = messagesToCheck[i];
       try {
+        if (i > 0 && i % 10 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        
         const matches = await checkMessageMatchesRule(
           message,
           rule,
@@ -171,9 +190,16 @@ export async function POST(request: NextRequest) {
           console.error(`[filter-rules/apply] Message ${message.id} matches rule ${rule.name}, applying actions...`);
           await applyRuleActions(message.id, rule, provider, session.accountId);
           appliedCount++;
+          
+          if (appliedCount % 5 === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          }
         }
       } catch (error) {
         console.error(`[filter-rules/apply] Error processing message ${message.id}:`, error);
+        if (error instanceof Error && error.message.includes('Too Many Requests')) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
       }
     }
     

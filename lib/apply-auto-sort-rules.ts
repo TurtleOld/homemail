@@ -34,6 +34,7 @@ export async function checkMessageMatchesRule(
   
   if (!('body' in message) && hasBodyCondition(rule.filterGroup)) {
     try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
       const fullMessage = await provider.getMessage(accountId, message.id);
       if (fullMessage) {
         messageToCheck = fullMessage;
@@ -41,6 +42,9 @@ export async function checkMessageMatchesRule(
       }
     } catch (error) {
       console.error('[apply-auto-sort-rules] Error loading full message:', error);
+      if (error instanceof Error && error.message.includes('Too Many Requests')) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
       return false;
     }
   }
@@ -225,8 +229,13 @@ export async function applyRuleActions(
   provider: MailProvider,
   accountId: string
 ): Promise<void> {
-  for (const action of rule.actions) {
+  for (let i = 0; i < rule.actions.length; i++) {
+    const action = rule.actions[i];
     try {
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      
       switch (action.type) {
         case 'moveToFolder':
           await provider.bulkUpdateMessages(accountId, {
@@ -251,6 +260,9 @@ export async function applyRuleActions(
       }
     } catch (error) {
       console.error(`[apply-auto-sort-rules] Error applying action ${action.type}:`, error);
+      if (error instanceof Error && error.message.includes('Too Many Requests')) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
     }
   }
 }

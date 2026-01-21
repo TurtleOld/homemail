@@ -65,17 +65,23 @@ export async function GET(request: NextRequest) {
             sendEvent(event.type, event.data);
             
             if (event.type === 'message.new' && event.data?.messageId) {
-              try {
-                const messageId = event.data.messageId || event.data.id;
-                const folderId = event.data.folderId || event.data.mailboxId || 'inbox';
-                
-                const message = await provider.getMessage(session.accountId, messageId);
-                if (message) {
-                  await processNewMessage(message, session.accountId, folderId, provider);
+              setTimeout(async () => {
+                try {
+                  const messageId = event.data.messageId || event.data.id;
+                  const folderId = event.data.folderId || event.data.mailboxId || 'inbox';
+                  
+                  await new Promise((resolve) => setTimeout(resolve, 200));
+                  const message = await provider.getMessage(session.accountId, messageId);
+                  if (message) {
+                    await processNewMessage(message, session.accountId, folderId, provider);
+                  }
+                } catch (error) {
+                  console.error('[realtime] Error processing new message with rules:', error);
+                  if (error instanceof Error && error.message.includes('Too Many Requests')) {
+                    await new Promise((resolve) => setTimeout(resolve, 2000));
+                  }
                 }
-              } catch (error) {
-                console.error('[realtime] Error processing new message with rules:', error);
-              }
+              }, 500);
             }
           }
         });

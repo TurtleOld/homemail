@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
       ? getMailProviderForAccount(session.accountId)
       : getMailProvider();
 
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    
     const message = await provider.getMessage(session.accountId, messageId);
     if (!message) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 });
@@ -46,8 +48,13 @@ export async function POST(request: NextRequest) {
     const targetFolderId = folderId || 'inbox';
 
     let appliedCount = 0;
-    for (const rule of rules) {
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
       try {
+        if (i > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        
         const matches = await checkMessageMatchesRule(
           message,
           rule,
@@ -60,9 +67,13 @@ export async function POST(request: NextRequest) {
           console.error(`[process-message] Message ${messageId} matches rule ${rule.name}, applying actions...`);
           await applyRuleActions(messageId, rule, provider, session.accountId);
           appliedCount++;
+          break;
         }
       } catch (error) {
         console.error(`[process-message] Error processing rule ${rule.name} for message ${messageId}:`, error);
+        if (error instanceof Error && error.message.includes('Too Many Requests')) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
       }
     }
     

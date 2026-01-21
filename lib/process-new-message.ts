@@ -25,15 +25,24 @@ export async function processNewMessage(
   try {
     const rules = await loadRules(accountId);
 
-    for (const rule of rules) {
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
       try {
+        if (i > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        
         const matches = await checkMessageMatchesRule(message, rule, provider, accountId, folderId);
         if (matches) {
           console.log(`[process-new-message] Message ${message.id} matches rule ${rule.name}, applying actions...`);
           await applyRuleActions(message.id, rule, provider, accountId);
+          break;
         }
       } catch (error) {
         console.error(`[process-new-message] Error processing rule ${rule.name} for message ${message.id}:`, error);
+        if (error instanceof Error && error.message.includes('Too Many Requests')) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
       }
     }
   } catch (error) {
