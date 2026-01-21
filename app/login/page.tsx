@@ -102,6 +102,36 @@ function LoginForm() {
   };
 
   const startOAuthFlow = async (accountId: string) => {
+    let pollInterval: NodeJS.Timeout | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+    let isCompleted = false;
+    let authWindow: Window | null = null;
+
+    const closeAuthWindow = () => {
+      if (authWindow && !authWindow.closed) {
+        try {
+          authWindow.close();
+        } catch (e) {
+          console.warn('Не удалось закрыть окно авторизации:', e);
+        }
+      }
+      authWindow = null;
+      setOauthWindow(null);
+    };
+
+    const cleanup = () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      setOauthPolling(false);
+      closeAuthWindow();
+    };
+
     try {
       setNeedsOAuth(true);
       setOauthPolling(true);
@@ -124,11 +154,15 @@ function LoginForm() {
       setOauthVerificationUri(deviceData.verificationUri || deviceData.verificationUriComplete);
 
       if (deviceData.verificationUriComplete) {
-        const authWindow = window.open(deviceData.verificationUriComplete, '_blank');
+        authWindow = window.open(deviceData.verificationUriComplete, '_blank');
         setOauthWindow(authWindow);
       }
 
-      const pollInterval = setInterval(async () => {
+      pollInterval = setInterval(async () => {
+        if (isCompleted) {
+          return;
+        }
+
         try {
           const pollRes = await fetch('/api/auth/oauth/poll', {
             method: 'POST',
@@ -144,17 +178,18 @@ function LoginForm() {
           const pollData = await pollRes.json();
 
           if (pollData.success) {
-            clearInterval(pollInterval);
-            setOauthPolling(false);
+            isCompleted = true;
+            closeAuthWindow();
             
-            if (oauthWindow && !oauthWindow.closed) {
-              try {
-                oauthWindow.close();
-              } catch (e) {
-                console.warn('Не удалось закрыть окно авторизации:', e);
-              }
+            if (pollInterval) {
+              clearInterval(pollInterval);
+              pollInterval = null;
             }
-            setOauthWindow(null);
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+            setOauthPolling(false);
 
             const loginRes = await fetch('/api/auth/login', {
               method: 'POST',
@@ -173,45 +208,34 @@ function LoginForm() {
               toast.error(loginData.error || 'Ошибка входа после авторизации');
             }
           } else if (pollData.error === 'expired_token' || pollData.error === 'access_denied') {
-            clearInterval(pollInterval);
-            setOauthPolling(false);
-            if (oauthWindow && !oauthWindow.closed) {
-              try {
-                oauthWindow.close();
-              } catch (e) {
-                console.warn('Не удалось закрыть окно авторизации:', e);
-              }
-            }
-            setOauthWindow(null);
+            isCompleted = true;
+            cleanup();
             toast.error(pollData.errorDescription || 'Авторизация отменена или истекла');
             setNeedsOAuth(false);
           } else if (pollData.error !== 'authorization_pending' && pollData.error !== 'slow_down') {
-            clearInterval(pollInterval);
-            setOauthPolling(false);
+            isCompleted = true;
+            cleanup();
             toast.error(pollData.errorDescription || 'Ошибка авторизации');
           }
         } catch (pollError) {
-          console.error('Polling error:', pollError);
+          if (!isCompleted) {
+            console.error('Polling error:', pollError);
+          }
         }
       }, (deviceData.interval || 5) * 1000);
 
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        setOauthPolling(false);
-        if (oauthWindow && !oauthWindow.closed) {
-          try {
-            oauthWindow.close();
-          } catch (e) {
-            console.warn('Не удалось закрыть окно авторизации:', e);
-          }
+      timeoutId = setTimeout(() => {
+        if (!isCompleted) {
+          isCompleted = true;
+          cleanup();
+          toast.error('Время ожидания авторизации истекло');
         }
-        setOauthWindow(null);
-        toast.error('Время ожидания авторизации истекло');
       }, (deviceData.expiresIn || 600) * 1000);
     } catch (error) {
+      isCompleted = true;
+      cleanup();
       console.error('OAuth flow error:', error);
       toast.error('Ошибка запуска OAuth авторизации');
-      setOauthPolling(false);
     }
   };
 

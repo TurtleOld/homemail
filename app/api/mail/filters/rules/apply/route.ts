@@ -81,8 +81,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ applied: 0, total: 0 });
     }
 
-    let appliedCount = 0;
+    const needsBodyCheck = rule.filterGroup.conditions.some((c) => c.field === 'body') ||
+      (rule.filterGroup.groups && rule.filterGroup.groups.some((g) => 
+        g.conditions.some((c) => c.field === 'body') ||
+        (g.groups && g.groups.some((sg) => sg.conditions.some((c) => c.field === 'body')))
+      ));
+
+    const messagesToCheck: Array<{ message: typeof result.messages[0]; needsBody: boolean }> = [];
+    
     for (const message of result.messages) {
+      const needsBody = needsBodyCheck && !('body' in message);
+      messagesToCheck.push({ message, needsBody });
+    }
+
+    const messagesNeedingBody = messagesToCheck.filter((m) => m.needsBody).map((m) => m.message);
+    
+    if (messagesNeedingBody.length > 0) {
+      console.error(`[filter-rules/apply] Loading ${messagesNeedingBody.length} full messages for body check...`);
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < messagesNeedingBody.length; i += BATCH_SIZE) {
+        const batch = messagesNeedingBody.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async (msg) => {
+            try {
+              const fullMessage = await provider.getMessage(session.accountId, msg.id);
+              if (fullMessage) {
+                const item = messagesToCheck.find((m) => m.message.id === msg.id);
+                if (item) {
+                  item.message = fullMessage as typeof result.messages[0];
+                  item.needsBody = false;
+                }
+              }
+            } catch (error) {
+              console.error(`[filter-rules/apply] Error loading message ${msg.id}:`, error);
+            }
+          })
+        );
+        
+        if (i + BATCH_SIZE < messagesNeedingBody.length) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+    }
+
+    let appliedCount = 0;
+    for (const { message } of messagesToCheck) {
       try {
         const matches = await checkMessageMatchesRule(
           message,

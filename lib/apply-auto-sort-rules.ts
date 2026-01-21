@@ -33,10 +33,15 @@ export async function checkMessageMatchesRule(
   let messageToCheck: MessageListItem | MessageDetail = message;
   
   if (!('body' in message) && hasBodyCondition(rule.filterGroup)) {
-    const fullMessage = await provider.getMessage(accountId, message.id);
-    if (fullMessage) {
-      messageToCheck = fullMessage;
-      console.error('[apply-auto-sort-rules] Loaded full message for body check:', message.id);
+    try {
+      const fullMessage = await provider.getMessage(accountId, message.id);
+      if (fullMessage) {
+        messageToCheck = fullMessage;
+        console.error('[apply-auto-sort-rules] Loaded full message for body check:', message.id);
+      }
+    } catch (error) {
+      console.error('[apply-auto-sort-rules] Error loading full message:', error);
+      return false;
     }
   }
 
