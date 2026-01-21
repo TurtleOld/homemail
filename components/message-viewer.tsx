@@ -1,14 +1,24 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
-import type { MessageDetail } from '@/lib/types';
+import type { MessageDetail, Label } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { Button } from '@/components/ui/button';
-import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download, AlertCircle, Tag, X, FileDown, Printer, Eye, Languages, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { AttachmentPreview } from '@/components/attachment-preview';
+import { MessageTranslator } from '@/components/message-translator';
+import { DeliveryTracking } from '@/components/delivery-tracking';
 
 interface MessageViewerProps {
   message: MessageDetail | null;
@@ -24,6 +34,26 @@ interface MessageViewerProps {
   hasSelection?: boolean;
   isMobile?: boolean;
   onBack?: () => void;
+}
+
+async function getLabels(): Promise<Label[]> {
+  const res = await fetch('/api/mail/labels');
+  if (!res.ok) {
+    throw new Error('Failed to load labels');
+  }
+  return res.json();
+}
+
+async function updateMessageLabels(messageId: string, labelIds: string[]): Promise<void> {
+  const res = await fetch(`/api/mail/messages/${messageId}/labels`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ labelIds }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to update labels');
+  }
 }
 
 export function MessageViewer({
@@ -44,6 +74,33 @@ export function MessageViewer({
   const localeSettings = useLocaleSettings();
   const markedAsReadRef = useRef<Set<string>>(new Set());
   const [localAllowImages, setLocalAllowImages] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<{ id: string; filename: string; mime: string } | null>(null);
+  const [showTranslator, setShowTranslator] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: labels = [] } = useQuery({
+    queryKey: ['labels'],
+    queryFn: getLabels,
+  });
+
+  const updateLabelsMutation = useMutation({
+    mutationFn: ({ messageId, labelIds }: { messageId: string; labelIds: string[] }) =>
+      updateMessageLabels(messageId, labelIds),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['messages', variables.messageId] });
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      if (message) {
+        queryClient.setQueryData(['messages', message.id], (old: MessageDetail | undefined) => {
+          if (!old) return old;
+          return { ...old, labels: variables.labelIds };
+        });
+      }
+      toast.success('Метки обновлены');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Ошибка обновления меток');
+    },
+  });
 
   useEffect(() => {
     if (message) {
@@ -265,6 +322,27 @@ export function MessageViewer({
     }
   };
 
+  const handleToggleLabel = (labelId: string) => {
+    if (!message) return;
+    const currentLabelIds = message.labels || [];
+    const newLabelIds = currentLabelIds.includes(labelId)
+      ? currentLabelIds.filter((id) => id !== labelId)
+      : [...currentLabelIds, labelId];
+    updateLabelsMutation.mutate({ messageId: message.id, labelIds: newLabelIds });
+  };
+
+  const handleRemoveLabel = (labelId: string) => {
+    if (!message) return;
+    const currentLabelIds = message.labels || [];
+    const newLabelIds = currentLabelIds.filter((id) => id !== labelId);
+    updateLabelsMutation.mutate({ messageId: message.id, labelIds: newLabelIds });
+  };
+
+  const messageLabelObjects = useMemo(() => {
+    if (!message?.labels) return [];
+    return labels.filter((label) => message.labels?.includes(label.id));
+  }, [message?.labels, labels]);
+
   return (
     <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden max-md:border-l-0" role="region" aria-label="Просмотр письма">
       <div className="border-b bg-muted/50 p-4 max-md:p-2 transition-colors duration-200">
@@ -289,6 +367,33 @@ export function MessageViewer({
                 <strong>Дата:</strong> {formatDate(message.date, localeSettings)}
               </div>
             </div>
+            {messageLabelObjects.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {messageLabelObjects.map((label) => (
+                  <span
+                    key={label.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+                    style={{
+                      backgroundColor: `${label.color || '#3b82f6'}20`,
+                      color: label.color || '#3b82f6',
+                      border: `1px solid ${label.color || '#3b82f6'}40`,
+                    }}
+                  >
+                    {label.name}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveLabel(label.id);
+                      }}
+                      className="hover:opacity-70"
+                      aria-label={`Удалить метку ${label.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <Button 
@@ -365,6 +470,210 @@ export function MessageViewer({
             <Trash2 className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
             <span className="max-md:hidden">Удалить</span>
           </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowTranslator(!showTranslator)} 
+            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+            aria-label="Перевести"
+          >
+            <Languages className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+            <span className="max-md:hidden">Перевести</span>
+          </Button>
+          {message && message.body?.text?.includes('-----BEGIN PGP MESSAGE-----') && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/pgp/decrypt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      encryptedMessage: message.body?.text || message.body?.html?.replace(/<[^>]*>/g, '') || '',
+                    }),
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    toast.success('Письмо расшифровано');
+                    if (message.body) {
+                      message.body.text = data.decryptedMessage;
+                      message.body.html = data.decryptedMessage.replace(/\n/g, '<br>');
+                    }
+                  } else {
+                    toast.error('Не удалось расшифровать. Проверьте наличие приватного ключа.');
+                  }
+                } catch (error) {
+                  toast.error('Ошибка расшифровки');
+                }
+              }}
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label="Расшифровать"
+            >
+              <Lock className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+              <span className="max-md:hidden">Расшифровать</span>
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                aria-label="Управление метками"
+              >
+                <Tag className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+                <span className="max-md:hidden">Метки</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {labels.length === 0 ? (
+                <div className="p-2 text-sm text-muted-foreground">
+                  Нет меток. Создайте метки в настройках.
+                </div>
+              ) : (
+                labels.map((label) => {
+                  const isSelected = message?.labels?.includes(label.id) || false;
+                  return (
+                    <DropdownMenuItem
+                      key={label.id}
+                      onClick={() => handleToggleLabel(label.id)}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: label.color || '#3b82f6' }}
+                      />
+                      <span className="flex-1">{label.name}</span>
+                      {isSelected && (
+                        <span className="text-xs text-muted-foreground">✓</span>
+                      )}
+                    </DropdownMenuItem>
+                  );
+                })
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                aria-label="Экспорт письма"
+              >
+                <FileDown className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+                <span className="max-md:hidden">Экспорт</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!message) return;
+                  const url = `/api/mail/messages/${message.id}/export?format=eml`;
+                  window.open(url, '_blank');
+                }}
+                className="cursor-pointer"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Экспорт в EML
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!message) return;
+                  const url = `/api/mail/messages/${message.id}/export?format=pdf`;
+                  window.open(url, '_blank');
+                }}
+                className="cursor-pointer"
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                Экспорт в PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+              </DropdownMenu>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!message) return;
+              const printWindow = window.open('', '_blank');
+              if (!printWindow) return;
+              
+              const printContent = `
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <meta charset="utf-8">
+                    <title>${message.subject || 'Письмо'}</title>
+                    <style>
+                      @media print {
+                        @page {
+                          margin: 2cm;
+                        }
+                        body {
+                          margin: 0;
+                          padding: 0;
+                        }
+                      }
+                      body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        max-width: 800px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        line-height: 1.6;
+                      }
+                      .header {
+                        border-bottom: 2px solid #e0e0e0;
+                        padding-bottom: 15px;
+                        margin-bottom: 20px;
+                      }
+                      .header h1 {
+                        margin: 0 0 10px 0;
+                        font-size: 20px;
+                      }
+                      .header-info {
+                        font-size: 12px;
+                        color: #666;
+                      }
+                      .header-info div {
+                        margin: 5px 0;
+                      }
+                      .content {
+                        margin-top: 20px;
+                      }
+                    </style>
+                  </head>
+                  <body>
+                    <div class="header">
+                      <h1>${message.subject || '(без темы)'}</h1>
+                      <div class="header-info">
+                        <div><strong>От:</strong> ${message.from.name ? `${message.from.name} <${message.from.email}>` : message.from.email}</div>
+                        ${message.to.length > 0 ? `<div><strong>Кому:</strong> ${message.to.map((t) => (t.name ? `${t.name} <${t.email}>` : t.email)).join(', ')}</div>` : ''}
+                        ${message.cc && message.cc.length > 0 ? `<div><strong>Копия:</strong> ${message.cc.map((c) => (c.name ? `${c.name} <${c.email}>` : c.email)).join(', ')}</div>` : ''}
+                        <div><strong>Дата:</strong> ${formatDate(message.date, localeSettings)}</div>
+                      </div>
+                    </div>
+                    <div class="content">
+                      ${sanitizedHtml}
+                    </div>
+                  </body>
+                </html>
+              `;
+              
+              printWindow.document.write(printContent);
+              printWindow.document.close();
+              
+              setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+              }, 250);
+            }}
+            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+            aria-label="Печать письма"
+          >
+            <Printer className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
+            <span className="max-md:hidden">Печать</span>
+          </Button>
         </div>
       </div>
       <div className="flex-1 overflow-auto flex flex-col max-md:pb-4">
@@ -380,35 +689,48 @@ export function MessageViewer({
                       {(att.size / 1024).toFixed(1)} KB • {att.mime}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        const url = `/api/mail/attachments/${att.id}/download?messageId=${message.id}`;
-                        const response = await fetch(url);
-                        if (!response.ok) {
-                          const error = await response.json().catch(() => ({ error: 'Failed to download' }));
-                          toast.error(error.error || 'Ошибка скачивания');
-                          return;
+                  <div className="flex items-center gap-2">
+                    {(att.mime.startsWith('image/') || att.mime === 'application/pdf' || att.mime.startsWith('text/')) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPreviewAttachment({ id: att.id, filename: att.filename, mime: att.mime })}
+                        title="Предпросмотр"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const url = `/api/mail/attachments/${att.id}/download?messageId=${message.id}`;
+                          const response = await fetch(url);
+                          if (!response.ok) {
+                            const error = await response.json().catch(() => ({ error: 'Failed to download' }));
+                            toast.error(error.error || 'Ошибка скачивания');
+                            return;
+                          }
+                          const blob = await response.blob();
+                          const downloadUrl = window.URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = downloadUrl;
+                          link.download = att.filename;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          window.URL.revokeObjectURL(downloadUrl);
+                        } catch (error) {
+                          console.error('Download error:', error);
+                          toast.error('Ошибка скачивания');
                         }
-                        const blob = await response.blob();
-                        const downloadUrl = window.URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = downloadUrl;
-                        link.download = att.filename;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        window.URL.revokeObjectURL(downloadUrl);
-                      } catch (error) {
-                        console.error('Download error:', error);
-                        toast.error('Ошибка скачивания');
-                      }
-                    }}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
+                      }}
+                      title="Скачать"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -439,6 +761,29 @@ export function MessageViewer({
           </div>
         )}
       </div>
+        {showTranslator && message && (
+          <div className="mb-4 p-4 border rounded-lg">
+            <MessageTranslator
+              originalText={message.body?.text || message.body?.html?.replace(/<[^>]*>/g, '') || ''}
+              originalHtml={message.body?.html}
+            />
+          </div>
+        )}
+        {message && (
+          <div className="mb-4">
+            <DeliveryTracking messageId={message.id} />
+          </div>
+        )}
+        {previewAttachment && (
+          <AttachmentPreview
+            attachmentId={previewAttachment.id}
+            messageId={message.id}
+            filename={previewAttachment.filename}
+            mime={previewAttachment.mime}
+            open={!!previewAttachment}
+            onClose={() => setPreviewAttachment(null)}
+          />
+        )}
     </div>
   );
 }
