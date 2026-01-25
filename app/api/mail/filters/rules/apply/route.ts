@@ -8,6 +8,43 @@ import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort
 
 const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
 
+function isRateLimitError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.includes('429') || msg.toLowerCase().includes('too many');
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withBackoff<T>(
+  fn: () => Promise<T>,
+  opts?: { maxAttempts?: number; baseDelayMs?: number; maxDelayMs?: number; label?: string }
+): Promise<T> {
+  const maxAttempts = opts?.maxAttempts ?? 6;
+  const baseDelayMs = opts?.baseDelayMs ?? 400;
+  const maxDelayMs = opts?.maxDelayMs ?? 10_000;
+  const label = opts?.label ?? 'operation';
+
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      return await fn();
+    } catch (e) {
+      attempt += 1;
+      if (!isRateLimitError(e) || attempt >= maxAttempts) {
+        throw e;
+      }
+      const exp = Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1));
+      const jitter = Math.floor(Math.random() * 250);
+      const delay = exp + jitter;
+      console.warn(`[filter-rules/apply] ${label} hit rate limit, backing off`, { attempt, delay });
+      await sleep(delay);
+    }
+  }
+}
+
 async function loadRules(accountId: string): Promise<AutoSortRule[]> {
   try {
     const data = await readFile(rulesFilePath, 'utf-8');
@@ -48,7 +85,10 @@ export async function POST(request: NextRequest) {
       ? getMailProviderForAccount(session.accountId)
       : getMailProvider();
 
-    const folders = await provider.getFolders(session.accountId);
+    const folders = await withBackoff(
+      () => provider.getFolders(session.accountId),
+      { label: 'getFolders' }
+    );
     
     const moveToFolderAction = rule.actions.find((a) => a.type === 'moveToFolder');
     let destinationFolderId: string | null = null;
@@ -65,11 +105,16 @@ export async function POST(request: NextRequest) {
     }
     
     const foldersToSearch = folders.filter((f) => {
-      if (f.role === 'trash') {
+      // Exclude system folders from mass-processing.
+      if (f.role === 'trash' || f.role === 'sent' || f.role === 'drafts') {
         return false;
       }
       if (destinationFolderId && f.id === destinationFolderId) {
         return false;
+      }
+      // Optional: allow user to restrict to a specific folder.
+      if (folderId) {
+        return f.id === folderId || f.role === folderId;
       }
       return true;
     });
@@ -96,9 +141,10 @@ export async function POST(request: NextRequest) {
         const remainingLimit = limit - allMessages.length;
         const folderLimit = Math.min(messagesPerFolder, remainingLimit, 500);
         
-        const result = await provider.getMessages(session.accountId, folder.id, {
-          limit: folderLimit,
-        });
+        const result = await withBackoff(
+          () => provider.getMessages(session.accountId, folder.id, { limit: folderLimit }),
+          { label: `getMessages:${folder.id}` }
+        );
         
         if (result && result.messages && result.messages.length > 0) {
           allMessages.push(...result.messages);
@@ -109,8 +155,8 @@ export async function POST(request: NextRequest) {
         }
       } catch (error) {
         console.error(`[filter-rules/apply] Error getting messages from folder ${folder.id}:`, error);
-        if (error instanceof Error && error.message.includes('Too Many Requests')) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (isRateLimitError(error)) {
+          await sleep(1500);
         }
       }
     }
@@ -138,34 +184,32 @@ export async function POST(request: NextRequest) {
     
     if (messagesNeedingBody.length > 0) {
       console.error(`[filter-rules/apply] Loading ${messagesNeedingBody.length} full messages for body check...`);
-      const BATCH_SIZE = 20;
+      // Keep this low to avoid 429 from reverse proxy / server.
+      const BATCH_SIZE = 5;
       for (let i = 0; i < messagesNeedingBody.length; i += BATCH_SIZE) {
         const batch = messagesNeedingBody.slice(i, i + BATCH_SIZE);
-        await Promise.all(
-          batch.map(async (msg, idx) => {
-            try {
-              if (idx > 0) {
-                await new Promise((resolve) => setTimeout(resolve, 50));
-              }
-              const fullMessage = await provider.getMessage(session.accountId, msg.id);
-              if (fullMessage) {
-                const item = messagesToCheck.find((m) => m.message.id === msg.id);
-                if (item) {
-                  item.message = fullMessage;
-                  item.needsBody = false;
-                }
-              }
-            } catch (error) {
-              console.error(`[filter-rules/apply] Error loading message ${msg.id}:`, error);
-              if (error instanceof Error && error.message.includes('Too Many Requests')) {
-                await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Sequential inside a small batch to reduce concurrency spikes.
+        for (const msg of batch) {
+          try {
+            const fullMessage = await withBackoff(
+              () => provider.getMessage(session.accountId, msg.id),
+              { label: `getMessage:${msg.id}`, baseDelayMs: 500 }
+            );
+            if (fullMessage) {
+              const item = messagesToCheck.find((m) => m.message.id === msg.id);
+              if (item) {
+                item.message = fullMessage;
+                item.needsBody = false;
               }
             }
-          })
-        );
+          } catch (error) {
+            console.error(`[filter-rules/apply] Error loading message ${msg.id}:`, error);
+          }
+          await sleep(75);
+        }
         
         if (i + BATCH_SIZE < messagesNeedingBody.length) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          await sleep(400);
         }
       }
     }
@@ -174,31 +218,32 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < messagesToCheck.length; i++) {
       const { message } = messagesToCheck[i];
       try {
-        if (i > 0 && i % 10 === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 200));
+        if (i > 0) {
+          // steady pacing
+          await sleep(50);
         }
         
-        const matches = await checkMessageMatchesRule(
-          message,
-          rule,
-          provider,
-          session.accountId,
-          'inbox'
+        const matches = await withBackoff(
+          () => checkMessageMatchesRule(message, rule, provider, session.accountId, 'inbox'),
+          { label: `checkMatch:${message.id}`, baseDelayMs: 300 }
         );
 
         if (matches) {
           console.error(`[filter-rules/apply] Message ${message.id} matches rule ${rule.name}, applying actions...`);
-          await applyRuleActions(message.id, rule, provider, session.accountId);
+          await withBackoff(
+            () => applyRuleActions(message.id, rule, provider, session.accountId),
+            { label: `applyActions:${message.id}`, baseDelayMs: 600 }
+          );
           appliedCount++;
           
           if (appliedCount % 5 === 0) {
-            await new Promise((resolve) => setTimeout(resolve, 300));
+            await sleep(500);
           }
         }
       } catch (error) {
         console.error(`[filter-rules/apply] Error processing message ${message.id}:`, error);
-        if (error instanceof Error && error.message.includes('Too Many Requests')) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+        if (isRateLimitError(error)) {
+          await sleep(2000);
         }
       }
     }
