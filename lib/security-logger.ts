@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { logger } from './logger';
+import { getClientIp } from './client-ip';
 
 export type SecurityEventType =
   | 'login_failed'
@@ -131,13 +132,6 @@ async function writeLogEntry(event: SecurityEvent): Promise<void> {
   }
 }
 
-function getClientIp(request: Request): string {
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  const realIp = request.headers.get('x-real-ip');
-  const forwarded = forwardedFor?.split(',')[0]?.trim();
-  return forwarded || realIp || 'unknown';
-}
-
 function getUserAgent(request: Request): string {
   return request.headers.get('user-agent') || 'unknown';
 }
@@ -152,6 +146,10 @@ export class SecurityLogger {
     email?: string,
     accountId?: string
   ): void {
+    // We propagate a stable request/flow id from the client where possible.
+    // This allows correlating multiple /api/auth/* calls within one login flow.
+    const requestId = request.headers.get('x-auth-flow-id') || crypto.randomUUID();
+
     const event: SecurityEvent = {
       timestamp: new Date().toISOString(),
       type,
@@ -162,7 +160,7 @@ export class SecurityLogger {
       email,
       accountId,
       details,
-      requestId: crypto.randomUUID(),
+      requestId,
     };
 
     writeLogEntry(event).catch((error) => {
@@ -184,6 +182,24 @@ export class SecurityLogger {
 
   static logRateLimitExceeded(request: Request, identifier: string, type: string): void {
     this.logEvent('rate_limit_exceeded', 'medium', request, { identifier, type });
+  }
+
+  /**
+   * Use when we reject a request with 429 to have actionable telemetry.
+   */
+  static logRateLimitRejected(
+    request: Request,
+    identifier: string,
+    type: string,
+    reason: string,
+    details: Record<string, unknown> = {}
+  ): void {
+    this.logEvent('rate_limit_exceeded', 'medium', request, {
+      identifier,
+      type,
+      reason,
+      ...details,
+    });
   }
 
   static logCsrfViolation(request: Request, details: Record<string, unknown> = {}): void {

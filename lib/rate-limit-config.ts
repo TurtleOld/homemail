@@ -12,6 +12,18 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
     adaptive: true,
     blockDuration: parseInt(process.env.RATE_LIMIT_LOGIN_BLOCK_DURATION || '900000', 10),
   },
+  /**
+   * OAuth device flow endpoints are expected to be polled periodically.
+   * Keep them separated from password login limits to avoid false positives.
+   */
+  oauth_device_code: {
+    max: parseInt(process.env.RATE_LIMIT_OAUTH_DEVICE_CODE_MAX || '30', 10),
+    window: parseInt(process.env.RATE_LIMIT_OAUTH_DEVICE_CODE_WINDOW || '60000', 10),
+  },
+  oauth_poll: {
+    max: parseInt(process.env.RATE_LIMIT_OAUTH_POLL_MAX || '120', 10),
+    window: parseInt(process.env.RATE_LIMIT_OAUTH_POLL_WINDOW || '60000', 10),
+  },
   bulk: {
     max: parseInt(process.env.RATE_LIMIT_BULK_MAX || '10', 10),
     window: parseInt(process.env.RATE_LIMIT_BULK_WINDOW || '60000', 10),

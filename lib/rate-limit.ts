@@ -14,11 +14,24 @@ export function getRateLimitKey(identifier: string, type: string): string {
   return `${type}:${identifier}`;
 }
 
-export function checkRateLimit(
+/**
+ * Resets rate-limit bucket for a given identifier+type.
+ * Useful for login flows where we only want to count failed attempts,
+ * and clear the counter on successful auth.
+ */
+export function resetRateLimit(identifier: string, type: string = 'default'): void {
+  const key = getRateLimitKey(identifier, type);
+  rateLimitStore.delete(key);
+}
+
+type RateLimitResult = { allowed: boolean; remaining: number; resetAt: number; blockedUntil?: number };
+
+function evaluateRateLimit(
   identifier: string,
-  type: string = 'default',
-  request?: Request
-): { allowed: boolean; remaining: number; resetAt: number; blockedUntil?: number } {
+  type: string,
+  request: Request | undefined,
+  options: { consume: boolean }
+): RateLimitResult {
   if (isIpWhitelisted(identifier)) {
     return {
       allowed: true,
@@ -58,6 +71,15 @@ export function checkRateLimit(
   }
 
   if (!entry || entry.resetAt < now) {
+    // New window.
+    if (!options.consume) {
+      return {
+        allowed: true,
+        remaining: config.max,
+        resetAt: now + config.window,
+      };
+    }
+
     const newEntry: RateLimitEntry = {
       count: 1,
       resetAt: now + config.window,
@@ -68,6 +90,16 @@ export function checkRateLimit(
       allowed: true,
       remaining: config.max - 1,
       resetAt: newEntry.resetAt,
+    };
+  }
+
+  // If we are only previewing, do not mutate the state.
+  if (!options.consume) {
+    return {
+      allowed: entry.count < config.max,
+      remaining: Math.max(0, config.max - entry.count),
+      resetAt: entry.resetAt,
+      blockedUntil: entry.blockedUntil,
     };
   }
 
@@ -98,6 +130,30 @@ export function checkRateLimit(
     remaining: config.max - entry.count,
     resetAt: entry.resetAt,
   };
+}
+
+/**
+ * Default rate-limit check (consumes one token).
+ * Used for non-auth APIs.
+ */
+export function checkRateLimit(identifier: string, type: string = 'default', request?: Request): RateLimitResult {
+  return evaluateRateLimit(identifier, type, request, { consume: true });
+}
+
+/**
+ * Preview rate-limit status without consuming.
+ * Useful for login flows where we only want to count failed attempts.
+ */
+export function previewRateLimit(identifier: string, type: string = 'default', request?: Request): RateLimitResult {
+  return evaluateRateLimit(identifier, type, request, { consume: false });
+}
+
+/**
+ * Consume one rate-limit token.
+ * Intended to be called on auth failures (401).
+ */
+export function consumeRateLimit(identifier: string, type: string = 'default', request?: Request): RateLimitResult {
+  return evaluateRateLimit(identifier, type, request, { consume: true });
 }
 
 export function cleanupRateLimitStore(): void {

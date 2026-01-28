@@ -200,4 +200,12 @@ export function cleanupBruteForceStore(): void {
   logger.debug(`[BruteForceProtection] Cleaned up ${keysToDelete.length} entries`);
 }
 
+/**
+ * Test-only helper.
+ * The brute-force store is in-memory and shared across tests.
+ */
+export function __resetBruteForceStoreForTests(): void {
+  bruteForceStore.clear();
+}
+
 setInterval(cleanupBruteForceStore, 5 * 60 * 1000);
