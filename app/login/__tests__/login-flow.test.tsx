@@ -2,9 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // Mock next/navigation hooks used by the page
+const mockPush = vi.fn();
+const mockRefresh = vi.fn();
+
 vi.mock('next/navigation', () => {
   return {
-    useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+    useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
     useSearchParams: () => new URLSearchParams(''),
   };
 });
@@ -16,6 +19,11 @@ describe('LoginPage', () => {
 
   beforeEach(() => {
     global.fetch = vi.fn();
+    // Mock window.location.href
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { href: '' },
+    });
   });
 
   afterEach(() => {
@@ -23,68 +31,82 @@ describe('LoginPage', () => {
     vi.resetAllMocks();
   });
 
-  it('double click on submit does not send 2 login requests', async () => {
-    // 1) auth config
-    (global.fetch as any)
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ authMode: 'basic', passwordLoginEnabled: true }) })
-      // 2) login request
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) });
+  it('shows OAuth login button and handles click', async () => {
+    // Mock auth config
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ authMode: 'oauth', passwordLoginEnabled: false }),
+    });
 
     render(<LoginPage />);
 
-    // Wait for auth config to load
+    // Wait for OAuth button to appear
     await waitFor(() => {
-      expect(screen.getByLabelText('Пароль')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Войти через OAuth/i })).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText('Логин'), { target: { value: 'user@example.com' } });
-    fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'secret' } });
+    // Verify no password fields are present
+    expect(screen.queryByLabelText('Пароль')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Логин')).not.toBeInTheDocument();
 
-    const btn = screen.getByRole('button', { name: 'Войти' });
-    fireEvent.click(btn);
-    fireEvent.click(btn);
+    // Click OAuth button
+    const oauthButton = screen.getByRole('button', { name: /Войти через OAuth/i });
+    fireEvent.click(oauthButton);
 
+    // Should redirect to authorize endpoint
     await waitFor(() => {
-      const calls = (global.fetch as any).mock.calls.map((c: any[]) => c[0]);
-      const loginCalls = calls.filter((u: string) => u === '/api/auth/login');
-      expect(loginCalls).toHaveLength(1);
+      expect(window.location.href).toContain('/api/auth/oauth/authorize');
     });
   });
 
-  it('in oauth-mode with password login disabled, password login is not called', async () => {
-    // 1) auth config => oauth mode
-    (global.fetch as any)
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ authMode: 'oauth', passwordLoginEnabled: false }) })
-      // 2) device-code
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          deviceCode: 'dev',
-          userCode: 'USER',
-          verificationUri: 'https://auth.example.com',
-          expiresIn: 600,
-          interval: 5,
-        }),
-      })
-      // 3) poll (pending)
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ success: false, error: 'authorization_pending' }) });
+  it('double click on OAuth button does not cause multiple redirects', async () => {
+    // Mock auth config
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ authMode: 'oauth', passwordLoginEnabled: false }),
+    });
 
     render(<LoginPage />);
 
-    // Wait for oauth mode to be detected (password field should not be present)
+    // Wait for OAuth button
     await waitFor(() => {
-      expect(screen.queryByLabelText('Пароль')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Войти через OAuth/i })).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText('Логин'), { target: { value: 'user@example.com' } });
-
-    const btn = screen.getByRole('button', { name: 'Войти' });
-    fireEvent.click(btn);
-
+    const oauthButton = screen.getByRole('button', { name: /Войти через OAuth/i });
+    
+    // First click
+    fireEvent.click(oauthButton);
+    
+    // Button should be disabled (loading state)
     await waitFor(() => {
-      const urls = (global.fetch as any).mock.calls.map((c: any[]) => c[0]);
-      expect(urls).toContain('/api/auth/oauth/device-code');
-      expect(urls).not.toContain('/api/auth/login');
-    }, { timeout: 3000 });
+      expect(oauthButton).toBeDisabled();
+    });
+
+    // Second click should not do anything (button is disabled)
+    fireEvent.click(oauthButton);
+
+    // Should only set location.href once
+    await waitFor(() => {
+      expect(window.location.href).toContain('/api/auth/oauth/authorize');
+    });
+  });
+
+  it('shows info about OAuth authorization', async () => {
+    // Mock auth config
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ authMode: 'oauth', passwordLoginEnabled: false }),
+    });
+
+    render(<LoginPage />);
+
+    // Wait for component to render
+    await waitFor(() => {
+      expect(screen.getByText(/Безопасная OAuth авторизация/i)).toBeInTheDocument();
+    });
+
+    // Check that info text is present
+    expect(screen.getByText(/Вы будете перенаправлены на сервер Stalwart/i)).toBeInTheDocument();
   });
 });
