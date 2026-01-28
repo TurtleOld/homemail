@@ -38,6 +38,11 @@ self.addEventListener('fetch', (event) => {
     return fetch(event.request);
   }
 
+  // Never cache login-related routes (avoid stale auth redirects/login pages).
+  if (url.pathname.startsWith('/login') || url.pathname.startsWith('/api/auth/')) {
+    return fetch(event.request);
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
