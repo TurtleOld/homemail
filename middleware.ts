@@ -5,8 +5,9 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const response = NextResponse.next();
 
-  // Allow auth API and OAuth callback routes without authentication
-  if (pathname.startsWith('/api/auth/') || pathname.startsWith('/oauth/callback')) {
+  // Allow auth API routes without authentication
+  // OAuth callback is handled by /api/auth/oauth/callback (no separate client-side page)
+  if (pathname.startsWith('/api/auth/')) {
     return response;
   }
 
@@ -37,5 +38,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/api/mail/:path*', '/api/auth/:path*', '/mail/:path*', '/login', '/oauth/callback'],
+  matcher: ['/api/mail/:path*', '/api/auth/:path*', '/mail/:path*', '/login'],
 };

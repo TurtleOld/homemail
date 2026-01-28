@@ -100,7 +100,10 @@ export async function createSession(
 
   const encryptedSession = encryptSessionData(session);
   const cookieStore = await cookies();
-  const secureCookie = process.env.USE_HTTPS === 'true';
+  // Always use secure cookies in production (we're behind reverse proxy with HTTPS)
+  // Trust proxy is enabled via TRUST_PROXY env var, so req.protocol will be https
+  const isProduction = process.env.NODE_ENV === 'production';
+  const secureCookie = isProduction || process.env.USE_HTTPS === 'true';
   cookieStore.set(SESSION_COOKIE_NAME, encryptedSession, {
     httpOnly: true,
     secure: secureCookie,
@@ -211,7 +214,8 @@ export async function deleteSession(): Promise<void> {
     }
   }
 
-  const secureCookie = process.env.USE_HTTPS === 'true';
+  const isProduction = process.env.NODE_ENV === 'production';
+  const secureCookie = isProduction || process.env.USE_HTTPS === 'true';
   cookieStore.set(SESSION_COOKIE_NAME, '', {
     httpOnly: true,
     secure: secureCookie,

@@ -13,41 +13,84 @@ import { SecurityLogger } from '@/lib/security-logger';
 const callbackSchema = z.object({
   code: z.string().min(1),
   state: z.string().min(1),
+  error: z.string().optional(),
+  error_description: z.string().optional(),
 });
 
 /**
- * POST /api/auth/oauth/callback
+ * GET /api/auth/oauth/callback
  * 
- * Handles OAuth callback: validates state, exchanges code for token
- * This runs on backend (BFF) - tokens never reach frontend
+ * Handles OAuth callback from Stalwart: validates state, exchanges code for token
+ * This is a server-side BFF endpoint - tokens never reach the frontend
+ * 
+ * Standard OAuth2 flow:
+ * 1. User authorizes at Stalwart
+ * 2. Stalwart redirects browser: GET /api/auth/oauth/callback?code=...&state=...
+ * 3. Backend validates state, exchanges code for tokens (with PKCE)
+ * 4. Backend stores tokens in server-side storage
+ * 5. Backend creates httpOnly session cookie
+ * 6. Backend responds with 302 redirect to /mail
  */
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const ip = getClientIp(request);
+  const searchParams = request.nextUrl.searchParams;
 
   try {
-    const body = await request.json();
-    const { code, state } = callbackSchema.parse(body);
+    // 1. Parse and validate query parameters
+    const rawParams = {
+      code: searchParams.get('code'),
+      state: searchParams.get('state'),
+      error: searchParams.get('error'),
+      error_description: searchParams.get('error_description'),
+    };
+
+    // Handle OAuth errors from Stalwart
+    if (rawParams.error) {
+      const errorMsg = rawParams.error_description || `OAuth error: ${rawParams.error}`;
+      logger.error('[OAuth Callback] Authorization error from provider', {
+        error: rawParams.error,
+        description: rawParams.error_description,
+      });
+      SecurityLogger.logLoginFailed(request, 'unknown', `OAuth provider error: ${rawParams.error}`);
+      
+      // Redirect to login with error
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', errorMsg);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Validate required parameters
+    if (!rawParams.code || !rawParams.state) {
+      logger.error('[OAuth Callback] Missing code or state parameter');
+      SecurityLogger.logLoginFailed(request, 'unknown', 'Missing OAuth callback parameters');
+      
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', 'Invalid callback parameters');
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const { code, state } = callbackSchema.parse(rawParams);
 
     logger.info('[OAuth Callback] Processing callback', {
       state: state.substring(0, 8) + '...',
       codeLength: code.length,
     });
 
-    // 1. Validate and consume state (one-time use, CSRF protection)
+    // 2. Validate and consume state (one-time use, CSRF protection)
     const codeVerifier = await consumeOAuthState(state);
     
     if (!codeVerifier) {
       logger.error('[OAuth Callback] Invalid or expired state', { state: state.substring(0, 8) + '...' });
       SecurityLogger.logLoginFailed(request, 'unknown', 'Invalid OAuth state (CSRF or expired)');
-      return NextResponse.json(
-        { error: 'Invalid or expired state. Please try logging in again.' },
-        { status: 400 }
-      );
+      
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', 'Invalid or expired state. Please try again.');
+      return NextResponse.redirect(loginUrl);
     }
 
     logger.info('[OAuth Callback] State validated successfully');
 
-    // 2. Get configuration from environment
+    // 3. Get configuration from environment
     const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
     const publicUrl = process.env.STALWART_PUBLIC_URL;
     const clientId = process.env.OAUTH_CLIENT_ID;
@@ -55,13 +98,12 @@ export async function POST(request: NextRequest) {
 
     if (!publicUrl || !clientId || !redirectUri) {
       logger.error('[OAuth Callback] Missing configuration');
-      return NextResponse.json(
-        { error: 'OAuth configuration incomplete' },
-        { status: 500 }
-      );
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', 'OAuth configuration incomplete');
+      return NextResponse.redirect(loginUrl);
     }
 
-    // 3. Discover token endpoint
+    // 4. Discover token endpoint
     const isInternalBaseUrl = baseUrl.includes('stalwart') || 
                               baseUrl.includes('localhost') || 
                               baseUrl.includes('127.0.0.1') || 
@@ -82,7 +124,7 @@ export async function POST(request: NextRequest) {
       tokenEndpoint: endpoints.token_endpoint,
     });
 
-    // 4. Exchange authorization code for tokens (with PKCE verifier)
+    // 5. Exchange authorization code for tokens (with PKCE verifier)
     const tokenBody = new URLSearchParams();
     tokenBody.append('grant_type', 'authorization_code');
     tokenBody.append('code', code);
@@ -108,25 +150,23 @@ export async function POST(request: NextRequest) {
       
       SecurityLogger.logLoginFailed(request, 'unknown', `Token exchange failed: ${tokenResponse.status}`);
       
-      return NextResponse.json(
-        { error: 'Failed to exchange authorization code for token' },
-        { status: 401 }
-      );
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', 'Failed to exchange authorization code');
+      return NextResponse.redirect(loginUrl);
     }
 
     const tokenData = await tokenResponse.json();
 
     if (!tokenData.access_token) {
       logger.error('[OAuth Callback] No access_token in response');
-      return NextResponse.json(
-        { error: 'Invalid token response' },
-        { status: 500 }
-      );
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', 'Invalid token response');
+      return NextResponse.redirect(loginUrl);
     }
 
     logger.info('[OAuth Callback] Tokens received successfully');
 
-    // 5. Get user info from JMAP session
+    // 6. Get user info from JMAP session
     const oauthClient = new OAuthJMAPClient({
       discoveryUrl,
       clientId,
@@ -171,7 +211,7 @@ export async function POST(request: NextRequest) {
 
     logger.info('[OAuth Callback] User account determined', { accountId, email });
 
-    // 6. Store tokens with correct account ID
+    // 7. Store tokens with correct account ID
     await tokenStore.deleteToken(tempAccountId); // Remove temp
     await tokenStore.saveToken(accountId, {
       accessToken: tokenData.access_token,
@@ -181,12 +221,12 @@ export async function POST(request: NextRequest) {
       scopes: tokenData.scope?.split(' ') || ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'],
     });
 
-    // 7. Create app session (httpOnly cookie)
+    // 8. Create app session (httpOnly cookie)
     const sessionId = await createSession(accountId, email, request);
 
     logger.info('[OAuth Callback] Session created', { sessionId, accountId, email });
 
-    // 8. Store user account info
+    // 9. Store user account info
     const userAccount: UserAccount = {
       id: accountId,
       email,
@@ -200,21 +240,17 @@ export async function POST(request: NextRequest) {
 
     SecurityLogger.logLoginSuccess(request, email, accountId);
 
-    // 9. Return success (frontend will redirect to /mail)
-    return NextResponse.json({
-      success: true,
-      account: {
-        id: accountId,
-        email,
-        displayName: userAccount.displayName,
-      },
-    });
+    // 10. Redirect to mail inbox (standard OAuth flow - single redirect, no client-side navigation)
+    const mailUrl = new URL('/mail', request.url);
+    logger.info('[OAuth Callback] Redirecting to mail inbox');
+    return NextResponse.redirect(mailUrl);
+
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid callback parameters', details: error.errors },
-        { status: 400 }
-      );
+      logger.error('[OAuth Callback] Validation error', { errors: error.errors });
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', 'Invalid callback parameters');
+      return NextResponse.redirect(loginUrl);
     }
 
     logger.error('[OAuth Callback] Error:', error);
@@ -222,9 +258,8 @@ export async function POST(request: NextRequest) {
     
     SecurityLogger.logLoginFailed(request, 'unknown', `OAuth callback error: ${errorMessage}`);
     
-    return NextResponse.json(
-      { error: `Authorization failed: ${errorMessage}` },
-      { status: 500 }
-    );
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('error', `Authorization failed: ${errorMessage}`);
+    return NextResponse.redirect(loginUrl);
   }
 }
