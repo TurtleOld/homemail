@@ -14,8 +14,8 @@ import { buildPublicUrl } from '@/lib/public-url';
 const callbackSchema = z.object({
   code: z.string().min(1),
   state: z.string().min(1),
-  error: z.string().optional(),
-  error_description: z.string().optional(),
+  error: z.string().nullish(),
+  error_description: z.string().nullish(),
 });
 
 /**
