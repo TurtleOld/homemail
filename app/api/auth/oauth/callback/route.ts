@@ -9,6 +9,7 @@ import { addUserAccount, setActiveAccount, type UserAccount } from '@/lib/storag
 import { logger } from '@/lib/logger';
 import { getClientIp } from '@/lib/client-ip';
 import { SecurityLogger } from '@/lib/security-logger';
+import { buildPublicUrl } from '@/lib/public-url';
 
 const callbackSchema = z.object({
   code: z.string().min(1),
@@ -66,9 +67,9 @@ export async function GET(request: NextRequest) {
         description: rawParams.error_description,
       });
       SecurityLogger.logLoginFailed(request, 'unknown', `OAuth provider error: ${rawParams.error}`);
-      
+
       // Redirect to login with error
-      const loginUrl = new URL('/login', request.url);
+      const loginUrl = buildPublicUrl('/login', request);
       loginUrl.searchParams.set('error', errorMsg);
       return NextResponse.redirect(loginUrl);
     }
@@ -84,8 +85,8 @@ export async function GET(request: NextRequest) {
         fullUrl: request.url,
       });
       SecurityLogger.logLoginFailed(request, 'unknown', `Missing OAuth callback parameters: ${missingParams.join(', ')}`);
-      
-      const loginUrl = new URL('/login', request.url);
+
+      const loginUrl = buildPublicUrl('/login', request);
       loginUrl.searchParams.set('error', 'Authorization server did not return code and state. Check server logs.');
       return NextResponse.redirect(loginUrl);
     }
@@ -103,8 +104,8 @@ export async function GET(request: NextRequest) {
     if (!codeVerifier) {
       logger.error('[OAuth Callback] Invalid or expired state', { state: state.substring(0, 8) + '...' });
       SecurityLogger.logLoginFailed(request, 'unknown', 'Invalid OAuth state (CSRF or expired)');
-      
-      const loginUrl = new URL('/login', request.url);
+
+      const loginUrl = buildPublicUrl('/login', request);
       loginUrl.searchParams.set('error', 'Invalid or expired state. Please try again.');
       return NextResponse.redirect(loginUrl);
     }
@@ -119,7 +120,7 @@ export async function GET(request: NextRequest) {
 
     if (!publicUrl || !clientId || !redirectUri) {
       logger.error('[OAuth Callback] Missing configuration');
-      const loginUrl = new URL('/login', request.url);
+      const loginUrl = buildPublicUrl('/login', request);
       loginUrl.searchParams.set('error', 'OAuth configuration incomplete');
       return NextResponse.redirect(loginUrl);
     }
@@ -168,10 +169,10 @@ export async function GET(request: NextRequest) {
         status: tokenResponse.status,
         error: errorText.substring(0, 200),
       });
-      
+
       SecurityLogger.logLoginFailed(request, 'unknown', `Token exchange failed: ${tokenResponse.status}`);
-      
-      const loginUrl = new URL('/login', request.url);
+
+      const loginUrl = buildPublicUrl('/login', request);
       loginUrl.searchParams.set('error', 'Failed to exchange authorization code');
       return NextResponse.redirect(loginUrl);
     }
@@ -180,7 +181,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokenData.access_token) {
       logger.error('[OAuth Callback] No access_token in response');
-      const loginUrl = new URL('/login', request.url);
+      const loginUrl = buildPublicUrl('/login', request);
       loginUrl.searchParams.set('error', 'Invalid token response');
       return NextResponse.redirect(loginUrl);
     }
@@ -262,24 +263,24 @@ export async function GET(request: NextRequest) {
     SecurityLogger.logLoginSuccess(request, email, accountId);
 
     // 10. Redirect to mail inbox (standard OAuth flow - single redirect, no client-side navigation)
-    const mailUrl = new URL('/mail', request.url);
+    const mailUrl = buildPublicUrl('/mail', request);
     logger.info('[OAuth Callback] Redirecting to mail inbox');
     return NextResponse.redirect(mailUrl);
 
   } catch (error) {
     if (error instanceof z.ZodError) {
       logger.error('[OAuth Callback] Validation error', { errors: error.errors });
-      const loginUrl = new URL('/login', request.url);
+      const loginUrl = buildPublicUrl('/login', request);
       loginUrl.searchParams.set('error', 'Invalid callback parameters');
       return NextResponse.redirect(loginUrl);
     }
 
     logger.error('[OAuth Callback] Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
+
     SecurityLogger.logLoginFailed(request, 'unknown', `OAuth callback error: ${errorMessage}`);
-    
-    const loginUrl = new URL('/login', request.url);
+
+    const loginUrl = buildPublicUrl('/login', request);
     loginUrl.searchParams.set('error', `Authorization failed: ${errorMessage}`);
     return NextResponse.redirect(loginUrl);
   }

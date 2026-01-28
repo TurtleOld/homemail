@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { buildPublicUrl } from '@/lib/public-url';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -21,7 +22,7 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith('/mail')) {
     const sessionCookie = request.cookies.get('mail_session');
     if (!sessionCookie) {
-      const loginUrl = new URL('/login', request.url);
+      const loginUrl = buildPublicUrl('/login', request);
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
     }
@@ -30,7 +31,7 @@ export function middleware(request: NextRequest) {
   if (pathname === '/login') {
     const sessionCookie = request.cookies.get('mail_session');
     if (sessionCookie) {
-      return NextResponse.redirect(new URL('/mail', request.url));
+      return NextResponse.redirect(buildPublicUrl('/mail', request));
     }
   }
 
