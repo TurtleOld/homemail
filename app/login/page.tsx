@@ -37,8 +37,9 @@ function LoginForm() {
 
     try {
       // Call authorize endpoint which will redirect to Stalwart OAuth
-      const redirectTo = searchParams.get('redirect') || '/mail';
-      window.location.href = `/api/auth/oauth/authorize?redirect=${encodeURIComponent(redirectTo)}`;
+      // NOTE: This is a full page navigation, NOT an async fetch
+      // The authorize endpoint returns a 302 redirect to Stalwart
+      window.location.href = '/api/auth/oauth/authorize';
     } catch (error) {
       console.error('OAuth login error:', error);
       toast.error('Ошибка запуска OAuth авторизации');

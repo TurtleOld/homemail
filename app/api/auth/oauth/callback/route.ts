@@ -36,13 +36,27 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
   try {
-    // 1. Parse and validate query parameters
+    // 1. Log full callback request for debugging
+    logger.info('[OAuth Callback] Received callback request', {
+      url: request.url,
+      searchString: request.nextUrl.search,
+    });
+
+    // 2. Parse and validate query parameters
     const rawParams = {
       code: searchParams.get('code'),
       state: searchParams.get('state'),
       error: searchParams.get('error'),
       error_description: searchParams.get('error_description'),
     };
+
+    logger.info('[OAuth Callback] Parsed parameters', {
+      hasCode: !!rawParams.code,
+      hasState: !!rawParams.state,
+      hasError: !!rawParams.error,
+      codeLength: rawParams.code?.length || 0,
+      stateLength: rawParams.state?.length || 0,
+    });
 
     // Handle OAuth errors from Stalwart
     if (rawParams.error) {
@@ -59,13 +73,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Validate required parameters
+    // Validate required parameters (BEFORE zod parsing to provide better error messages)
     if (!rawParams.code || !rawParams.state) {
-      logger.error('[OAuth Callback] Missing code or state parameter');
-      SecurityLogger.logLoginFailed(request, 'unknown', 'Missing OAuth callback parameters');
+      const missingParams = [];
+      if (!rawParams.code) missingParams.push('code');
+      if (!rawParams.state) missingParams.push('state');
+      
+      logger.error('[OAuth Callback] Missing required parameters', {
+        missing: missingParams,
+        fullUrl: request.url,
+      });
+      SecurityLogger.logLoginFailed(request, 'unknown', `Missing OAuth callback parameters: ${missingParams.join(', ')}`);
       
       const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('error', 'Invalid callback parameters');
+      loginUrl.searchParams.set('error', 'Authorization server did not return code and state. Check server logs.');
       return NextResponse.redirect(loginUrl);
     }
 

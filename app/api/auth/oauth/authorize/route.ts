@@ -69,6 +69,15 @@ export async function GET(request: NextRequest) {
     const endpoints = await discovery.discover();
 
     if (!endpoints.authorization_endpoint) {
+      logger.error('[OAuth Authorize] Discovery response missing authorization_endpoint', {
+        discoveryUrl,
+        endpoints: {
+          issuer: endpoints.issuer,
+          hasAuthorizationEndpoint: !!endpoints.authorization_endpoint,
+          hasTokenEndpoint: !!endpoints.token_endpoint,
+          hasDeviceEndpoint: !!endpoints.device_authorization_endpoint,
+        }
+      });
       throw new Error('authorization_endpoint not found in discovery response');
     }
 
