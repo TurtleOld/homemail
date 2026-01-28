@@ -2,24 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { OAuthDiscovery } from '@/lib/oauth-discovery';
 import { generateCodeVerifier, generateCodeChallenge, generateState, buildAuthorizationUrl } from '@/lib/oauth-pkce';
 import { storeOAuthState } from '@/lib/oauth-state-store';
-import { validateOrigin } from '@/lib/csrf';
 import { logger } from '@/lib/logger';
 import { getClientIp } from '@/lib/client-ip';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { SecurityLogger } from '@/lib/security-logger';
 
 /**
- * POST /api/auth/oauth/authorize
+ * GET /api/auth/oauth/authorize
  * 
  * Initiates OAuth 2.1 Authorization Code Flow with PKCE
- * Returns redirect URL to Stalwart authorization endpoint
+ * Redirects user to Stalwart authorization endpoint
+ * 
+ * Note: No CSRF validation needed for GET requests.
+ * Security is ensured through PKCE (code_challenge/code_verifier) and state parameter.
  */
-export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    SecurityLogger.logCsrfViolation(request);
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
+export async function GET(request: NextRequest) {
   const ip = getClientIp(request);
   const rl = checkRateLimit(ip, 'api', request);
   if (!rl.allowed) {
@@ -111,11 +108,8 @@ export async function POST(request: NextRequest) {
     // Log authorization initiation
     logger.info('[OAuth Authorize] User initiated authorization flow', { ip });
 
-    // 7. Return URL for client-side redirect
-    return NextResponse.json({
-      authorizationUrl,
-      state, // Client can verify this matches on callback
-    });
+    // 7. Redirect to Stalwart OAuth authorization endpoint
+    return NextResponse.redirect(authorizationUrl);
   } catch (error) {
     logger.error('[OAuth Authorize] Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
