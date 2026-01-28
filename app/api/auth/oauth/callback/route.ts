@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { OAuthDiscovery } from '@/lib/oauth-discovery';
 import { consumeOAuthState } from '@/lib/oauth-state-store';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
-import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
+import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
 import { createSession } from '@/lib/session';
 import { addUserAccount, setActiveAccount, type UserAccount } from '@/lib/storage';
 import { logger } from '@/lib/logger';
@@ -189,28 +189,15 @@ export async function GET(request: NextRequest) {
     logger.info('[OAuth Callback] Tokens received successfully');
 
     // 6. Get user info from JMAP session
-    const oauthClient = new OAuthJMAPClient({
-      discoveryUrl,
-      clientId,
-      scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'offline_access'],
+    // Create JMAP client directly with access token (no need for OAuthJMAPClient yet)
+    const jmapClient = new JMAPClient(
       baseUrl,
-      accountId: '', // Will be determined from session
-    });
+      '', // username not needed for bearer auth
+      tokenData.access_token,
+      '', // accountId will be determined from session
+      'bearer'
+    );
 
-    // Temporarily store token to get session info
-    const tokenStore = new OAuthTokenStore();
-    const tempAccountId = 'temp-' + Date.now();
-    
-    await tokenStore.saveToken(tempAccountId, {
-      accessToken: tokenData.access_token,
-      tokenType: tokenData.token_type || 'Bearer',
-      expiresAt: tokenData.expires_in ? Date.now() + (tokenData.expires_in * 1000) : undefined,
-      refreshToken: tokenData.refresh_token,
-      scopes: tokenData.scope?.split(' ') || ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'],
-    });
-
-    // Get JMAP session to determine account ID
-    const jmapClient = await oauthClient.getJMAPClient();
     const jmapSession = await jmapClient.getSession();
 
     let account: any;
@@ -233,8 +220,8 @@ export async function GET(request: NextRequest) {
 
     logger.info('[OAuth Callback] User account determined', { accountId, email });
 
-    // 7. Store tokens with correct account ID
-    await tokenStore.deleteToken(tempAccountId); // Remove temp
+    // 7. Store tokens with account ID
+    const tokenStore = new OAuthTokenStore();
     await tokenStore.saveToken(accountId, {
       accessToken: tokenData.access_token,
       tokenType: tokenData.token_type || 'Bearer',
