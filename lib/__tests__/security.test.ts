@@ -3,7 +3,7 @@ import { validateEmail, validateEmailList, sanitizeEmail, isEmailInjectionSafe }
 import { validatePath, sanitizeFilename } from '../path-validator';
 import { validateUrl } from '../url-validator';
 import { timingSafeEqual, constantTimeCompare } from '../security-utils';
-import { checkBruteForce, recordFailedAttempt, recordSuccess } from '../brute-force-protection';
+import { checkBruteForce, recordFailedAttempt, recordSuccess, __resetBruteForceStoreForTests } from '../brute-force-protection';
 import { checkReplayProtection, generateNonce, generateTimestamp } from '../replay-protection';
 import { analyzeEmailSecurity } from '../email-security';
 import type { MessageDetail } from '../types';
@@ -87,6 +87,7 @@ describe('Security Utils', () => {
 
 describe('Brute Force Protection', () => {
   beforeEach(() => {
+    __resetBruteForceStoreForTests();
   });
 
   it('should allow requests within limits', () => {
@@ -149,9 +150,11 @@ describe('Email Security Analysis', () => {
       id: '1',
       subject: 'Urgent action required - verify your account',
       from: { email: 'suspicious@example.com', name: 'Bank' },
+      to: [{ email: 'victim@example.com' }],
       body: { html: '<p>Click here immediately</p>', text: 'Click here immediately' },
       date: new Date(),
       flags: { unread: true, starred: false, important: false, hasAttachments: false },
+      attachments: [],
     };
 
     const analysis = analyzeEmailSecurity(message);
@@ -163,9 +166,11 @@ describe('Email Security Analysis', () => {
       id: '2',
       subject: 'Free money - act now!',
       from: { email: 'spam@example.com', name: 'Spammer' },
+      to: [{ email: 'victim@example.com' }],
       body: { html: '<p>Limited time offer</p>', text: 'Limited time offer' },
       date: new Date(),
       flags: { unread: true, starred: false, important: false, hasAttachments: false },
+      attachments: [],
     };
 
     const analysis = analyzeEmailSecurity(message);
@@ -177,6 +182,7 @@ describe('Email Security Analysis', () => {
       id: '3',
       subject: 'Test',
       from: { email: 'test@example.com', name: 'Test' },
+      to: [{ email: 'victim@example.com' }],
       body: { html: '<p>Test</p>', text: 'Test' },
       date: new Date(),
       flags: { unread: true, starred: false, important: false, hasAttachments: true },
