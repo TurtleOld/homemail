@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense, useEffect } from 'react';
+import { useState, Suspense, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,12 +16,30 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [needsTotp, setNeedsTotp] = useState(false);
   const [needsOAuth, setNeedsOAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'basic' | 'bearer' | 'oauth'>('basic');
+  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(true);
   const [oauthUserCode, setOauthUserCode] = useState('');
   const [oauthVerificationUri, setOauthVerificationUri] = useState('');
   const [oauthPolling, setOauthPolling] = useState(false);
   const [oauthWindow, setOauthWindow] = useState<Window | null>(null);
   const [emailError, setEmailError] = useState<string>('');
   const isAddingAccount = searchParams.get('addAccount') === 'true';
+
+  // One requestId per logical login flow (used in server logs).
+  const flowIdRef = useRef<string>(
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+  );
+
+  // Mutex/lock to prevent multiple concurrent login/oauth flows.
+  const inFlightRef = useRef(false);
+  const activeAbortRef = useRef<AbortController | null>(null);
+
+  const abortActiveFlow = useCallback(() => {
+    if (activeAbortRef.current) {
+      activeAbortRef.current.abort();
+      activeAbortRef.current = null;
+    }
+  }, []);
 
   const handleEmailChange = (value: string) => {
     setEmail(value);
@@ -40,15 +58,27 @@ function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (inFlightRef.current) {
+      return;
+    }
+
+    // Lock now (prevents double click / enter spamming)
+    inFlightRef.current = true;
+
     if (email.trim()) {
       const validation = validateEmail(email);
       if (!validation.valid) {
         setEmailError(validation.errors[0] || 'Неверный формат email');
+        inFlightRef.current = false;
         return;
       }
     }
 
     setLoading(true);
+
+    abortActiveFlow();
+    const abortController = new AbortController();
+    activeAbortRef.current = abortController;
 
     try {
       if (isAddingAccount) {
@@ -69,10 +99,17 @@ function LoginForm() {
         router.push('/mail');
         router.refresh();
       } else {
+        // In oauth-mode we should not attempt password login implicitly.
+        if (authMode === 'oauth' && !passwordLoginEnabled) {
+          await startOAuthFlow(email, abortController);
+          return;
+        }
+
         const res = await fetch('/api/auth/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-auth-flow-id': flowIdRef.current },
           body: JSON.stringify({ email, password, totpCode: totpCode || undefined }),
+          signal: abortController.signal,
         });
 
         const data = await res.json();
@@ -82,7 +119,7 @@ function LoginForm() {
             setNeedsTotp(true);
             toast.error(data.error || 'Требуется код TOTP');
           } else if (data.requiresOAuth) {
-            await startOAuthFlow(email);
+            await startOAuthFlow(email, abortController);
           } else {
             toast.error(data.error || 'Ошибка входа');
           }
@@ -95,13 +132,20 @@ function LoginForm() {
         router.refresh();
       }
     } catch (error) {
-      toast.error('Ошибка соединения');
+      if ((error as any)?.name !== 'AbortError') {
+        toast.error('Ошибка соединения');
+      }
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   };
 
-  const startOAuthFlow = async (accountId: string) => {
+  const startOAuthFlow = useCallback(async (accountId: string, parentAbort: AbortController) => {
+    if (oauthPolling) {
+      return;
+    }
+
     let pollInterval: NodeJS.Timeout | null = null;
     let timeoutId: NodeJS.Timeout | null = null;
     let isCompleted = false;
@@ -138,8 +182,9 @@ function LoginForm() {
       
       const deviceCodeRes = await fetch('/api/auth/oauth/device-code', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-auth-flow-id': flowIdRef.current },
         body: JSON.stringify({ accountId }),
+        signal: parentAbort.signal,
       });
 
       if (!deviceCodeRes.ok) {
@@ -158,71 +203,88 @@ function LoginForm() {
         setOauthWindow(authWindow);
       }
 
-      pollInterval = setInterval(async () => {
-        if (isCompleted) {
-          return;
-        }
-
-        try {
-          const pollRes = await fetch('/api/auth/oauth/poll', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              deviceCode: deviceData.deviceCode,
-              accountId,
-              interval: deviceData.interval || 5,
-              expiresIn: deviceData.expiresIn || 600,
-            }),
-          });
-
-          const pollData = await pollRes.json();
-
-          if (pollData.success) {
-            isCompleted = true;
-            closeAuthWindow();
-            
-            if (pollInterval) {
-              clearInterval(pollInterval);
-              pollInterval = null;
-            }
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-              timeoutId = null;
-            }
-            setOauthPolling(false);
-
-            const loginRes = await fetch('/api/auth/login', {
+      // IMPORTANT: never use setInterval(async ...) here.
+      // The callback is not awaited -> parallel requests accumulate.
+      // We instead do a sequential polling loop with explicit delays.
+      const poll = async () => {
+        while (!isCompleted && !parentAbort.signal.aborted) {
+          try {
+            const pollRes = await fetch('/api/auth/oauth/poll', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, password: '', totpCode: undefined, useOAuth: true }),
+              headers: { 'Content-Type': 'application/json', 'x-auth-flow-id': flowIdRef.current },
+              body: JSON.stringify({
+                deviceCode: deviceData.deviceCode,
+                accountId,
+                interval: deviceData.interval || 5,
+                expiresIn: deviceData.expiresIn || 600,
+              }),
+              signal: parentAbort.signal,
             });
 
-            const loginData = await loginRes.json();
+            const pollData = await pollRes.json();
 
-            if (loginRes.ok && loginData.success) {
-              toast.success('Вход выполнен');
-              const redirectTo = searchParams.get('redirect') || '/mail';
-              router.push(redirectTo);
-              router.refresh();
-            } else {
-              toast.error(loginData.error || 'Ошибка входа после авторизации');
+            if (pollData.success) {
+              isCompleted = true;
+              closeAuthWindow();
+              cleanup();
+
+              const loginRes = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-auth-flow-id': flowIdRef.current },
+                body: JSON.stringify({ email, password: '', totpCode: undefined, useOAuth: true }),
+                signal: parentAbort.signal,
+              });
+
+              const loginData = await loginRes.json();
+
+              if (loginRes.ok && loginData.success) {
+                toast.success('Вход выполнен');
+                const redirectTo = searchParams.get('redirect') || '/mail';
+                router.push(redirectTo);
+                router.refresh();
+              } else {
+                toast.error(loginData.error || 'Ошибка входа после авторизации');
+              }
+              return;
             }
-          } else if (pollData.error === 'expired_token' || pollData.error === 'access_denied') {
-            isCompleted = true;
-            cleanup();
-            toast.error(pollData.errorDescription || 'Авторизация отменена или истекла');
-            setNeedsOAuth(false);
-          } else if (pollData.error !== 'authorization_pending' && pollData.error !== 'slow_down') {
-            isCompleted = true;
-            cleanup();
-            toast.error(pollData.errorDescription || 'Ошибка авторизации');
-          }
-        } catch (pollError) {
-          if (!isCompleted) {
-            console.error('Polling error:', pollError);
+
+            if (pollRes.status === 429) {
+              // Backoff on rate limit.
+              await new Promise((r) => setTimeout(r, 2000));
+              continue;
+            }
+
+            if (pollData.error === 'expired_token' || pollData.error === 'access_denied') {
+              isCompleted = true;
+              cleanup();
+              toast.error(pollData.errorDescription || 'Авторизация отменена или истекла');
+              setNeedsOAuth(false);
+              return;
+            }
+
+            // authorization_pending / slow_down => keep waiting
+            if (pollData.error !== 'authorization_pending' && pollData.error !== 'slow_down') {
+              isCompleted = true;
+              cleanup();
+              toast.error(pollData.errorDescription || 'Ошибка авторизации');
+              return;
+            }
+
+            const delayMs = (deviceData.interval || 5) * 1000;
+            await new Promise((r) => setTimeout(r, delayMs));
+          } catch (pollError) {
+            if ((pollError as any)?.name === 'AbortError') {
+              isCompleted = true;
+              cleanup();
+              return;
+            }
+            // transient network error: backoff, but don't spin
+            await new Promise((r) => setTimeout(r, 2000));
           }
         }
-      }, (deviceData.interval || 5) * 1000);
+      };
+
+      poll();
 
       timeoutId = setTimeout(() => {
         if (!isCompleted) {
@@ -235,12 +297,32 @@ function LoginForm() {
       isCompleted = true;
       cleanup();
       console.error('OAuth flow error:', error);
-      toast.error('Ошибка запуска OAuth авторизации');
+      if ((error as any)?.name !== 'AbortError') {
+        toast.error('Ошибка запуска OAuth авторизации');
+      }
     }
-  };
+  }, [abortActiveFlow, email, oauthPolling, router, searchParams]);
 
   useEffect(() => {
     document.documentElement.classList.remove('dark');
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/auth/config', { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (!cfg) return;
+        setAuthMode(cfg.authMode);
+        setPasswordLoginEnabled(cfg.passwordLoginEnabled);
+
+        // In oauth-mode + password disabled: start OAuth flow immediately.
+        if (cfg.authMode === 'oauth' && !cfg.passwordLoginEnabled) {
+          setNeedsOAuth(true);
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   return (
@@ -251,7 +333,11 @@ function LoginForm() {
             {isAddingAccount ? 'Добавить аккаунт' : 'Вход в почту'}
           </h1>
           <p className="mt-2 text-sm text-gray-600 sm:text-base">
-            {isAddingAccount ? 'Введите данные нового аккаунта' : 'Введите логин и пароль для входа'}
+            {isAddingAccount
+              ? 'Введите данные нового аккаунта'
+              : authMode === 'oauth' && !passwordLoginEnabled
+                ? 'Требуется OAuth авторизация'
+                : 'Введите логин и пароль для входа'}
           </p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
@@ -274,20 +360,22 @@ function LoginForm() {
               <p className="text-sm text-red-600">{emailError}</p>
             )}
           </div>
-          <div className="space-y-2">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 sm:text-base">
-              Пароль
-            </label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="h-11 border-blue-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-12"
-              placeholder="••••••••"
-            />
-          </div>
+          {passwordLoginEnabled && (
+            <div className="space-y-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 sm:text-base">
+                Пароль
+              </label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="h-11 border-blue-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-12"
+                placeholder="••••••••"
+              />
+            </div>
+          )}
           {(needsTotp || totpCode) && (
             <div className="space-y-2">
               <label htmlFor="totpCode" className="block text-sm font-medium text-gray-700 sm:text-base">

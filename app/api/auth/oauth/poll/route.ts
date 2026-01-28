@@ -3,10 +3,26 @@ import { DeviceFlowClient } from '@/lib/oauth-device-flow';
 import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
 import { validateOrigin } from '@/lib/csrf';
 import { logger } from '@/lib/logger';
+import { getClientIp } from '@/lib/client-ip';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { SecurityLogger } from '@/lib/security-logger';
 
 export async function POST(request: NextRequest) {
   if (!validateOrigin(request)) {
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
+  }
+
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(ip, 'oauth_poll', request);
+  if (!rl.allowed) {
+    SecurityLogger.logRateLimitRejected(request, ip, 'oauth_poll', 'rate_limit', {
+      resetAt: rl.resetAt,
+      blockedUntil: rl.blockedUntil,
+    });
+    return NextResponse.json(
+      { error: 'Too many requests', resetAt: rl.resetAt, blockedUntil: rl.blockedUntil },
+      { status: 429 }
+    );
   }
 
   try {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSession, regenerateSession, getSession } from '@/lib/session';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { previewRateLimit, consumeRateLimit, resetRateLimit } from '@/lib/rate-limit';
 import { validateOrigin } from '@/lib/csrf';
 import { getMailProvider, getMailProviderForAccount, ensureAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
@@ -11,6 +11,8 @@ import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
 import type { Account } from '@/lib/types';
 import { SecurityLogger } from '@/lib/security-logger';
 import { checkBruteForce, recordFailedAttempt, recordSuccess } from '@/lib/brute-force-protection';
+import { getClientIp } from '@/lib/client-ip';
+import crypto from 'node:crypto';
 
 const loginSchema = z.object({
   email: z.string().min(1),
@@ -25,27 +27,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
   }
 
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
-
-  const rateLimit = checkRateLimit(ip, 'login', request);
-
-  if (!rateLimit.allowed) {
-    SecurityLogger.logRateLimitExceeded(request, ip, 'login');
-    return NextResponse.json(
-      {
-        error: 'Too many requests',
-        resetAt: rateLimit.resetAt,
-        blockedUntil: rateLimit.blockedUntil
-      },
-      { status: 429 }
-    );
-  }
+  const ip = getClientIp(request);
+  const flowId = request.headers.get('x-auth-flow-id') || crypto.randomUUID();
 
   try {
     const body = await request.json();
     const { email, password, totpCode, useOAuth } = loginSchema.parse(body);
+
+    // Only apply strict login rate-limit to password/TOTP flows.
+    // We preview here and only consume on 401 to count *failed* attempts.
+    const isPasswordAttempt = !!password || !!totpCode;
+    if (isPasswordAttempt) {
+      const rateLimit = previewRateLimit(ip, 'login', request);
+      if (!rateLimit.allowed) {
+        SecurityLogger.logRateLimitRejected(request, ip, 'login', 'rate_limit', {
+          flowId,
+          resetAt: rateLimit.resetAt,
+          blockedUntil: rateLimit.blockedUntil,
+        });
+        return NextResponse.json(
+          {
+            error: 'Too many requests',
+            resetAt: rateLimit.resetAt,
+            blockedUntil: rateLimit.blockedUntil,
+            flowId,
+          },
+          { status: 429 }
+        );
+      }
+    }
 
     const bruteForceCheck = checkBruteForce(ip, email, request);
     if (!bruteForceCheck.allowed) {
@@ -125,6 +135,7 @@ export async function POST(request: NextRequest) {
 
       const hasToken = await oauthClient.hasValidToken();
       if (!hasToken) {
+        // Do not penalize the login rate-limit for OAuth bootstrap.
         return NextResponse.json(
           { error: 'OAuth token required', requiresOAuth: true },
           { status: 401 }
@@ -147,6 +158,11 @@ export async function POST(request: NextRequest) {
 
         if (!account) {
           logger.error('Account not found in session for:', email);
+          // Count only failed password logins towards the rate-limit.
+          if (isPasswordAttempt) {
+            consumeRateLimit(ip, 'login', request);
+          }
+
           recordFailedAttempt(ip, email);
           SecurityLogger.logLoginFailed(request, email, 'Account not found in session');
           return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
@@ -159,6 +175,9 @@ export async function POST(request: NextRequest) {
 
         recordSuccess(ip, email);
         SecurityLogger.logLoginSuccess(request, email, accountId);
+
+        // Successful auth: reset login rate-limit bucket to avoid sticky 429 after a good login.
+        resetRateLimit(ip, 'login');
 
         const userAccount: UserAccount = {
           id: accountId,
@@ -178,10 +197,15 @@ export async function POST(request: NextRequest) {
             email: account.name || email,
             displayName: account.name || email.split('@')[0],
           },
+          flowId,
         });
       } catch (oauthError) {
         const errorMessage = oauthError instanceof Error ? oauthError.message : String(oauthError);
         logger.error('OAuth login error:', errorMessage);
+        if (isPasswordAttempt) {
+          consumeRateLimit(ip, 'login', request);
+        }
+
         recordFailedAttempt(ip, email);
         SecurityLogger.logLoginFailed(request, email, `OAuth error: ${errorMessage}`);
         
@@ -276,6 +300,10 @@ export async function POST(request: NextRequest) {
         } catch (tempError) {
           const errorMessage = tempError instanceof Error ? tempError.message : String(tempError);
           logger.error('Temporary client auth error:', errorMessage);
+          if (isPasswordAttempt) {
+            consumeRateLimit(ip, 'login', request);
+          }
+
           recordFailedAttempt(ip, email);
           SecurityLogger.logLoginFailed(request, email, `Temporary client auth error: ${errorMessage}`);
           throw tempError;
@@ -287,6 +315,11 @@ export async function POST(request: NextRequest) {
 
       if (!account) {
         logger.error('Account not found for:', email);
+
+        if (isPasswordAttempt) {
+          consumeRateLimit(ip, 'login', request);
+        }
+
         recordFailedAttempt(ip, email);
         SecurityLogger.logLoginFailed(request, email, 'Account not found');
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
@@ -300,6 +333,9 @@ export async function POST(request: NextRequest) {
       recordSuccess(ip, email);
       SecurityLogger.logLoginSuccess(request, email, accountId);
 
+      // Successful auth: reset login rate-limit bucket.
+      resetRateLimit(ip, 'login');
+
       const userAccount: UserAccount = {
         id: accountId,
         email: account.email,
@@ -311,13 +347,23 @@ export async function POST(request: NextRequest) {
       await addUserAccount(email, userAccount);
       await setActiveAccount(email, accountId);
 
-      return NextResponse.json({ success: true, account: { id: account.id, email: account.email, displayName: account.displayName } });
+      return NextResponse.json({
+        success: true,
+        account: { id: account.id, email: account.email, displayName: account.displayName },
+        flowId,
+      });
     } catch (providerError) {
       logger.error('Provider error during login:', providerError);
       const errorMessage = providerError instanceof Error ? providerError.message : String(providerError);
       
+      if (isPasswordAttempt) {
+        consumeRateLimit(ip, 'login', request);
+      }
+
       recordFailedAttempt(ip, email);
       SecurityLogger.logLoginFailed(request, email, `Provider error: ${errorMessage}`);
+
+      // Failed auth attempt (401): we keep the rate-limit counter as-is (it was already incremented above).
 
       if (errorMessage.includes('TOTP code required') || errorMessage.includes('TOTP') || errorMessage.includes('402') || errorMessage.includes('Payment Required')) {
         if (!totpCode) {

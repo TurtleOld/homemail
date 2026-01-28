@@ -7,6 +7,7 @@ import {
   type StoredSession,
 } from './storage';
 import { SecurityLogger } from './security-logger';
+import { getClientIp } from './client-ip';
 
 const SESSION_COOKIE_NAME = 'mail_session';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
@@ -84,11 +85,7 @@ export async function createSession(
   const expiresAt = Date.now() + SESSION_DURATION;
   const createdAt = Date.now();
 
-  const ipAddress = request
-    ? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      request.headers.get('x-real-ip') ||
-      'unknown'
-    : undefined;
+  const ipAddress = request ? getClientIp(request) : undefined;
   const userAgent = request ? request.headers.get('user-agent') || undefined : undefined;
 
   const session: SessionData = {
@@ -172,10 +169,7 @@ export async function getSession(request?: Request): Promise<SessionData | null>
   }
 
   if (request && session.ipAddress && session.userAgent) {
-    const currentIp =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      request.headers.get('x-real-ip') ||
-      'unknown';
+    const currentIp = getClientIp(request);
     const currentUserAgent = request.headers.get('user-agent') || 'unknown';
 
     if (session.ipAddress !== currentIp || session.userAgent !== currentUserAgent) {
