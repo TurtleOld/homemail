@@ -65,10 +65,10 @@
 import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
 
 const oauthClient = new OAuthJMAPClient({
-  discoveryUrl: 'https://mail.pavlovteam.ru/.well-known/oauth-authorization-server',
+  discoveryUrl: 'https://mail.example.com/.well-known/oauth-authorization-server',
   clientId: 'your-client-id',
   scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'],
-  baseUrl: 'https://mail.pavlovteam.ru',
+  baseUrl: 'https://mail.example.com',
   accountId: 'user-account-id',
 });
 
@@ -110,17 +110,17 @@ try {
 
 ```bash
 curl -X GET \
-  'https://mail.pavlovteam.ru/.well-known/oauth-authorization-server' \
+  'https://mail.example.com/.well-known/oauth-authorization-server' \
   -H 'Accept: application/json'
 ```
 
 **Ответ:**
 ```json
 {
-  "issuer": "https://mail.pavlovteam.ru",
-  "device_authorization_endpoint": "https://mail.pavlovteam.ru/auth/device",
-  "token_endpoint": "https://mail.pavlovteam.ru/auth/token",
-  "authorization_endpoint": "https://mail.pavlovteam.ru/auth/authorize",
+  "issuer": "https://mail.example.com",
+  "device_authorization_endpoint": "https://mail.example.com/auth/device",
+  "token_endpoint": "https://mail.example.com/auth/token",
+  "authorization_endpoint": "https://mail.example.com/auth/authorize",
   "grant_types_supported": [
     "urn:ietf:params:oauth:grant-type:device_code",
     "authorization_code",
@@ -138,7 +138,7 @@ curl -X GET \
 
 ```bash
 curl -X POST \
-  'https://mail.pavlovteam.ru/auth/device' \
+  'https://mail.example.com/auth/device' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -H 'Accept: application/json' \
   -d 'client_id=your-client-id&scope=urn:ietf:params:jmap:core urn:ietf:params:jmap:mail'
@@ -149,8 +149,8 @@ curl -X POST \
 {
   "device_code": "abc123def456...",
   "user_code": "ABCD-EFGH",
-  "verification_uri": "https://mail.pavlovteam.ru/auth/verify",
-  "verification_uri_complete": "https://mail.pavlovteam.ru/auth/verify?user_code=ABCD-EFGH",
+  "verification_uri": "https://mail.example.com/auth/verify",
+  "verification_uri_complete": "https://mail.example.com/auth/verify?user_code=ABCD-EFGH",
   "expires_in": 600,
   "interval": 5
 }
@@ -160,7 +160,7 @@ curl -X POST \
 
 ```bash
 curl -X POST \
-  'https://mail.pavlovteam.ru/auth/token' \
+  'https://mail.example.com/auth/token' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -H 'Accept: application/json' \
   -d 'grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=abc123def456...&client_id=your-client-id'
@@ -213,7 +213,7 @@ curl -X POST \
 
 ```bash
 curl -X GET \
-  'https://mail.pavlovteam.ru/.well-known/jmap' \
+  'https://mail.example.com/.well-known/jmap' \
   -H 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...' \
   -H 'Accept: application/json'
 ```
@@ -221,10 +221,10 @@ curl -X GET \
 **Ответ:**
 ```json
 {
-  "apiUrl": "https://mail.pavlovteam.ru/jmap",
-  "downloadUrl": "https://mail.pavlovteam.ru/download/{accountId}/{blobId}/{name}",
-  "uploadUrl": "https://mail.pavlovteam.ru/upload/{accountId}",
-  "eventSourceUrl": "https://mail.pavlovteam.ru/events",
+  "apiUrl": "https://mail.example.com/jmap",
+  "downloadUrl": "https://mail.example.com/download/{accountId}/{blobId}/{name}",
+  "uploadUrl": "https://mail.example.com/upload/{accountId}",
+  "eventSourceUrl": "https://mail.example.com/events",
   "accounts": {
     "account-id-1": {
       "id": "account-id-1",
@@ -251,7 +251,7 @@ curl -X GET \
 
 ```bash
 curl -X POST \
-  'https://mail.pavlovteam.ru/jmap' \
+  'https://mail.example.com/jmap' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...' \
   -d '{
@@ -373,7 +373,7 @@ import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
 
 // В методе getClient
 const oauthClient = new OAuthJMAPClient({
-  discoveryUrl: 'https://mail.pavlovteam.ru/.well-known/oauth-authorization-server',
+  discoveryUrl: 'https://mail.example.com/.well-known/oauth-authorization-server',
   clientId: process.env.OAUTH_CLIENT_ID || '',
   scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'],
   baseUrl: config.baseUrl,
@@ -395,10 +395,10 @@ return jmapClient;
 ```bash
 # OAuth
 OAUTH_CLIENT_ID=your-client-id
-OAUTH_DISCOVERY_URL=https://mail.pavlovteam.ru/.well-known/oauth-authorization-server
+OAUTH_DISCOVERY_URL=https://mail.example.com/.well-known/oauth-authorization-server
 
 # Stalwart
-STALWART_BASE_URL=https://mail.pavlovteam.ru
+STALWART_BASE_URL=https://mail.example.com
 STALWART_AUTH_MODE=oauth  # или 'basic' для обратной совместимости
 ```
 

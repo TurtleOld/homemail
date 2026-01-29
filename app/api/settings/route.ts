@@ -89,9 +89,6 @@ async function saveSettings(): Promise<void> {
 
 loadSettings().catch((error) => logger.error('Failed to load settings on startup:', error));
 
-import { loadCredentials } from '@/lib/storage';
-loadCredentials().catch((error) => logger.error('Failed to load credentials on startup:', error));
-
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();

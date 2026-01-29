@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
  * This ensures correct redirect URLs when running behind a reverse proxy.
  *
  * @param request - Next.js request object
- * @returns Public base URL (e.g., "https://mail.pavlovteam.ru")
+ * @returns Public base URL (e.g., "https://mail.example.com")
  */
 export function getPublicBaseUrl(request: NextRequest): string {
   // 1. Try to build from proxy headers (nginx/traefik)
@@ -37,7 +37,7 @@ export function getPublicBaseUrl(request: NextRequest): string {
  *
  * @param path - Path to append (e.g., "/login", "/mail")
  * @param request - Next.js request object
- * @returns Full public URL (e.g., "https://mail.pavlovteam.ru/login")
+ * @returns Full public URL (e.g., "https://mail.example.com/login")
  */
 export function buildPublicUrl(path: string, request: NextRequest): URL {
   const baseUrl = getPublicBaseUrl(request);

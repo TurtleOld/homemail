@@ -222,13 +222,36 @@ export async function GET(request: NextRequest) {
 
     // 7. Store tokens with account ID
     const tokenStore = new OAuthTokenStore();
+    const expiresAt = tokenData.expires_in ? Date.now() + (tokenData.expires_in * 1000) : undefined;
+
+    logger.info('[OAuth Callback] Storing token', {
+      accountId,
+      email,
+      hasRefreshToken: !!tokenData.refresh_token,
+      expiresIn: tokenData.expires_in,
+      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : 'never',
+      scopes: tokenData.scope || 'default',
+    });
+
     await tokenStore.saveToken(accountId, {
       accessToken: tokenData.access_token,
       tokenType: tokenData.token_type || 'Bearer',
-      expiresAt: tokenData.expires_in ? Date.now() + (tokenData.expires_in * 1000) : undefined,
+      expiresAt,
       refreshToken: tokenData.refresh_token,
       scopes: tokenData.scope?.split(' ') || ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'],
     });
+
+    // Verify token was saved correctly
+    const savedToken = await tokenStore.getToken(accountId);
+    if (savedToken) {
+      logger.info('[OAuth Callback] Token saved and verified successfully', {
+        accountId,
+        hasAccessToken: !!savedToken.accessToken,
+        hasRefreshToken: !!savedToken.refreshToken,
+      });
+    } else {
+      logger.error('[OAuth Callback] Token verification failed - token not found after save', { accountId });
+    }
 
     // 8. Create app session (httpOnly cookie)
     const sessionId = await createSession(accountId, email, request);

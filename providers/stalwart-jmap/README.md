@@ -78,9 +78,9 @@ openssl s_client -connect example.com:587 -starttls smtp
 
 ```bash
 # На сервере Stalwart
-./providers/stalwart-jmap/create-admin.sh admin@pavlovteam.ru ваш_пароль
+./providers/stalwart-jmap/create-admin.sh admin@example.com ваш_пароль
 sudo systemctl restart stalwart
-./providers/stalwart-jmap/test-connection.sh admin@pavlovteam.ru ваш_пароль
+./providers/stalwart-jmap/test-connection.sh admin@example.com ваш_пароль
 ```
 
 ### Ручной способ
@@ -95,14 +95,14 @@ sudo systemctl restart stalwart
 2. **Тестовый администратор** (для быстрого старта):
    ```toml
    [[directory."local".users]]
-   name = "admin@pavlovteam.ru"
+   name = "admin@example.com"
    secret = "plain:admin123"  # Пароль: admin123 (ВРЕМЕННО! Только для тестирования)
    type = "individual"
    superuser = true
    ```
    
    **Важно**: После применения конфигурации используйте:
-   - Email: `admin@pavlovteam.ru`
+   - Email: `admin@example.com`
    - Password: `admin123`
 
 3. **Для production** - сгенерируйте bcrypt хеш:
@@ -129,7 +129,7 @@ sudo systemctl restart stalwart
 
 5. **Проверьте доступ**:
    - Веб-интерфейс: `https://example.com`
-   - JMAP: используйте учетные данные `admin@pavlovteam.ru` / `admin123`
+   - JMAP: используйте учетные данные `admin@example.com` / `admin123`
 
 ### Создание обычных пользователей
 
@@ -142,7 +142,7 @@ sudo systemctl restart stalwart
 Или добавьте в `config.toml`:
 ```toml
 [[directory."local".users]]
-name = "user@pavlovteam.ru"
+name = "user@example.com"
 secret = "bcrypt:$2b$10$..."  # Используйте bcrypt для production
 type = "individual"
 superuser = false
@@ -169,7 +169,7 @@ certificate = "default"
 
 [acme]
 enabled = true
-contact = ["mailto:admin@pavlovteam.ru"]
+contact = ["mailto:admin@example.com"]
 ```
 
 ### 2. Проверка доступности HTTPS

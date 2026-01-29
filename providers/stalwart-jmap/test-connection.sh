@@ -5,13 +5,13 @@
 
 set -e
 
-EMAIL=${1:-"admin@pavlovteam.ru"}
+EMAIL=${1:-"admin@example.com"}
 PASSWORD=${2:-"admin123"}
 STALWART_URL=${STALWART_BASE_URL:-"https://example.com"}
 
 if [ -z "$1" ] || [ -z "$2" ]; then
     echo "Использование: $0 <email> <password> [stalwart_url]"
-    echo "Пример: $0 admin@pavlovteam.ru admin123 https://example.com"
+    echo "Пример: $0 admin@example.com admin123 https://example.com"
     exit 1
 fi
 

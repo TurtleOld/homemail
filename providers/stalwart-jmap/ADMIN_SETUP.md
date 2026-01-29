@@ -20,7 +20,7 @@
 ```bash
 # На сервере Stalwart
 cd /path/to/mailclient
-./providers/stalwart-jmap/create-admin.sh admin@pavlovteam.ru your_secure_password
+./providers/stalwart-jmap/create-admin.sh admin@example.com your_secure_password
 ```
 
 Скрипт автоматически:
@@ -40,7 +40,7 @@ sudo systemctl restart stalwart
 #### Шаг 4: Проверьте подключение
 
 ```bash
-./providers/stalwart-jmap/test-connection.sh admin@pavlovteam.ru your_secure_password
+./providers/stalwart-jmap/test-connection.sh admin@example.com your_secure_password
 ```
 
 ### Вариант 2: Ручное редактирование config.toml
@@ -54,7 +54,7 @@ sudo systemctl restart stalwart
 
    ```toml
    [[directory."local".users]]
-   name = "admin@pavlovteam.ru"
+   name = "admin@example.com"
    secret = "bcrypt:$2b$12$..."  # Сгенерируйте через скрипт setup-admin.sh
    type = "individual"
    superuser = true
@@ -90,7 +90,7 @@ curl https://example.com/.well-known/jmap
 ```bash
 curl -X POST https://example.com/jmap \
   -H "Content-Type: application/json" \
-  -H "Authorization: Basic $(echo -n 'admin@pavlovteam.ru:your_password' | base64)" \
+  -H "Authorization: Basic $(echo -n 'admin@example.com:your_password' | base64)" \
   -d '{
     "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
     "methodCalls": [["Session/get", {}, "0"]]
@@ -102,7 +102,7 @@ curl -X POST https://example.com/jmap \
 ### Тест 3: Использование скрипта
 
 ```bash
-./providers/stalwart-jmap/test-connection.sh admin@pavlovteam.ru your_password
+./providers/stalwart-jmap/test-connection.sh admin@example.com your_password
 ```
 
 ## Создание обычных пользователей
@@ -115,7 +115,7 @@ curl -X POST https://example.com/jmap \
 
 ```toml
 [[directory."local".users]]
-name = "user@pavlovteam.ru"
+name = "user@example.com"
 secret = "bcrypt:$2b$12$..."  # Сгенерируйте хеш
 type = "individual"
 superuser = false
@@ -127,7 +127,7 @@ superuser = false
 
 1. **Проверьте, что пользователь существует:**
    ```bash
-   grep "admin@pavlovteam.ru" /etc/stalwart/config.toml
+   grep "admin@example.com" /etc/stalwart/config.toml
    ```
 
 2. **Проверьте формат пароля:**
@@ -186,8 +186,8 @@ superuser = false
 
 ```bash
 # Создать админа и проверить подключение одной командой
-./providers/stalwart-jmap/create-admin.sh admin@pavlovteam.ru secure_password && \
+./providers/stalwart-jmap/create-admin.sh admin@example.com secure_password && \
 sudo systemctl restart stalwart && \
 sleep 2 && \
-./providers/stalwart-jmap/test-connection.sh admin@pavlovteam.ru secure_password
+./providers/stalwart-jmap/test-connection.sh admin@example.com secure_password
 ```

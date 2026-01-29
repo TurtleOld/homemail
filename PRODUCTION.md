@@ -176,14 +176,14 @@ sudo journalctl -u mailclient -f   # Логи
 MAIL_PROVIDER=stalwart
 
 # Stalwart Configuration
-STALWART_BASE_URL=https://mail.pavlovteam.ru
-STALWART_SMTP_HOST=mail.pavlovteam.ru
+STALWART_BASE_URL=https://mail.example.com
+STALWART_SMTP_HOST=mail.example.com
 STALWART_SMTP_PORT=587
 STALWART_SMTP_SECURE=false
 STALWART_AUTH_MODE=oauth
 
 # OAuth Configuration (требуется если STALWART_AUTH_MODE=oauth)
-OAUTH_DISCOVERY_URL=https://mail.pavlovteam.ru/.well-known/oauth-authorization-server
+OAUTH_DISCOVERY_URL=https://mail.example.com/.well-known/oauth-authorization-server
 OAUTH_CLIENT_ID=your-oauth-client-id
 
 # Application

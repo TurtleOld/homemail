@@ -5,12 +5,12 @@
 
 set -e
 
-EMAIL=${1:-"admin@pavlovteam.ru"}
+EMAIL=${1:-"admin@example.com"}
 PASSWORD=${2:-"admin123"}
 
 if [ -z "$1" ] || [ -z "$2" ]; then
     echo "Использование: $0 <email> <password>"
-    echo "Пример: $0 admin@pavlovteam.ru admin123"
+    echo "Пример: $0 admin@example.com admin123"
     exit 1
 fi
 

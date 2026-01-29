@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
             stalwartPublicUrl: process.env.STALWART_PUBLIC_URL ? 'set' : 'not set',
             oauthDiscoveryUrl: process.env.OAUTH_DISCOVERY_URL ? 'set' : 'not set',
           },
-          hint: 'Please set STALWART_PUBLIC_URL (e.g., https://mail.pavlovteam.ru) or OAUTH_DISCOVERY_URL, and OAUTH_CLIENT_ID'
+          hint: 'Please set STALWART_PUBLIC_URL (e.g., https://mail.example.com) or OAUTH_DISCOVERY_URL, and OAUTH_CLIENT_ID'
         },
         { status: 500 }
       );

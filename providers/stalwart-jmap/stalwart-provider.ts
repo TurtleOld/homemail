@@ -24,7 +24,6 @@ interface StalwartConfig {
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;
-  authMode: 'basic' | 'bearer' | 'oauth';
   oauthDiscoveryUrl?: string;
   oauthClientId?: string;
 }
@@ -70,7 +69,6 @@ const config: StalwartConfig = {
   smtpHost: process.env.STALWART_SMTP_HOST || 'stalwart',
   smtpPort: parseInt(process.env.STALWART_SMTP_PORT || '587', 10),
   smtpSecure: process.env.STALWART_SMTP_SECURE === 'true',
-  authMode: (process.env.STALWART_AUTH_MODE as 'basic' | 'bearer' | 'oauth') || 'basic',
   oauthDiscoveryUrl,
   oauthClientId: process.env.OAUTH_CLIENT_ID || '',
 };
@@ -87,60 +85,7 @@ if (config.baseUrl.includes('://') && !config.baseUrl.includes('localhost') && !
   }
 }
 
-import { getCredentials, setCredentials as saveCredentials, loadCredentials } from '@/lib/storage';
-
-interface UserCredentials {
-  email: string;
-  password: string;
-}
-
-let credentialsStore: Map<string, UserCredentials> | null = null;
-
-async function getCredentialsStore(): Promise<Map<string, UserCredentials>> {
-  if (credentialsStore === null) {
-    credentialsStore = new Map();
-    const stored = await loadCredentials();
-    for (const [accountId, creds] of stored.entries()) {
-      credentialsStore.set(accountId, { email: creds.email, password: creds.password });
-    }
-  }
-  return credentialsStore;
-}
-
-export async function setUserCredentials(accountId: string, email: string, password: string): Promise<void> {
-  const store = await getCredentialsStore();
-  store.set(accountId, { email, password });
-  await saveCredentials(accountId, email, password);
-}
-
-export async function getUserCredentials(accountId: string): Promise<UserCredentials | null> {
-  const store = await getCredentialsStore();
-  const fromMemory = store.get(accountId);
-  if (fromMemory) {
-    return fromMemory;
-  }
-  
-  const fromStorage = await getCredentials(accountId);
-  if (fromStorage) {
-    const creds = { email: fromStorage.email, password: fromStorage.password };
-    store.set(accountId, creds);
-    return creds;
-  }
-  
-  return null;
-}
-
-/**
- * Проверяет, что email является валидным адресом электронной почты (содержит '@').
- * Выбрасывает ошибку, если это не email.
- */
-function validateEmail(email: string, context: string = 'credentials'): void {
-  if (!email || !email.includes('@')) {
-    throw new Error(
-      `Invalid email address in ${context}. Expected full email address (e.g., user@example.com), got: ${email}`
-    );
-  }
-}
+// Credentials system removed - OAuth only
 
 function checkAttachmentType(bodyStructure: any, mimeTypes: string[]): boolean {
   if (!bodyStructure) return false;
@@ -175,35 +120,28 @@ function checkAttachmentType(bodyStructure: any, mimeTypes: string[]): boolean {
 
 export class StalwartJMAPProvider implements MailProvider {
   private async getClient(accountId: string): Promise<JMAPClient> {
-    if (config.authMode === 'oauth') {
-      if (!config.oauthDiscoveryUrl || !config.oauthClientId) {
-        throw new Error('OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required');
-      }
-
-      const oauthClient = new OAuthJMAPClient({
-        discoveryUrl: config.oauthDiscoveryUrl,
-        clientId: config.oauthClientId,
-        scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'offline_access'],
-        baseUrl: config.baseUrl,
-        accountId: accountId,
-      });
-
-      const hasToken = await oauthClient.hasValidToken();
-      if (!hasToken) {
-        throw new Error('OAuth token required. Please authorize first.');
-      }
-
-      return await oauthClient.getJMAPClient();
+    if (!config.oauthDiscoveryUrl || !config.oauthClientId) {
+      throw new Error('OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required');
     }
 
-    const creds = await getUserCredentials(accountId);
-    if (!creds) {
-      throw new Error('User credentials not found');
+    console.log(`[StalwartProvider] Getting OAuth client for accountId: ${accountId}`);
+
+    const oauthClient = new OAuthJMAPClient({
+      discoveryUrl: config.oauthDiscoveryUrl,
+      clientId: config.oauthClientId,
+      scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'offline_access'],
+      baseUrl: config.baseUrl,
+      accountId: accountId,
+    });
+
+    const hasToken = await oauthClient.hasValidToken();
+    if (!hasToken) {
+      console.log(`[StalwartProvider] No OAuth token found for accountId: ${accountId}`);
+      throw new Error('OAuth token required. Please authorize first.');
     }
 
-    validateEmail(creds.email, 'credentials');
-
-    return new JMAPClient(config.baseUrl, creds.email, creds.password, accountId, config.authMode === 'bearer' ? 'bearer' : 'basic');
+    console.log(`[StalwartProvider] OAuth token found for accountId: ${accountId}`);
+    return await oauthClient.getJMAPClient();
   }
 
   async syncAliases(accountId: string, aliases: Array<{ email: string; name?: string }>): Promise<void> {
@@ -213,104 +151,31 @@ export class StalwartJMAPProvider implements MailProvider {
 
   async getAccount(accountId: string): Promise<Account | null> {
     try {
-      if (config.authMode === 'oauth') {
-        if (!config.oauthDiscoveryUrl || !config.oauthClientId) {
-          throw new Error('OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required');
+      const client = await this.getClient(accountId);
+      const session = await client.getSession();
+
+      let account: JMAPAccount | undefined;
+
+      if (session.primaryAccounts?.mail) {
+        account = session.accounts[session.primaryAccounts.mail];
+      } else {
+        const accountKeys = Object.keys(session.accounts);
+        if (accountKeys.length > 0) {
+          account = session.accounts[accountKeys[0]];
         }
-
-        const oauthClient = new OAuthJMAPClient({
-          discoveryUrl: config.oauthDiscoveryUrl,
-          clientId: config.oauthClientId,
-          scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'offline_access'],
-          baseUrl: config.baseUrl,
-          accountId: accountId,
-        });
-
-        const hasToken = await oauthClient.hasValidToken();
-        if (!hasToken) {
-          const { logger } = await import('@/lib/logger');
-          logger.warn(`No OAuth token found for accountId: ${accountId}`);
-          throw new Error('OAuth token required. Please authorize first.');
-        }
-
-        const client = await oauthClient.getJMAPClient();
-        const session = await client.getSession();
-
-        let account: JMAPAccount | undefined;
-
-        if (session.primaryAccounts?.mail) {
-          account = session.accounts[session.primaryAccounts.mail];
-        } else {
-          const accountKeys = Object.keys(session.accounts);
-          if (accountKeys.length > 0) {
-            account = session.accounts[accountKeys[0]];
-          }
-        }
-
-        if (!account) {
-          const { logger } = await import('@/lib/logger');
-          logger.warn(`No account found in session for accountId: ${accountId}`);
-          return null;
-        }
-
-        return {
-          id: account.id || accountId,
-          email: account.name || accountId,
-          displayName: account.name || accountId.split('@')[0],
-        };
       }
 
-      const creds = await getUserCredentials(accountId);
-      if (!creds) {
+      if (!account) {
         const { logger } = await import('@/lib/logger');
-        logger.warn(`No credentials found for accountId: ${accountId}`);
+        logger.warn(`No account found in session for accountId: ${accountId}`);
         return null;
       }
 
-      validateEmail(creds.email, 'credentials');
-
-      const client = await this.getClient(accountId);
-
-      try {
-        const session = await client.getSession();
-
-        let account: JMAPAccount | undefined;
-
-        if (session.primaryAccounts?.mail) {
-          account = session.accounts[session.primaryAccounts.mail];
-        } else {
-          const accountKeys = Object.keys(session.accounts);
-          if (accountKeys.length > 0) {
-            account = session.accounts[accountKeys[0]];
-          }
-        }
-
-        if (!account) {
-          const { logger } = await import('@/lib/logger');
-          logger.warn(`No account found in session for accountId: ${accountId}`);
-          return null;
-        }
-
-        const email = creds.email;
-
-        return {
-          id: account.id || accountId,
-          email: email,
-          displayName: account.name || email.split('@')[0],
-        };
-      } catch (sessionError) {
-        const { logger } = await import('@/lib/logger');
-        const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
-        const errorStack = sessionError instanceof Error ? sessionError.stack : undefined;
-        
-        if (errorMessage.includes('402') || errorMessage.includes('TOTP')) {
-          logger.warn(`TOTP required for account ${accountId}, but no TOTP code provided`);
-          throw new Error('TOTP code required. Please log in again with TOTP code.');
-        }
-        
-        logger.error(`Failed to get JMAP session for account ${accountId} (email: ${creds.email}):`, errorMessage, errorStack ? `\n${errorStack}` : '');
-        throw sessionError;
-      }
+      return {
+        id: account.id || accountId,
+        email: account.name || accountId,
+        displayName: account.name || accountId.split('@')[0],
+      };
     } catch (error) {
       const { logger } = await import('@/lib/logger');
       logger.error('Failed to get account:', error instanceof Error ? error.message : error);
@@ -1127,27 +992,22 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   ): Promise<string> {
     try {
-      const creds = await getUserCredentials(accountId);
-      if (!creds) {
-        throw new Error('User credentials not found');
-      }
-
-      validateEmail(creds.email, 'credentials');
-
       const client = await this.getClient(accountId);
       const session = await client.getSession();
       const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-      
+
       const mailboxes = await client.getMailboxes(actualAccountId);
       const sentMailbox = mailboxes.find((mb) => mb.role === 'sent');
-      
+
       if (!sentMailbox) {
         throw new Error('Sent mailbox not found');
       }
 
       const account = await this.getAccount(accountId);
-      const fromEmail = account?.email || creds.email;
-      validateEmail(fromEmail, 'fromEmail');
+      if (!account) {
+        throw new Error('Account not found');
+      }
+      const fromEmail = account.email;
 
       const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
       const to = message.to.map((email) => ({ email }));
@@ -1387,20 +1247,11 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error('Drafts mailbox not found');
       }
 
-      let fromEmail: string;
       const account = await this.getAccount(accountId);
-      if (account && account.email) {
-        fromEmail = account.email;
-      } else {
-        const creds = await getUserCredentials(accountId);
-        if (!creds) {
-          throw new Error('User credentials not found. Please log in again.');
-        }
-        validateEmail(creds.email, 'credentials');
-        fromEmail = creds.email;
+      if (!account) {
+        throw new Error('Account not found. Please log in again.');
       }
-      
-      validateEmail(fromEmail, 'fromEmail');
+      const fromEmail = account.email;
       const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
       const to = (draft.to || []).map((email) => ({ email }));
       const cc = draft.cc && draft.cc.length > 0 ? draft.cc.map((email) => ({ email })) : undefined;
