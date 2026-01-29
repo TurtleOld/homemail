@@ -56,6 +56,9 @@ async function loadRules(accountId: string): Promise<AutoSortRule[]> {
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  const MAX_PROCESSING_TIME = 25000; // 25 seconds, leave 5s buffer for nginx 30s timeout
+
   try {
     const session = await getSession();
 
@@ -64,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { ruleId, folderId, limit = 1000 } = body;
+    const { ruleId, folderId, limit = 100 } = body;
 
     if (!ruleId) {
       return NextResponse.json({ error: 'Rule ID required' }, { status: 400 });
@@ -185,15 +188,21 @@ export async function POST(request: NextRequest) {
     if (messagesNeedingBody.length > 0) {
       console.error(`[filter-rules/apply] Loading ${messagesNeedingBody.length} full messages for body check...`);
       // Keep this low to avoid 429 from reverse proxy / server.
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 10;
       for (let i = 0; i < messagesNeedingBody.length; i += BATCH_SIZE) {
+        // Check timeout before processing next batch
+        if (Date.now() - startTime > MAX_PROCESSING_TIME) {
+          console.warn(`[filter-rules/apply] Timeout reached while loading message bodies, loaded ${i}/${messagesNeedingBody.length}`);
+          break;
+        }
+
         const batch = messagesNeedingBody.slice(i, i + BATCH_SIZE);
         // Sequential inside a small batch to reduce concurrency spikes.
         for (const msg of batch) {
           try {
             const fullMessage = await withBackoff(
               () => provider.getMessage(session.accountId, msg.id),
-              { label: `getMessage:${msg.id}`, baseDelayMs: 500 }
+              { label: `getMessage:${msg.id}`, baseDelayMs: 300 }
             );
             if (fullMessage) {
               const item = messagesToCheck.find((m) => m.message.id === msg.id);
@@ -205,24 +214,31 @@ export async function POST(request: NextRequest) {
           } catch (error) {
             console.error(`[filter-rules/apply] Error loading message ${msg.id}:`, error);
           }
-          await sleep(75);
+          await sleep(30);
         }
-        
+
         if (i + BATCH_SIZE < messagesNeedingBody.length) {
-          await sleep(400);
+          await sleep(150);
         }
       }
     }
 
     let appliedCount = 0;
+    let processedCount = 0;
     for (let i = 0; i < messagesToCheck.length; i++) {
+      // Check timeout before processing next message
+      if (Date.now() - startTime > MAX_PROCESSING_TIME) {
+        console.warn(`[filter-rules/apply] Timeout reached, processed ${processedCount}/${messagesToCheck.length} messages`);
+        break;
+      }
+
       const { message } = messagesToCheck[i];
       try {
         if (i > 0) {
           // steady pacing
           await sleep(50);
         }
-        
+
         const matches = await withBackoff(
           () => checkMessageMatchesRule(message, rule, provider, session.accountId, 'inbox'),
           { label: `checkMatch:${message.id}`, baseDelayMs: 300 }
@@ -235,11 +251,12 @@ export async function POST(request: NextRequest) {
             { label: `applyActions:${message.id}`, baseDelayMs: 600 }
           );
           appliedCount++;
-          
+
           if (appliedCount % 5 === 0) {
             await sleep(500);
           }
         }
+        processedCount++;
       } catch (error) {
         console.error(`[filter-rules/apply] Error processing message ${message.id}:`, error);
         if (isRateLimitError(error)) {
@@ -248,18 +265,27 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    const elapsedTime = Date.now() - startTime;
+    const timedOut = elapsedTime > MAX_PROCESSING_TIME;
+
     console.error('[filter-rules/apply] Applied rule:', {
       ruleId,
       ruleName: rule.name,
       destinationFolderId,
       foldersSearched: foldersToSearch.length,
       total: messagesToProcess.length,
+      processed: processedCount,
       applied: appliedCount,
+      elapsedMs: elapsedTime,
+      timedOut,
     });
 
     return NextResponse.json({
       applied: appliedCount,
       total: messagesToProcess.length,
+      processed: processedCount,
+      timedOut,
+      elapsedMs: elapsedTime,
     });
   } catch (error) {
     console.error('[filter-rules/apply] Error applying rule:', error);
