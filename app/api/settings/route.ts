@@ -54,6 +54,20 @@ const settingsSchema = z.object({
     sortOrder: z.enum(['asc', 'desc']).optional(),
     groupBy: z.enum(['none', 'date', 'sender']).optional(),
   }).optional(),
+  customTheme: z.object({
+    name: z.string(),
+    colors: z.object({
+      primary: z.string().optional(),
+      secondary: z.string().optional(),
+      accent: z.string().optional(),
+    }).optional(),
+  }).optional(),
+  notifications: z.object({
+    enabled: z.boolean().optional(),
+    browser: z.boolean().optional(),
+    onlyImportant: z.boolean().optional(),
+    sound: z.boolean().optional(),
+  }).optional(),
 });
 
 const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : process.cwd());
@@ -96,6 +110,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    logger.info(`[Settings] GET request from accountId: ${session.accountId}`);
     const settings = settingsStore.get(session.accountId) || {
       signature: '',
       theme: 'light',
@@ -132,6 +147,10 @@ export async function GET(request: NextRequest) {
       },
     };
 
+    logger.info(`[Settings] Returning for accountId ${session.accountId}:`, {
+      theme: settings.theme,
+      customTheme: settings.customTheme,
+    });
     return NextResponse.json(settings);
   } catch (error) {
     logger.error('Failed to get settings:', error);
@@ -146,8 +165,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    logger.info(`[Settings] POST request from accountId: ${session.accountId}`);
     const body = await request.json();
     const data = settingsSchema.parse(body);
+    logger.info(`[Settings] Saving theme: ${data.theme}, customTheme:`, data.customTheme);
 
     const currentSettings = settingsStore.get(session.accountId) || {
       signature: '',
@@ -190,15 +211,21 @@ export async function POST(request: NextRequest) {
       signature: data.signature !== undefined ? data.signature : currentSettings.signature,
       signatures: data.signatures !== undefined ? data.signatures : currentSettings.signatures,
       theme: data.theme !== undefined ? data.theme : currentSettings.theme,
+      customTheme: data.customTheme !== undefined ? data.customTheme : currentSettings.customTheme,
       autoReply: data.autoReply ? { ...currentSettings.autoReply, ...data.autoReply, schedule: data.autoReply.schedule ? { ...currentSettings.autoReply.schedule, ...data.autoReply.schedule } : currentSettings.autoReply.schedule } : currentSettings.autoReply,
       forwarding: data.forwarding ? { ...currentSettings.forwarding, ...data.forwarding } : currentSettings.forwarding,
       aliases: data.aliases !== undefined ? data.aliases : currentSettings.aliases,
       locale: data.locale ? { ...currentSettings.locale, ...data.locale } : currentSettings.locale,
       ui: data.ui ? { ...currentSettings.ui, ...data.ui } : currentSettings.ui,
+      notifications: data.notifications ? { ...currentSettings.notifications, ...data.notifications } : currentSettings.notifications,
     };
-    
+
     settingsStore.set(session.accountId, updatedSettings);
     await saveSettings();
+    logger.info(`[Settings] Saved for accountId ${session.accountId}:`, {
+      theme: updatedSettings.theme,
+      customTheme: updatedSettings.customTheme,
+    });
 
     if (data.aliases !== undefined && process.env.MAIL_PROVIDER === 'stalwart') {
       try {

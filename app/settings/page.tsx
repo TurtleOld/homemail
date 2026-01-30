@@ -497,9 +497,31 @@ const PRESET_THEMES = [
 function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => initialSettings.theme || 'light');
-  const [selectedPreset, setSelectedPreset] = useState<string>(() => initialSettings.customTheme?.name || 'light');
+  const [selectedPreset, setSelectedPreset] = useState<string>(() => {
+    // If custom theme is saved, use its name, otherwise use the base theme
+    if (initialSettings.customTheme?.name) {
+      return initialSettings.customTheme.name;
+    }
+    return initialSettings.theme || 'light';
+  });
   const [customColors, setCustomColors] = useState(() => initialSettings.customTheme?.colors || {});
   const [showCustom, setShowCustom] = useState(false);
+
+  // Sync state with initialSettings when they change
+  useEffect(() => {
+    console.log('[ThemeTab] Loading settings:', {
+      theme: initialSettings.theme,
+      customTheme: initialSettings.customTheme,
+    });
+    setTheme(initialSettings.theme || 'light');
+    if (initialSettings.customTheme?.name) {
+      setSelectedPreset(initialSettings.customTheme.name);
+      setCustomColors(initialSettings.customTheme.colors || {});
+    } else {
+      setSelectedPreset(initialSettings.theme || 'light');
+      setCustomColors({});
+    }
+  }, [initialSettings.theme, initialSettings.customTheme]);
 
   const hexToHsl = (hex: string): string => {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -573,12 +595,19 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
   }, []); // Run only on mount
 
   const saveMutation = useMutation({
-    mutationFn: (settings: UserSettings) => saveSettings(settings),
+    mutationFn: (settings: UserSettings) => {
+      console.log('[ThemeTab] Saving settings:', {
+        theme: settings.theme,
+        customTheme: settings.customTheme,
+      });
+      return saveSettings(settings);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast.success('Тема сохранена');
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('[ThemeTab] Save error:', error);
       toast.error('Ошибка сохранения темы');
     },
   });
@@ -596,36 +625,40 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
   const handlePresetSelect = (presetId: string) => {
     setSelectedPreset(presetId);
     setShowCustom(false);
-    
-    if (presetId === 'light' || presetId === 'dark') {
-      setTheme(presetId);
-      applyTheme(presetId);
-      saveMutation.mutate({ ...initialSettings, theme: presetId, customTheme: undefined });
-    } else {
-      const presetColors = getPresetColors(presetId);
-      applyTheme(theme, presetColors);
-      saveMutation.mutate({
-        ...initialSettings,
-        theme,
-        customTheme: { name: presetId, colors: presetColors },
-      });
-    }
+
+    // Apply color scheme to current theme
+    const presetColors = getPresetColors(presetId);
+    applyTheme(theme, presetColors);
+    saveMutation.mutate({
+      ...initialSettings,
+      theme,
+      customTheme: { name: presetId, colors: presetColors },
+    });
   };
 
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme);
-    if (selectedPreset === 'light' || selectedPreset === 'dark') {
-      handlePresetSelect(newTheme);
-    } else {
-      // Apply theme with current color scheme
+
+    // Check if we have a color scheme active
+    const hasColorScheme = selectedPreset !== 'light' && selectedPreset !== 'dark';
+
+    if (hasColorScheme) {
+      // Keep the color scheme when changing base theme
       const colors = selectedPreset === 'custom' ? customColors : getPresetColors(selectedPreset);
       applyTheme(newTheme, colors);
-
-      // Save theme along with color scheme
       saveMutation.mutate({
         ...initialSettings,
         theme: newTheme,
         customTheme: { name: selectedPreset, colors },
+      });
+    } else {
+      // No color scheme, just change base theme
+      setSelectedPreset(newTheme);
+      applyTheme(newTheme);
+      saveMutation.mutate({
+        ...initialSettings,
+        theme: newTheme,
+        customTheme: undefined,
       });
     }
   };
@@ -654,28 +687,28 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
             <h3 className="text-sm font-medium mb-3">Базовые темы</h3>
             <div className="grid grid-cols-2 gap-4">
               <button
-                onClick={() => handlePresetSelect('light')}
+                onClick={() => handleThemeChange('light')}
                 className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
-                  selectedPreset === 'light' && !showCustom
+                  theme === 'light'
                     ? 'border-primary bg-primary/10'
                     : 'border-border hover:border-primary/50'
                 }`}
               >
-                <Sun className={`h-8 w-8 ${selectedPreset === 'light' && !showCustom ? 'text-primary' : 'text-muted-foreground'}`} />
-                <span className={`font-medium ${selectedPreset === 'light' && !showCustom ? 'text-primary' : 'text-foreground'}`}>
+                <Sun className={`h-8 w-8 ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`} />
+                <span className={`font-medium ${theme === 'light' ? 'text-primary' : 'text-foreground'}`}>
                   Светлая
                 </span>
               </button>
               <button
-                onClick={() => handlePresetSelect('dark')}
+                onClick={() => handleThemeChange('dark')}
                 className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
-                  selectedPreset === 'dark' && !showCustom
+                  theme === 'dark'
                     ? 'border-primary bg-primary/10'
                     : 'border-border hover:border-primary/50'
                 }`}
               >
-                <Moon className={`h-8 w-8 ${selectedPreset === 'dark' && !showCustom ? 'text-primary' : 'text-muted-foreground'}`} />
-                <span className={`font-medium ${selectedPreset === 'dark' && !showCustom ? 'text-primary' : 'text-foreground'}`}>
+                <Moon className={`h-8 w-8 ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`} />
+                <span className={`font-medium ${theme === 'dark' ? 'text-primary' : 'text-foreground'}`}>
                   Темная
                 </span>
               </button>
@@ -690,13 +723,13 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
                   key={preset.id}
                   onClick={() => handlePresetSelect(preset.id)}
                   className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all ${
-                    selectedPreset === preset.id && !showCustom
+                    selectedPreset === preset.id
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-primary/50'
                   }`}
                 >
                   <span className="text-2xl">{preset.icon}</span>
-                  <span className={`text-sm font-medium ${selectedPreset === preset.id && !showCustom ? 'text-primary' : 'text-foreground'}`}>
+                  <span className={`text-sm font-medium ${selectedPreset === preset.id ? 'text-primary' : 'text-foreground'}`}>
                     {preset.name}
                   </span>
                 </button>
