@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import type { AutoSortRule } from '@/lib/types';
+import { addJob } from '@/lib/filter-job-queue';
 
 const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
 
@@ -110,6 +111,18 @@ export async function POST(request: NextRequest) {
     }
 
     await saveRules(session.accountId, rules);
+
+    // If applyToExisting is true, queue a background job to apply this rule to existing emails
+    if (rule.applyToExisting && rule.enabled) {
+      try {
+        const job = await addJob(session.accountId, rule.id);
+        console.log(`[filter-rules] Queued background job ${job.id} to apply rule ${rule.id} to existing emails`);
+      } catch (error) {
+        console.error('[filter-rules] Failed to queue background job:', error);
+        // Don't fail the rule save if job queueing fails
+      }
+    }
+
     return NextResponse.json(rule);
   } catch (error) {
     if (error instanceof z.ZodError) {
