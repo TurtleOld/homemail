@@ -196,7 +196,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     },
   });
 
-  const { data: folders = [] } = useQuery<Folder[]>({
+  const { data: folders = [], refetch: refetchFolders } = useQuery<Folder[]>({
     queryKey: ['folders'],
     queryFn: async () => {
       const res = await fetch('/api/mail/folders');
@@ -213,8 +213,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
       return failureCount < 2;
     },
-    refetchInterval: realtimeConnected ? false : 15000,
-    refetchOnWindowFocus: !realtimeConnected,
+    refetchInterval: realtimeConnected ? 30000 : 10000, // Poll more frequently
+    refetchOnWindowFocus: true, // Always refetch on focus
+    staleTime: 5000, // Consider data stale after 5 seconds
   });
 
   const {
@@ -416,9 +417,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       });
 
       eventSource.addEventListener('message.new', async (event: MessageEvent) => {
-        debouncedInvalidate(['messages']);
-        debouncedInvalidate(['folders']);
-        
+        // Immediately invalidate both to show new message and update counts
+        queryClient.invalidateQueries({ queryKey: ['messages'] });
+        queryClient.invalidateQueries({ queryKey: ['folders'] });
+        refetchFolders(); // Force immediate refetch
+
         const currentSettings = settingsRef.current;
         const notificationsEnabled = currentSettings?.notifications?.enabled !== false;
         const browserNotifications = currentSettings?.notifications?.browser !== false;
@@ -460,11 +463,16 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       });
 
       eventSource.addEventListener('mailbox.counts', () => {
-        debouncedInvalidate(['folders']);
+        // Immediately refetch folders when count event is received
+        queryClient.invalidateQueries({ queryKey: ['folders'] });
+        refetchFolders();
       });
 
       eventSource.addEventListener('message.updated', () => {
-        debouncedInvalidate(['messages']);
+        // Message updates might affect folder counts (e.g., mark read)
+        queryClient.invalidateQueries({ queryKey: ['messages'] });
+        queryClient.invalidateQueries({ queryKey: ['folders'] });
+        refetchFolders();
       });
 
       eventSource.addEventListener('ping', () => {
@@ -525,6 +533,21 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     [queryClient]
   );
 
+  // Optimistically update folder unread counts
+  const updateFolderCount = useCallback(
+    (folderId: string, delta: number) => {
+      queryClient.setQueryData<Folder[]>(['folders'], (oldFolders) => {
+        if (!oldFolders) return oldFolders;
+        return oldFolders.map((folder) =>
+          folder.id === folderId
+            ? { ...folder, unreadCount: Math.max(0, folder.unreadCount + delta) }
+            : folder
+        );
+      });
+    },
+    [queryClient]
+  );
+
   const handleBulkAction = async (action: string, payload?: { folderId?: string }) => {
     if (selectedIds.size === 0) {
       toast.error('Выберите письма');
@@ -549,8 +572,15 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
 
       toast.success('Действие выполнено');
       setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
+
+      // Immediately refetch both messages and folders
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['messages'] }),
+        queryClient.invalidateQueries({ queryKey: ['folders'] }),
+      ]);
+
+      // Force refetch folders to ensure counts are updated
+      refetchFolders();
     } catch (error) {
       toast.error('Ошибка соединения');
     }
@@ -574,8 +604,15 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
 
       toast.success('Письмо перемещено');
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
+
+      // Immediately refetch both messages and folders
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['messages'] }),
+        queryClient.invalidateQueries({ queryKey: ['folders'] }),
+      ]);
+
+      // Force refetch folders to ensure counts are updated
+      refetchFolders();
     } catch (error) {
       toast.error('Ошибка соединения');
     }
@@ -892,6 +929,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               isMobile={isMobile}
               onClose={() => setSidebarOpen(false)}
               onDropMessage={handleMoveMessage}
+              onRefreshFolders={async () => {
+                await queryClient.invalidateQueries({ queryKey: ['folders'] });
+                await refetchFolders();
+              }}
             />
             </div>
           </>
@@ -1059,6 +1100,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           }}
           onMarkRead={(read) => {
             if (!selectedMessageId) return;
+            const message = messages.find((m) => m.id === selectedMessageId);
+            const wasUnread = message?.flags.unread;
+
             updateMessageInList(selectedMessageId, (message) => ({
               ...message,
               flags: { ...message.flags, unread: !read },
@@ -1067,7 +1111,18 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               ...message,
               flags: { ...message.flags, unread: !read },
             }));
+
+            // Optimistically update folder count
+            if (selectedFolderId && wasUnread !== undefined) {
+              const delta = read && wasUnread ? -1 : !read && !wasUnread ? 1 : 0;
+              if (delta !== 0) {
+                updateFolderCount(selectedFolderId, delta);
+              }
+            }
+
+            // Refetch folders to get accurate counts
             queryClient.invalidateQueries({ queryKey: ['folders'] });
+            refetchFolders();
           }}
           onToggleImportant={(important) => {
             if (!selectedMessageId) return;

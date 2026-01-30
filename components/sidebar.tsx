@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, ChevronLeft, ChevronRight, X, User, UserPlus, Check } from 'lucide-react';
+import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, ChevronLeft, ChevronRight, X, User, UserPlus, Check, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -30,6 +30,7 @@ interface SidebarProps {
   isMobile?: boolean;
   onClose?: () => void;
   onDropMessage?: (messageId: string, folderId: string) => void;
+  onRefreshFolders?: () => void;
 }
 
 type ServiceStatus = 'up' | 'down' | 'unknown';
@@ -69,10 +70,12 @@ export function Sidebar({
   isMobile = false,
   onClose,
   onDropMessage,
+  onRefreshFolders,
 }: SidebarProps) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const queryClient = useQueryClient();
   const { data: serverStatus, isLoading: isStatusLoading } = useQuery<ServerStatus>({
     queryKey: ['server-status'],
@@ -395,6 +398,31 @@ export function Sidebar({
         </div>
       </div>
       <div className="flex-1 overflow-auto">
+        <div className="flex items-center justify-between px-3 py-2 border-b">
+          <span className="text-xs font-semibold text-muted-foreground uppercase">Папки</span>
+          {onRefreshFolders && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={async () => {
+                setIsRefreshing(true);
+                try {
+                  await onRefreshFolders();
+                  toast.success('Папки обновлены');
+                } catch (error) {
+                  toast.error('Ошибка обновления');
+                } finally {
+                  setTimeout(() => setIsRefreshing(false), 500);
+                }
+              }}
+              disabled={isRefreshing}
+              title="Обновить папки"
+            >
+              <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
+          )}
+        </div>
         <nav className="p-2">
           {organizedFolders.map((folder) => renderFolderItem(folder))}
         </nav>

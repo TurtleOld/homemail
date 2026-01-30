@@ -4,9 +4,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key } from 'lucide-react';
+import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key, HelpCircle } from 'lucide-react';
 import type { Folder, SavedFilter, AutoSortRule } from '@/lib/types';
 import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
 import { ContactsManager } from '@/components/contacts-manager';
@@ -559,6 +560,18 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
     }
   };
 
+  // Apply saved theme and colors on mount
+  useEffect(() => {
+    const savedTheme = initialSettings.theme || 'light';
+    const savedCustomTheme = initialSettings.customTheme;
+
+    if (savedCustomTheme?.colors) {
+      applyTheme(savedTheme, savedCustomTheme.colors);
+    } else {
+      applyTheme(savedTheme);
+    }
+  }, []); // Run only on mount
+
   const saveMutation = useMutation({
     mutationFn: (settings: UserSettings) => saveSettings(settings),
     onSuccess: () => {
@@ -604,7 +617,16 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
     if (selectedPreset === 'light' || selectedPreset === 'dark') {
       handlePresetSelect(newTheme);
     } else {
-      applyTheme(newTheme, customColors);
+      // Apply theme with current color scheme
+      const colors = selectedPreset === 'custom' ? customColors : getPresetColors(selectedPreset);
+      applyTheme(newTheme, colors);
+
+      // Save theme along with color scheme
+      saveMutation.mutate({
+        ...initialSettings,
+        theme: newTheme,
+        customTheme: { name: selectedPreset, colors },
+      });
     }
   };
 
@@ -956,7 +978,128 @@ function FiltersTab() {
 
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Правила авто-сортировки</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold">Правила авто-сортировки</h2>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Синтаксис фильтров для правил</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <h3 className="font-semibold mb-2">📧 Поля для поиска по адресам</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li><code className="bg-muted px-1 rounded">from:</code> - отправитель</li>
+                      <li><code className="bg-muted px-1 rounded">to:</code> - получатель</li>
+                      <li><code className="bg-muted px-1 rounded">cc:</code> - копия</li>
+                      <li><code className="bg-muted px-1 rounded">bcc:</code> - скрытая копия</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold mb-2">📝 Поля для поиска по содержимому</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li><code className="bg-muted px-1 rounded">subject:</code> - тема письма</li>
+                      <li><code className="bg-muted px-1 rounded">body:</code> - тело письма</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold mb-2">📎 Вложения</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li><code className="bg-muted px-1 rounded">has:attachment</code> - есть вложения</li>
+                      <li><code className="bg-muted px-1 rounded">has:image</code> - есть изображения</li>
+                      <li><code className="bg-muted px-1 rounded">has:document</code> - есть документы</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold mb-2">🏷️ Статус письма</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li><code className="bg-muted px-1 rounded">is:unread</code> - непрочитанное</li>
+                      <li><code className="bg-muted px-1 rounded">is:read</code> - прочитанное</li>
+                      <li><code className="bg-muted px-1 rounded">is:starred</code> - помеченное звездой</li>
+                      <li><code className="bg-muted px-1 rounded">is:important</code> - важное</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold mb-2">📅 Дата</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li><code className="bg-muted px-1 rounded">after:2024-01-01</code> - после даты</li>
+                      <li><code className="bg-muted px-1 rounded">before:7d</code> - до (7 дней назад)</li>
+                      <li><code className="bg-muted px-1 rounded">after:today</code> - сегодня</li>
+                      <li><code className="bg-muted px-1 rounded">after:yesterday</code> - вчера</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold mb-2">📏 Размер</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li><code className="bg-muted px-1 rounded">size:&gt;1MB</code> - больше 1 МБ</li>
+                      <li><code className="bg-muted px-1 rounded">size:&gt;500KB</code> - больше 500 КБ</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold mb-2">✨ Операторы</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li><code className="bg-muted px-1 rounded">*</code> - подстановочный знак (любые символы)</li>
+                      <li><code className="bg-muted px-1 rounded">OR</code> - логическое ИЛИ</li>
+                      <li><code className="bg-muted px-1 rounded">-</code> - отрицание (исключить)</li>
+                      <li><code className="bg-muted px-1 rounded">"точная фраза"</code> - точное совпадение</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold mb-2">📚 Примеры</h3>
+                    <div className="space-y-2 text-muted-foreground">
+                      <div>
+                        <code className="bg-muted px-2 py-1 rounded block mb-1">from:amazon</code>
+                        <p className="text-xs pl-2">Все письма от адресов, содержащих "amazon"</p>
+                      </div>
+                      <div>
+                        <code className="bg-muted px-2 py-1 rounded block mb-1">from:*@amazon.com</code>
+                        <p className="text-xs pl-2">Все письма от домена amazon.com</p>
+                      </div>
+                      <div>
+                        <code className="bg-muted px-2 py-1 rounded block mb-1">from:amazon OR from:ebay</code>
+                        <p className="text-xs pl-2">Письма от Amazon ИЛИ от eBay</p>
+                      </div>
+                      <div>
+                        <code className="bg-muted px-2 py-1 rounded block mb-1">has:attachment size:&gt;1MB</code>
+                        <p className="text-xs pl-2">Письма с вложениями больше 1 МБ</p>
+                      </div>
+                      <div>
+                        <code className="bg-muted px-2 py-1 rounded block mb-1">is:unread after:7d</code>
+                        <p className="text-xs pl-2">Непрочитанные письма за последние 7 дней</p>
+                      </div>
+                      <div>
+                        <code className="bg-muted px-2 py-1 rounded block mb-1">subject:invoice -from:spam</code>
+                        <p className="text-xs pl-2">Письма с "invoice" в теме, но не от spam</p>
+                      </div>
+                      <div>
+                        <code className="bg-muted px-2 py-1 rounded block mb-1">from:*@company.com subject:"quarterly report"</code>
+                        <p className="text-xs pl-2">Письма от домена company.com с точной фразой в теме</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      💡 <strong>Совет:</strong> Используйте кавычки для точного поиска фраз с пробелами.
+                      Комбинируйте несколько условий для создания мощных правил фильтрации!
+                    </p>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
           <Button
             onClick={() => {
               setEditingRule(undefined);
