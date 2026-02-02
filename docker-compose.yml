@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: homemail-webclient-dev
     restart: unless-stopped
+    command: >
+      sh -c "npm run auto-sort && npm start"
     environment:
       - NODE_ENV=production
       - PORT=3000
