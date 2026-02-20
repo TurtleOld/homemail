@@ -21,8 +21,8 @@ export async function getCsrfToken(): Promise<string> {
   }
 
   const newToken = generateToken();
-  const secureCookie = process.env.USE_HTTPS === 'true';
-
+  const secureCookie = process.env.NODE_ENV === 'production' || process.env.USE_HTTPS === 'true';
+  
   cookieStore.set(CSRF_COOKIE_NAME, newToken, {
     httpOnly: false,
     secure: secureCookie,
