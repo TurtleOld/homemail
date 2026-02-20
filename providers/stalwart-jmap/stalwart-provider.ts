@@ -1276,33 +1276,36 @@ export class StalwartJMAPProvider implements MailProvider {
         },
       };
 
-      const response = await client.request([
-        [
-          'Email/set',
-          draft.id
-            ? {
+      // bodyValues is immutable on update in JMAP (RFC 8621).
+      // To update the body, destroy the old draft and create a new one atomically.
+      const requests: any[] = draft.id
+        ? [
+            [
+              'Email/set',
+              {
                 accountId: actualAccountId,
-                update: {
-                  [draft.id]: {
-                    mailboxIds: { [draftsMailbox.id]: true },
-                    keywords: { '$draft': true },
-                    bodyValues: draftEmail.bodyValues,
-                    subject: draftEmail.subject,
-                    to,
-                    cc,
-                    bcc,
-                  },
+                destroy: [draft.id],
+                create: {
+                  draft1: draftEmail,
                 },
-              }
-            : {
+              },
+              '0',
+            ],
+          ]
+        : [
+            [
+              'Email/set',
+              {
                 accountId: actualAccountId,
                 create: {
                   draft1: draftEmail,
                 },
               },
-          '0',
-        ],
-      ]);
+              '0',
+            ],
+          ];
+
+      const response = await client.request(requests);
 
       const setResponse = response.methodResponses[0];
       if (setResponse[0] !== 'Email/set') {
@@ -1319,9 +1322,6 @@ export class StalwartJMAPProvider implements MailProvider {
         notCreated?: Record<string, any>;
         notUpdated?: Record<string, any>;
       };
-      if (draft.id && data.updated) {
-        return draft.id;
-      }
       if (data.created) {
         return Object.values(data.created)[0].id;
       }

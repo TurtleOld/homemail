@@ -106,6 +106,22 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   
   const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
+  const getCsrfToken = useCallback(async (): Promise<string> => {
+    const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+    const token = match ? decodeURIComponent(match[1]!) : '';
+    if (token) return token;
+    try {
+      const res = await fetch('/api/auth/csrf');
+      if (res.ok) {
+        const data = await res.json();
+        return data.csrfToken || '';
+      }
+    } catch {
+      // ignore
+    }
+    return '';
+  }, []);
+
   const getCsrfHeader = useCallback((): Record<string, string> => {
     const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
     const token = match ? decodeURIComponent(match[1]!) : '';
@@ -395,9 +411,10 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         }
       }
 
+      const csrfToken = await getCsrfToken();
       const res = await fetch('/api/mail/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getCsrfHeader() },
+        headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}) },
         body: JSON.stringify(body),
       });
 
