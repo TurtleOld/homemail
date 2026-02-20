@@ -35,6 +35,9 @@ services:
       - '9080:8080'
       - '1587:587'
       - '1993:993'
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - stalwart-data:/opt/stalwart-mail
       - ./config/stalwart/config.toml:/opt/stalwart-mail/etc/config.toml:ro
