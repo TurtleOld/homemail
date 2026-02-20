@@ -1029,26 +1029,61 @@ export class StalwartJMAPProvider implements MailProvider {
       }
 
       const isEncrypted = message.html.includes('-----BEGIN PGP MESSAGE-----');
-      const bodyType = isEncrypted ? 'text/plain' : 'text/html';
-      
-      const emailBody: any = {
-        mailboxIds: { [sentMailbox.id]: true },
-        from,
-        to,
-        subject: message.subject,
-        keywords: {
-          '$seen': true,
-        },
-        bodyStructure: {
-          partId: 'body',
-          type: bodyType,
-        },
-        bodyValues: {
-          body: {
-            value: message.html,
-          },
-        },
-      };
+
+      // Ensure HTML body has a proper <html> wrapper
+      const htmlContent = isEncrypted
+        ? message.html
+        : message.html.trimStart().startsWith('<html')
+          ? message.html
+          : `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${message.html}</body></html>`;
+
+      // Generate plain text fallback by stripping HTML tags
+      const plainText = isEncrypted
+        ? message.html
+        : message.html
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n\n')
+            .replace(/<\/div>/gi, '\n')
+            .replace(/<\/li>/gi, '\n')
+            .replace(/<li[^>]*>/gi, '• ')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+      const emailBody: any = isEncrypted
+        ? {
+            mailboxIds: { [sentMailbox.id]: true },
+            from,
+            to,
+            subject: message.subject,
+            keywords: { '$seen': true },
+            bodyStructure: { partId: 'body', type: 'text/plain' },
+            bodyValues: { body: { value: message.html } },
+          }
+        : {
+            mailboxIds: { [sentMailbox.id]: true },
+            from,
+            to,
+            subject: message.subject,
+            keywords: { '$seen': true },
+            bodyStructure: {
+              type: 'multipart/alternative',
+              subParts: [
+                { partId: 'plain', type: 'text/plain' },
+                { partId: 'html', type: 'text/html' },
+              ],
+            },
+            bodyValues: {
+              plain: { value: plainText },
+              html: { value: htmlContent },
+            },
+          };
 
       if (cc && cc.length > 0) {
         emailBody.cc = cc;
