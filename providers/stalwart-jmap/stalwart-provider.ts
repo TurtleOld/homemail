@@ -1622,53 +1622,86 @@ export class StalwartJMAPProvider implements MailProvider {
     callback: (event: { type: string; data: any }) => void
   ): () => void {
     let intervalId: NodeJS.Timeout | null = null;
-    let lastQueryState: string | undefined;
-    let lastMessageIds: Set<string> = new Set();
+    // Track seen message IDs per mailbox to detect new arrivals
+    const lastMessageIdsByMailbox = new Map<string, Set<string>>();
+    // Track query states per mailbox to detect any changes
+    const lastQueryStateByMailbox = new Map<string, string | undefined>();
     let isActive = true;
+    let isPollRunning = false;
+
+    const EXCLUDED_ROLES = new Set(['sent', 'trash', 'drafts']);
+    // Poll last 50 messages per folder to catch bursts
+    const POLL_LIMIT = 50;
 
     const poll = async () => {
       if (!isActive) return;
+      // Prevent concurrent polls if the previous one is still running
+      if (isPollRunning) return;
+      isPollRunning = true;
 
       try {
         const client = await this.getClient(accountId);
         const session = await client.getSession();
         const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
         const mailboxes = await client.getMailboxes(actualAccountId);
-        const inbox = mailboxes.find((mb) => mb.role === 'inbox');
 
-        if (!inbox) {
-          return;
-        }
-
-        const queryResult = await client.queryEmails(inbox.id, {
-          accountId: actualAccountId,
-          position: 0,
-          limit: 10,
-          filter: { inMailbox: inbox.id },
+        // Watch inbox + spam + any custom folder (exclude sent/trash/drafts)
+        const mailboxesToWatch = mailboxes.filter((mb) => {
+          if (mb.role && EXCLUDED_ROLES.has(mb.role)) return false;
+          return true;
         });
 
-        if (queryResult.queryState !== lastQueryState) {
-          lastQueryState = queryResult.queryState;
-          
-          if (queryResult.ids && queryResult.ids.length > 0) {
-            const currentMessageIds = new Set(queryResult.ids);
-            const newMessageIds = queryResult.ids.filter((id) => !lastMessageIds.has(id));
-            
-            for (const messageId of newMessageIds) {
-              callback({
-                type: 'message.new',
-                data: {
-                  messageId,
-                  id: messageId,
-                  folderId: inbox.id,
-                  mailboxId: inbox.id,
-                },
-              });
+        let anyCountsChanged = false;
+
+        for (const mailbox of mailboxesToWatch) {
+          if (!isActive) break;
+
+          try {
+            const queryResult = await client.queryEmails(mailbox.id, {
+              accountId: actualAccountId,
+              position: 0,
+              limit: POLL_LIMIT,
+              filter: { inMailbox: mailbox.id },
+            });
+
+            const prevQueryState = lastQueryStateByMailbox.get(mailbox.id);
+
+            if (queryResult.queryState !== prevQueryState) {
+              lastQueryStateByMailbox.set(mailbox.id, queryResult.queryState);
+              anyCountsChanged = true;
+
+              if (queryResult.ids && queryResult.ids.length > 0) {
+                const prevIds = lastMessageIdsByMailbox.get(mailbox.id) ?? new Set<string>();
+                const newMessageIds = queryResult.ids.filter((id) => !prevIds.has(id));
+
+                // Only emit new-message events for truly new IDs (not the very first poll
+                // where prevIds is empty — that would fire for all existing messages).
+                if (prevIds.size > 0 && newMessageIds.length > 0) {
+                  for (const messageId of newMessageIds) {
+                    callback({
+                      type: 'message.new',
+                      data: {
+                        messageId,
+                        id: messageId,
+                        folderId: mailbox.id,
+                        mailboxId: mailbox.id,
+                      },
+                    });
+                  }
+                }
+
+                lastMessageIdsByMailbox.set(mailbox.id, new Set(queryResult.ids));
+              } else {
+                // Mailbox is empty or IDs unavailable — reset so next non-empty poll works
+                lastMessageIdsByMailbox.set(mailbox.id, new Set<string>());
+              }
             }
-            
-            lastMessageIds = currentMessageIds;
+          } catch (mbError) {
+            console.error(`[stalwart-provider] Error polling mailbox ${mailbox.id}:`, mbError);
           }
-          
+        }
+
+        if (anyCountsChanged) {
           callback({
             type: 'mailbox.counts',
             data: {},
@@ -1676,10 +1709,13 @@ export class StalwartJMAPProvider implements MailProvider {
         }
       } catch (error) {
         console.error('[stalwart-provider] Error in subscribeToUpdates poll:', error);
+      } finally {
+        isPollRunning = false;
       }
     };
 
     intervalId = setInterval(poll, 15000);
+    // Run an initial poll to seed lastMessageIdsByMailbox (no events emitted on first run)
     poll();
 
     return () => {

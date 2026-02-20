@@ -372,6 +372,25 @@ async function startAutoSortDaemon(): Promise<void> {
   void processJobs();
   setInterval(processJobs, 30_000);
 
+  // Periodic full-scan fallback: every 10 minutes run rules over all folders
+  // for all accounts. This catches messages that slipped through the real-time
+  // subscription (e.g. messages delivered during a polling gap or timeout).
+  const runFullScan = async () => {
+    try {
+      const { processAutoSortRules } = await import('@/scripts/process-auto-sort-rules');
+      await processAutoSortRules();
+    } catch (error) {
+      console.error('[auto-sort-daemon] Error in periodic full-scan:', error);
+    }
+  };
+
+  // First full-scan after 2 minutes (give the server time to settle on startup),
+  // then every 10 minutes.
+  setTimeout(() => {
+    void runFullScan();
+    setInterval(runFullScan, 10 * 60 * 1000);
+  }, 2 * 60 * 1000);
+
   // Cleanup old completed/failed jobs once per day
   setInterval(() => {
     void cleanupOldJobs();
