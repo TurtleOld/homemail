@@ -112,6 +112,15 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     return token ? { 'x-csrf-token': token } : {};
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const hasCookie = /(?:^|;\s*)csrf_token=/.test(document.cookie);
+    if (hasCookie) return;
+    fetch('/api/auth/csrf').catch(() => {
+      // best-effort; if it fails the subsequent POST will return 403
+    });
+  }, [open]);
+
   const { data: templates = [] } = useQuery({
     queryKey: ['email-templates'],
     queryFn: async () => {
