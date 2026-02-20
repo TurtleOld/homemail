@@ -106,6 +106,12 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   
   const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
+  const getCsrfHeader = useCallback((): Record<string, string> => {
+    const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+    const token = match ? decodeURIComponent(match[1]!) : '';
+    return token ? { 'x-csrf-token': token } : {};
+  }, []);
+
   const { data: templates = [] } = useQuery({
     queryKey: ['email-templates'],
     queryFn: async () => {
@@ -222,7 +228,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
       const res = await fetch('/api/mail/drafts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getCsrfHeader() },
         body: JSON.stringify({
           id: draftId,
           to: toList,
@@ -382,7 +388,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
       const res = await fetch('/api/mail/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getCsrfHeader() },
         body: JSON.stringify(body),
       });
 
