@@ -1313,7 +1313,12 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error(`JMAP draft save error: ${(setResponse[1] as any).description}`);
       }
 
-      const data = setResponse[1] as { created?: Record<string, { id: string }>; updated?: Record<string, any> };
+      const data = setResponse[1] as {
+        created?: Record<string, { id: string }>;
+        updated?: Record<string, any>;
+        notCreated?: Record<string, any>;
+        notUpdated?: Record<string, any>;
+      };
       if (draft.id && data.updated) {
         return draft.id;
       }
@@ -1321,7 +1326,14 @@ export class StalwartJMAPProvider implements MailProvider {
         return Object.values(data.created)[0].id;
       }
 
-      throw new Error('Failed to get draft ID');
+      // Provide actionable error details instead of a generic message.
+      const notCreated = data.notCreated ? JSON.stringify(data.notCreated) : undefined;
+      const notUpdated = data.notUpdated ? JSON.stringify(data.notUpdated) : undefined;
+      if (notCreated || notUpdated) {
+        throw new Error(`Failed to get draft ID. notCreated=${notCreated || 'n/a'} notUpdated=${notUpdated || 'n/a'}`);
+      }
+
+      throw new Error('Failed to get draft ID (no created/updated returned)');
     } catch (error) {
       throw error;
     }

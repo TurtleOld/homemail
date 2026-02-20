@@ -28,6 +28,7 @@ export async function getCsrfToken(): Promise<string> {
     secure: secureCookie,
     sameSite: 'lax',
     path: '/',
+    ...(process.env.CSRF_COOKIE_DOMAIN ? { domain: process.env.CSRF_COOKIE_DOMAIN } : {}),
     maxAge: CSRF_TOKEN_DURATION / 1000,
   });
 
