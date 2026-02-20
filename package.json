@@ -17,7 +17,8 @@
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "backup": "tsx scripts/backup.ts",
-    "restore": "tsx scripts/restore.ts"
+    "restore": "tsx scripts/restore.ts",
+    "auto-sort": "tsx scripts/process-auto-sort-rules.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.1",
@@ -36,7 +37,7 @@
     "date-fns": "^4.1.0",
     "dompurify": "^3.2.2",
     "isomorphic-dompurify": "^2.11.0",
-    "jspdf": "^4.0.0",
+    "jspdf": "^4.1.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.454.0",
     "mailparser": "^3.9.1",
@@ -50,6 +51,7 @@
     "react-virtuoso": "^4.6.3",
     "sonner": "^1.7.0",
     "tailwind-merge": "^2.5.4",
+    "tsx": "^4.19.2",
     "vcard-json": "^0.5.2",
     "zod": "^3.23.8"
   },
@@ -74,7 +76,6 @@
     "prettier": "^3.3.3",
     "tailwindcss": "^3.4.7",
     "tailwindcss-animate": "^1.0.7",
-    "tsx": "^4.19.2",
     "typescript": "^5.5.4",
     "vitest": "^4.0.17"
   }
