@@ -1085,9 +1085,17 @@ export class JMAPClient {
   async uploadBlob(blob: Buffer, accountId?: string, contentType?: string): Promise<string> {
     const targetAccountId = accountId || this.accountId;
     const session = await this.getSession();
-    const uploadUrl = session.uploadUrl || `${this.baseUrl}/upload/{accountId}`;
-    const resolvedUploadUrl = uploadUrl.replace('{accountId}', targetAccountId);
-    
+    const rawUploadUrl = session.uploadUrl || `${this.baseUrl}/jmap/upload/{accountId}/`;
+    const resolvedUploadUrl = rawUploadUrl.replace('{accountId}', targetAccountId);
+
+    console.log('[JMAPClient] uploadBlob:', {
+      rawUploadUrl,
+      resolvedUploadUrl,
+      accountId: targetAccountId,
+      contentType,
+      size: blob.length,
+    });
+
     const resolvedUrl = await this.resolveUrlToIp(resolvedUploadUrl);
     const headers: Record<string, string> = {
       'Authorization': this.authHeader,
@@ -1107,6 +1115,12 @@ export class JMAPClient {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
+      console.error('[JMAPClient] uploadBlob failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: resolvedUrl,
+        errorText,
+      });
       throw new Error(`Blob upload failed: ${response.statusText} - ${errorText}`);
     }
 
