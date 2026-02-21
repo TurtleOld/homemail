@@ -1172,4 +1172,151 @@ export class JMAPClient {
 
     return Object.values(data.created)[0].id;
   }
+
+  // ── Sieve (RFC 9661) ──────────────────────────────────────────────────────
+
+  private readonly SIEVE_USING = [
+    'urn:ietf:params:jmap:core',
+    'urn:ietf:params:jmap:sieve',
+  ];
+
+  async getSieveScripts(accountId?: string): Promise<Array<{
+    id: string;
+    name: string | null;
+    blobId: string;
+    isActive: boolean;
+  }>> {
+    const targetAccountId = accountId || this.accountId;
+    const response = await this.requestWithUsing(
+      [['SieveScript/get', { accountId: targetAccountId, ids: null }, '0']],
+      this.SIEVE_USING
+    );
+    const res = response.methodResponses[0];
+    if (res[0] === 'error') {
+      throw new Error(`SieveScript/get error: ${(res[1] as any).description || 'unknown'}`);
+    }
+    const data = res[1] as { list: Array<{ id: string; name: string | null; blobId: string; isActive: boolean }> };
+    return data.list || [];
+  }
+
+  async getSieveScriptContent(blobId: string, accountId?: string): Promise<string> {
+    const targetAccountId = accountId || this.accountId;
+    const url = await this.getBlobDownloadUrl(blobId, targetAccountId, 'script.sieve');
+    const resolvedUrl = await this.resolveUrlToIp(url);
+    const res = await fetch(resolvedUrl, {
+      headers: { Authorization: this.authHeader },
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to download Sieve script blob: ${res.statusText}`);
+    }
+    return res.text();
+  }
+
+  async setSieveScript(params: {
+    accountId?: string;
+    existingId?: string;
+    name: string | null;
+    content: string;
+    activate?: boolean;
+  }): Promise<{ id: string; blobId: string }> {
+    const targetAccountId = params.accountId || this.accountId;
+
+    // RFC 9661: blobId is mandatory — upload content as blob first
+    const blobId = await this.uploadBlob(
+      Buffer.from(params.content, 'utf-8'),
+      targetAccountId,
+      'application/sieve'
+    );
+
+    const scriptProps = { name: params.name, blobId };
+    const tempKey = 'script0';
+
+    const requestBody: Record<string, any> = { accountId: targetAccountId };
+
+    if (params.existingId) {
+      requestBody.update = { [params.existingId]: scriptProps };
+      if (params.activate) {
+        requestBody.onSuccessActivateScript = params.existingId;
+      }
+    } else {
+      requestBody.create = { [tempKey]: scriptProps };
+      if (params.activate) {
+        requestBody.onSuccessActivateScript = `#${tempKey}`;
+      }
+    }
+
+    const response = await this.requestWithUsing(
+      [['SieveScript/set', requestBody, '0']],
+      this.SIEVE_USING
+    );
+    const res = response.methodResponses[0];
+    if (res[0] === 'error') {
+      throw new Error(`SieveScript/set error: ${(res[1] as any).description || 'unknown'}`);
+    }
+    const data = res[1] as {
+      created?: Record<string, { id: string; blobId: string }>;
+      updated?: Record<string, null>;
+      notCreated?: Record<string, any>;
+      notUpdated?: Record<string, any>;
+    };
+
+    if (params.existingId) {
+      if (data.notUpdated?.[params.existingId]) {
+        throw new Error(`SieveScript/set update failed: ${JSON.stringify(data.notUpdated[params.existingId])}`);
+      }
+      return { id: params.existingId, blobId };
+    }
+
+    const created = data.created?.[tempKey];
+    if (!created) {
+      const err = data.notCreated?.[tempKey];
+      throw new Error(`SieveScript/set create failed: ${err ? JSON.stringify(err) : 'unknown'}`);
+    }
+    return { id: created.id, blobId };
+  }
+
+  async deleteSieveScript(id: string, accountId?: string): Promise<void> {
+    const targetAccountId = accountId || this.accountId;
+    const response = await this.requestWithUsing(
+      [['SieveScript/set', { accountId: targetAccountId, destroy: [id] }, '0']],
+      this.SIEVE_USING
+    );
+    const res = response.methodResponses[0];
+    if (res[0] === 'error') {
+      throw new Error(`SieveScript/set destroy error: ${(res[1] as any).description || 'unknown'}`);
+    }
+    const data = res[1] as { notDestroyed?: Record<string, any> };
+    if (data.notDestroyed?.[id]) {
+      throw new Error(`SieveScript destroy failed: ${JSON.stringify(data.notDestroyed[id])}`);
+    }
+  }
+
+  async validateSieveScript(content: string, accountId?: string): Promise<{ valid: boolean; error?: string }> {
+    const targetAccountId = accountId || this.accountId;
+
+    // Upload as blob first (validate endpoint requires blobId too)
+    const blobId = await this.uploadBlob(
+      Buffer.from(content, 'utf-8'),
+      targetAccountId,
+      'application/sieve'
+    );
+
+    const response = await this.requestWithUsing(
+      [['SieveScript/validate', { accountId: targetAccountId, blobId }, '0']],
+      this.SIEVE_USING
+    );
+    const res = response.methodResponses[0];
+
+    if (res[0] === 'error') {
+      const errData = res[1] as { type?: string; description?: string };
+      // A parse error from validate is a validation failure, not a protocol error
+      if (errData.type === 'invalidScript' || errData.type === 'invalidArguments') {
+        return { valid: false, error: errData.description || 'Invalid script' };
+      }
+      throw new Error(`SieveScript/validate error: ${errData.description || 'unknown'}`);
+    }
+
+    // SieveScript/validate returns empty object on success
+    return { valid: true };
+  }
 }

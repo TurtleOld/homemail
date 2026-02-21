@@ -129,7 +129,7 @@ export class StalwartJMAPProvider implements MailProvider {
     const oauthClient = new OAuthJMAPClient({
       discoveryUrl: config.oauthDiscoveryUrl,
       clientId: config.oauthClientId,
-      scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'offline_access'],
+      scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'urn:ietf:params:jmap:sieve', 'offline_access'],
       baseUrl: config.baseUrl,
       accountId: accountId,
     });
@@ -1724,5 +1724,44 @@ export class StalwartJMAPProvider implements MailProvider {
         clearInterval(intervalId);
       }
     };
+  }
+
+  // ── Sieve script management (RFC 9661) ────────────────────────────────────
+
+  async getSieveScripts(accountId: string): Promise<import('@/lib/types').SieveScript[]> {
+    const client = await this.getClient(accountId);
+    const scripts = await client.getSieveScripts(accountId);
+    return Promise.all(
+      scripts.map(async (s) => {
+        let content: string | undefined;
+        try {
+          content = await client.getSieveScriptContent(s.blobId, accountId);
+        } catch {
+          // Non-fatal: content may be unavailable; editor will show empty
+        }
+        return { id: s.id, name: s.name, blobId: s.blobId, isActive: s.isActive, content };
+      })
+    );
+  }
+
+  async createOrUpdateSieveScript(params: {
+    accountId: string;
+    existingId?: string;
+    name: string | null;
+    content: string;
+    activate?: boolean;
+  }): Promise<{ id: string; blobId: string }> {
+    const client = await this.getClient(params.accountId);
+    return client.setSieveScript(params);
+  }
+
+  async deleteSieveScript(id: string, accountId: string): Promise<void> {
+    const client = await this.getClient(accountId);
+    return client.deleteSieveScript(id, accountId);
+  }
+
+  async validateSieveScript(content: string, accountId: string): Promise<{ valid: boolean; error?: string }> {
+    const client = await this.getClient(accountId);
+    return client.validateSieveScript(content, accountId);
   }
 }

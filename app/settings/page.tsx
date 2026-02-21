@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key, HelpCircle } from 'lucide-react';
-import type { Folder, SavedFilter, AutoSortRule } from '@/lib/types';
+import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key, HelpCircle, Code2 } from 'lucide-react';
+import type { Folder, SavedFilter, AutoSortRule, SieveScript } from '@/lib/types';
 import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
+import { SieveScriptEditor } from '@/components/sieve-script-editor';
 import { ContactsManager } from '@/components/contacts-manager';
 import { MonitoringDashboard } from '@/components/monitoring-dashboard';
 import { LabelsManager } from '@/components/labels-manager';
@@ -138,7 +139,7 @@ async function deleteFolder(folderId: string): Promise<void> {
   }
 }
 
-type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'contacts' | 'interface' | 'advanced' | 'monitoring' | 'labels' | 'import' | 'templates' | 'notifications' | 'statistics' | 'backup' | 'archive' | 'accessibility' | 'hotkeys' | 'subscriptions' | 'pgp';
+type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'sieve' | 'contacts' | 'interface' | 'advanced' | 'monitoring' | 'labels' | 'import' | 'templates' | 'notifications' | 'statistics' | 'backup' | 'archive' | 'accessibility' | 'hotkeys' | 'subscriptions' | 'pgp';
 
 interface Tab {
   id: TabId;
@@ -161,6 +162,7 @@ function getTabs(theme: 'light' | 'dark'): Tab[] {
     { id: 'folders', label: 'Папки', icon: <FolderPlus className="h-4 w-4" /> },
     { id: 'labels', label: 'Метки', icon: <Tag className="h-4 w-4" /> },
     { id: 'filters', label: 'Фильтры', icon: <Filter className="h-4 w-4" /> },
+    { id: 'sieve', label: 'Sieve-скрипты', icon: <Code2 className="h-4 w-4" /> },
     { id: 'contacts', label: 'Контакты', icon: <Users className="h-4 w-4" /> },
     { id: 'templates', label: 'Шаблоны', icon: <FileText className="h-4 w-4" /> },
     { id: 'import', label: 'Импорт', icon: <Upload className="h-4 w-4" /> },
@@ -1775,6 +1777,129 @@ function ImportTab() {
   );
 }
 
+function SieveTab() {
+  const queryClient = useQueryClient();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingScript, setEditingScript] = useState<SieveScript | undefined>(undefined);
+
+  const { data: scripts = [], isLoading } = useQuery<SieveScript[]>({
+    queryKey: ['sieve-scripts'],
+    queryFn: async () => {
+      const res = await fetch('/api/mail/sieve');
+      if (!res.ok) throw new Error('Не удалось загрузить Sieve-скрипты');
+      return res.json();
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (params: { id?: string; name: string | null; content: string; activate: boolean }) => {
+      const res = await fetch('/api/mail/sieve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Ошибка сохранения');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sieve-scripts'] });
+      toast.success('Sieve-скрипт сохранён');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Ошибка сохранения Sieve-скрипта');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/mail/sieve?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Не удалось удалить скрипт');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sieve-scripts'] });
+      toast.success('Sieve-скрипт удалён');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Ошибка удаления');
+    },
+  });
+
+  const handleEdit = (script: SieveScript) => {
+    setEditingScript(script);
+    setEditorOpen(true);
+  };
+
+  const handleCreate = () => {
+    setEditingScript(undefined);
+    setEditorOpen(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Sieve-скрипты</h2>
+          <p className="text-sm text-muted-foreground">
+            Скрипты выполняются на сервере Stalwart при доставке новых писем
+          </p>
+        </div>
+        <Button onClick={handleCreate} size="sm">
+          <Plus className="h-4 w-4 mr-1" />
+          Создать скрипт
+        </Button>
+      </div>
+
+      {isLoading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
+
+      {!isLoading && scripts.length === 0 && (
+        <p className="text-sm text-muted-foreground">Нет Sieve-скриптов. Создайте первый.</p>
+      )}
+
+      <div className="space-y-2">
+        {scripts.map((script) => (
+          <div
+            key={script.id}
+            className="flex items-center justify-between p-3 border rounded-lg"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <Code2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{script.name || 'Скрипт без названия'}</p>
+                {script.isActive && (
+                  <span className="text-xs text-green-600 font-medium">Активен</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              <Button variant="ghost" size="sm" onClick={() => handleEdit(script)}>
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => deleteMutation.mutate(script.id)}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <SieveScriptEditor
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSave={(params) => saveMutation.mutateAsync(params)}
+        existing={editingScript}
+      />
+    </div>
+  );
+}
+
 function FoldersTab() {
   const queryClient = useQueryClient();
   const [newFolderName, setNewFolderName] = useState('');
@@ -2046,6 +2171,7 @@ export default function SettingsPage() {
             {activeTab === 'folders' && <FoldersTab />}
             {activeTab === 'labels' && <LabelsManager />}
             {activeTab === 'filters' && <FiltersTab />}
+            {activeTab === 'sieve' && <SieveTab />}
             {activeTab === 'contacts' && <ContactsManager />}
             {activeTab === 'templates' && <EmailTemplatesManager />}
             {activeTab === 'import' && <ImportTab />}

@@ -172,6 +172,14 @@ export type AutoSortRule = {
   updatedAt: Date;
 };
 
+export type SieveScript = {
+  id: string;
+  name: string | null;
+  blobId?: string;
+  isActive: boolean;
+  content?: string;
+};
+
 export type EmailTemplate = {
   id: string;
   name: string;
