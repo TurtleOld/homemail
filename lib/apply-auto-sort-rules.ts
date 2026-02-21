@@ -23,7 +23,6 @@ export async function checkMessageMatchesRule(
   folderId: string
 ): Promise<boolean> {
   if (!rule.enabled) {
-    console.error('[apply-auto-sort-rules] Rule disabled:', rule.name);
     return false;
   }
 
@@ -32,63 +31,31 @@ export async function checkMessageMatchesRule(
     return false;
   }
 
-  console.error('[apply-auto-sort-rules] Starting rule check:', {
-    ruleName: rule.name,
-    messageId: message.id,
-    from: 'from' in message ? message.from.email : 'N/A',
-    filterGroup: JSON.stringify(rule.conditions),
-  });
-
   let messageToCheck: MessageListItem | MessageDetail = message;
-  
+
   if (!('body' in message) && hasBodyCondition(rule.conditions)) {
-    // Retry logic for fetching full message
     let fullMessage: MessageDetail | null = null;
     const maxRetries = 3;
-    
+
     for (let attempt = 0; attempt < maxRetries && !fullMessage; attempt++) {
       try {
-        // Exponential backoff: 200ms, 400ms, 800ms
         const delay = 200 * Math.pow(2, attempt);
         await new Promise((resolve) => setTimeout(resolve, delay));
-        
+
         fullMessage = await provider.getMessage(accountId, message.id);
         if (fullMessage) {
           messageToCheck = fullMessage;
-          console.error('[apply-auto-sort-rules] Loaded full message for body check:', {
-            messageId: message.id,
-            attempt: attempt + 1,
-            hasText: !!fullMessage.body.text,
-            hasHtml: !!fullMessage.body.html,
-            textLength: fullMessage.body.text?.length || 0,
-            htmlLength: fullMessage.body.html?.length || 0,
-          });
         }
       } catch (error) {
         console.error('[apply-auto-sort-rules] Error loading full message (attempt ' + (attempt + 1) + '):', error);
         if (error instanceof Error && error.message.includes('Too Many Requests')) {
-          // Wait longer on rate limit
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
-        // Continue to next retry instead of returning false
       }
-    }
-    
-    // If still no full message, log but don't fail - use snippet for body check
-    if (!fullMessage) {
-      console.error('[apply-auto-sort-rules] Failed to load full message after retries, will use snippet if available');
     }
   }
 
-  const matches = await checkMessageMatchesFilterGroup(messageToCheck, rule.conditions, provider, accountId, folderId);
-  
-  console.error('[apply-auto-sort-rules] Rule check result:', {
-    ruleName: rule.name,
-    messageId: message.id,
-    from: 'from' in messageToCheck ? messageToCheck.from.email : 'N/A',
-    matches,
-  });
-  return matches;
+  return checkMessageMatchesFilterGroup(messageToCheck, rule.conditions, provider, accountId, folderId);
 }
 
 async function checkMessageMatchesFilterGroup(
@@ -99,7 +66,6 @@ async function checkMessageMatchesFilterGroup(
   folderId: string
 ): Promise<boolean> {
   if (!isValidFilterGroup(group)) {
-    console.error('[apply-auto-sort-rules] Invalid filter group:', group);
     return false;
   }
 
@@ -137,23 +103,12 @@ async function checkMessageMatchesCondition(
   const { field, operator, value } = condition;
 
   switch (field) {
-    case 'from':
+    case 'from': {
       const fromEmail = message.from.email;
       const fromName = message.from.name || '';
-      const emailMatch = checkStringMatch(fromEmail, operator, value as string);
-      const nameMatch = checkStringMatch(fromName, operator, value as string);
-      const result = emailMatch || nameMatch;
-      console.error('[apply-auto-sort-rules] Checking from condition:', {
-        field,
-        operator,
-        value,
-        fromEmail,
-        fromName,
-        emailMatch,
-        nameMatch,
-        result,
-      });
-      return result;
+      return checkStringMatch(fromEmail, operator, value as string) ||
+        checkStringMatch(fromName, operator, value as string);
+    }
     case 'to':
       if ('to' in message) {
         return message.to.some((t) =>
@@ -166,47 +121,26 @@ async function checkMessageMatchesCondition(
       return checkStringMatch(message.subject, operator, value as string);
     case 'body':
       if ('body' in message) {
-        // Try text body first, then HTML body (strip HTML tags), then fallback to snippet
         let bodyText = message.body.text || '';
-        
+
         if (!bodyText && message.body.html) {
-          // Strip HTML tags from HTML body
           bodyText = message.body.html
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style tags
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script tags
-            .replace(/<[^>]+>/g, ' ') // Remove HTML tags
-            .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
             .trim();
         }
-        
-        console.error('[apply-auto-sort-rules] Body check:', {
-          hasBody: 'body' in message,
-          hasText: !!message.body.text,
-          hasHtml: !!message.body.html,
-          textLength: message.body.text?.length || 0,
-          htmlLength: message.body.html?.length || 0,
-          extractedLength: bodyText.length,
-          operator,
-          value,
-          match: checkStringMatch(bodyText, operator, value as string),
-        });
-        
+
         if (bodyText) {
           return checkStringMatch(bodyText, operator, value as string);
         }
       }
       if ('snippet' in message) {
-        console.error('[apply-auto-sort-rules] Using snippet as fallback:', {
-          snippetLength: message.snippet.length,
-          operator,
-          value,
-          match: checkStringMatch(message.snippet, operator, value as string),
-        });
         return checkStringMatch(message.snippet, operator, value as string);
       }
-      console.error('[apply-auto-sort-rules] No body or snippet available for body check');
       return false;
-    case 'date':
+    case 'date': {
       const messageDateObj = message.date instanceof Date ? message.date : new Date(message.date);
       const messageDate = messageDateObj.getTime();
       if (operator === 'gte' || operator === 'gt') {
@@ -217,6 +151,7 @@ async function checkMessageMatchesCondition(
         return operator === 'lte' ? messageDate <= filterDate : messageDate < filterDate;
       }
       return false;
+    }
     case 'size':
       if ('size' in message) {
         const messageSize = message.size;
@@ -261,18 +196,11 @@ function checkStringMatch(text: string, operator: string, value: string | string
       return lowerText.endsWith(lowerValue);
     case 'matches':
       try {
-        // Escape all regex special chars first, then restore * as .*  and ? as .
+        // Escape all regex special chars first, then restore * as .* and ? as .
         const escaped = searchText.replace(/[.+^${}()|[\]\\]/g, '\\$&');
         const pattern = escaped.replace(/\*/g, '.*').replace(/\?/g, '.');
         const regex = new RegExp(`^${pattern}$`, 'i');
-        const result = regex.test(text);
-        console.error('[apply-auto-sort-rules] Pattern match:', {
-          pattern: searchText,
-          regex: regex.toString(),
-          text,
-          result,
-        });
-        return result;
+        return regex.test(text);
       } catch (error) {
         console.error('[apply-auto-sort-rules] Regex error:', error, { pattern: searchText, text });
         return false;
@@ -304,7 +232,7 @@ export async function applyRuleActions(
       if (i > 0) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      
+
       switch (action.type) {
         case 'moveToFolder':
           await provider.bulkUpdateMessages(accountId, {

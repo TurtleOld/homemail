@@ -122,13 +122,12 @@ export async function POST(request: NextRequest) {
       return true;
     });
     
-    console.error('[filter-rules/apply] Starting rule application:', {
+    console.log('[filter-rules/apply] Starting rule application:', {
       ruleId,
       ruleName: rule.name,
       destinationFolderId,
-      foldersToSearch: foldersToSearch.map((f) => ({ id: f.id, name: f.name, role: f.role })),
+      foldersCount: foldersToSearch.length,
       limit,
-      filterGroup: JSON.stringify(rule.conditions),
     });
     
     const allMessages: MessageListItem[] = [];
@@ -156,7 +155,7 @@ export async function POST(request: NextRequest) {
           await new Promise((resolve) => setTimeout(resolve, 200));
         }
       } catch (error) {
-        console.error(`[filter-rules/apply] Error getting messages from folder ${folder.id}:`, error);
+        console.error(`[filter-rules/apply] Error getting messages from folder ${folder.id}:`, error instanceof Error ? error.message : error);
         if (isRateLimitError(error)) {
           await sleep(1500);
         }
@@ -185,7 +184,7 @@ export async function POST(request: NextRequest) {
     const messagesNeedingBody = messagesToCheck.filter((m) => m.needsBody).map((m) => m.message);
     
     if (messagesNeedingBody.length > 0) {
-      console.error(`[filter-rules/apply] Loading ${messagesNeedingBody.length} full messages for body check...`);
+      console.log(`[filter-rules/apply] Loading ${messagesNeedingBody.length} full messages for body check...`);
       // Keep this low to avoid 429 from reverse proxy / server.
       const BATCH_SIZE = 10;
       for (let i = 0; i < messagesNeedingBody.length; i += BATCH_SIZE) {
@@ -244,7 +243,7 @@ export async function POST(request: NextRequest) {
         );
 
         if (matches) {
-          console.error(`[filter-rules/apply] Message ${message.id} matches rule ${rule.name}, applying actions...`);
+          console.log(`[filter-rules/apply] Message ${message.id} matches rule ${rule.name}, applying actions...`);
           await withBackoff(
             () => applyRuleActions(message.id, rule, provider, session.accountId),
             { label: `applyActions:${message.id}`, baseDelayMs: 600 }
@@ -267,7 +266,7 @@ export async function POST(request: NextRequest) {
     const elapsedTime = Date.now() - startTime;
     const timedOut = elapsedTime > MAX_PROCESSING_TIME;
 
-    console.error('[filter-rules/apply] Applied rule:', {
+    console.log('[filter-rules/apply] Applied rule:', {
       ruleId,
       ruleName: rule.name,
       destinationFolderId,
