@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { ruleId, folderId, limit = 100 } = body;
+    const { ruleId, folderId, limit = 2000 } = body;
 
     if (!ruleId) {
       return NextResponse.json({ error: 'Rule ID required' }, { status: 400 });
@@ -132,17 +132,16 @@ export async function POST(request: NextRequest) {
     });
     
     const allMessages: MessageListItem[] = [];
-    const messagesPerFolder = Math.ceil(limit / Math.max(foldersToSearch.length, 1));
-    
+    const PER_FOLDER_LIMIT = 200;
+
     for (let i = 0; i < foldersToSearch.length; i++) {
       const folder = foldersToSearch[i];
       if (allMessages.length >= limit) {
         break;
       }
-      
+
       try {
-        const remainingLimit = limit - allMessages.length;
-        const folderLimit = Math.min(messagesPerFolder, remainingLimit, 500);
+        const folderLimit = Math.min(PER_FOLDER_LIMIT, 500);
         
         const result = await withBackoff(
           () => provider.getMessages(session.accountId, folder.id, { limit: folderLimit }),
