@@ -51,6 +51,10 @@ export async function POST(request: NextRequest) {
 
     // Parse Sieve script into JMAP filter + actions
     const parsed = parseSieveForJMAP(content);
+    console.log('[sieve/apply] Parse result:', parsed.parseable
+      ? { parseable: true, filter: parsed.filter, actionsCount: parsed.actions.length }
+      : { parseable: false, reason: parsed.reason }
+    );
     if (!parsed.parseable) {
       return NextResponse.json(
         { error: 'Script conditions cannot be applied to existing messages', reason: parsed.reason },

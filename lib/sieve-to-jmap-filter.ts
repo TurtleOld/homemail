@@ -191,7 +191,9 @@ function parseCondition(p: Parser): JMAPFilter | null {
   const cmd = (p.next() as { kind: 'word'; value: string }).value;
 
   if (cmd === 'header') {
-    const matchType = p.tag() ?? 'contains'; // :contains, :is, :matches
+    const matchType = p.tag() ?? 'contains'; // :contains, :is, :matches, :regex
+    // :regex cannot be safely emulated with substring matching — not parseable
+    if (matchType === 'regex') return null;
     const headers = p.stringList().map((h) => h.toLowerCase());
     const value = p.expectString();
 
