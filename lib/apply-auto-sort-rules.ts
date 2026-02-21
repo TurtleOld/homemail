@@ -261,7 +261,9 @@ function checkStringMatch(text: string, operator: string, value: string | string
       return lowerText.endsWith(lowerValue);
     case 'matches':
       try {
-        const pattern = searchText.replace(/\*/g, '.*');
+        // Escape all regex special chars first, then restore * as .*  and ? as .
+        const escaped = searchText.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+        const pattern = escaped.replace(/\*/g, '.*').replace(/\?/g, '.');
         const regex = new RegExp(`^${pattern}$`, 'i');
         const result = regex.test(text);
         console.error('[apply-auto-sort-rules] Pattern match:', {
