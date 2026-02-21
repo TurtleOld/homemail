@@ -104,7 +104,7 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
       try {
         console.log(`[auto-sort-daemon] Job ${jobId}: Processing folder ${folder.name}`);
 
-        const result = await provider.getMessages(accountId, folder.id, { limit: 100 });
+        const result = await provider.getMessages(accountId, folder.id, { limit: 2000 });
 
         if (!result || !result.messages || result.messages.length === 0) {
           continue;

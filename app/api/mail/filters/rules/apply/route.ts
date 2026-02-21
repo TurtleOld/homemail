@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     });
     
     const allMessages: MessageListItem[] = [];
-    const PER_FOLDER_LIMIT = 200;
+    const PER_FOLDER_LIMIT = 2000;
 
     for (let i = 0; i < foldersToSearch.length; i++) {
       const folder = foldersToSearch[i];
