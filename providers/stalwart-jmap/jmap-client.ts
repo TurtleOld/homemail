@@ -1075,10 +1075,14 @@ export class JMAPClient {
 
   async getBlobDownloadUrl(blobId: string, accountId: string, name?: string): Promise<string> {
     const session = await this.getSession();
-    const downloadUrl = session.downloadUrl || `${this.baseUrl}/download/{accountId}/{blobId}/{name}`;
+    const downloadUrl = session.downloadUrl || `${this.baseUrl}/jmap/download/{accountId}/{blobId}/{name}`;
+    // Stalwart may return URL-encoded placeholders (%7BaccountId%7D etc.) — decode before replacing
     return downloadUrl
+      .replace(/%7BaccountId%7D/gi, accountId)
       .replace('{accountId}', accountId)
+      .replace(/%7BblobId%7D/gi, blobId)
       .replace('{blobId}', blobId)
+      .replace(/%7Bname%7D/gi, name || 'attachment')
       .replace('{name}', name || 'attachment');
   }
 
@@ -1086,7 +1090,10 @@ export class JMAPClient {
     const targetAccountId = accountId || this.accountId;
     const session = await this.getSession();
     const rawUploadUrl = session.uploadUrl || `${this.baseUrl}/jmap/upload/{accountId}/`;
-    const resolvedUploadUrl = rawUploadUrl.replace('{accountId}', targetAccountId);
+    // Stalwart may return URL-encoded placeholders (%7BaccountId%7D) — decode before replacing
+    const resolvedUploadUrl = rawUploadUrl
+      .replace(/%7BaccountId%7D/gi, targetAccountId)
+      .replace('{accountId}', targetAccountId);
 
     console.log('[JMAPClient] uploadBlob:', {
       rawUploadUrl,
