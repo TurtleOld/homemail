@@ -5,16 +5,11 @@ import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import type { AutoSortRule } from '@/lib/types';
 import { addJob } from '@/lib/filter-job-queue';
+import { syncRulesToSieve } from '@/lib/sync-rules-to-sieve';
 
-function triggerSieveSync(request: NextRequest): void {
-  // Fire-and-forget: sync auto-sort rules to the Sieve script on the server.
-  // We build an absolute URL from the incoming request so this works in any
-  // environment (dev, prod, behind a proxy, etc.)
-  const syncUrl = new URL('/api/mail/filters/rules/sync-sieve', request.url).toString();
-  fetch(syncUrl, {
-    method: 'POST',
-    headers: { cookie: request.headers.get('cookie') || '' },
-  }).catch((err) => {
+function triggerSieveSync(accountId: string): void {
+  // Fire-and-forget: call syncRulesToSieve directly (no HTTP round-trip needed).
+  syncRulesToSieve(accountId).catch((err) => {
     console.error('[filter-rules] Background Sieve sync failed:', err);
   });
 }
@@ -78,8 +73,6 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  // Clone the request before body is consumed so we can re-read headers later
-  const clonedRequest = request.clone() as NextRequest;
   try {
     const session = await getSession();
 
@@ -139,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Sync updated rules to Sieve script on the mail server (fire-and-forget)
-    triggerSieveSync(clonedRequest);
+    triggerSieveSync(session.accountId);
 
     return NextResponse.json(rule);
   } catch (error) {
@@ -179,7 +172,7 @@ export async function DELETE(request: NextRequest) {
     await saveRules(session.accountId, filtered);
 
     // Sync updated rules to Sieve script on the mail server (fire-and-forget)
-    triggerSieveSync(request);
+    triggerSieveSync(session.accountId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

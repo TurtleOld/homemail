@@ -1256,13 +1256,18 @@ export class JMAPClient {
 
     if (params.existingId) {
       requestBody.update = { [params.existingId]: scriptProps };
-      if (params.activate) {
+      if (params.activate === true) {
         requestBody.onSuccessActivateScript = params.existingId;
+      } else if (params.activate === false) {
+        // Explicitly deactivate: null deactivates whichever script is currently active
+        requestBody.onSuccessActivateScript = null;
       }
     } else {
       requestBody.create = { [tempKey]: scriptProps };
-      if (params.activate) {
+      if (params.activate === true) {
         requestBody.onSuccessActivateScript = `#${tempKey}`;
+      } else if (params.activate === false) {
+        requestBody.onSuccessActivateScript = null;
       }
     }
 
@@ -1298,6 +1303,21 @@ export class JMAPClient {
 
   async deleteSieveScript(id: string, accountId?: string): Promise<void> {
     const targetAccountId = accountId || this.accountId;
+
+    // RFC 9661: an active script cannot be destroyed. Deactivate it first by
+    // setting onSuccessActivateScript to null (which deactivates all scripts),
+    // then destroy in the same request using a two-call JMAP batch.
+    // We use two separate requests to keep error handling simple.
+
+    // Step 1: deactivate (no-op if already inactive)
+    await this.requestWithUsing(
+      [['SieveScript/set', { accountId: targetAccountId, onSuccessActivateScript: null }, '0']],
+      this.SIEVE_USING
+    ).catch(() => {
+      // Best-effort; ignore if deactivation fails (script may already be inactive)
+    });
+
+    // Step 2: destroy
     const response = await this.requestWithUsing(
       [['SieveScript/set', { accountId: targetAccountId, destroy: [id] }, '0']],
       this.SIEVE_USING
