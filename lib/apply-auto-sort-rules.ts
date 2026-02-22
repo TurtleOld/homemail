@@ -2,7 +2,10 @@ import type { AutoSortRule, MessageListItem, MessageDetail, FilterGroup, FilterC
 import type { MailProvider } from '@/providers/mail-provider';
 
 function isValidFilterGroup(group: FilterGroup | undefined | null): group is FilterGroup {
-  return !!group && Array.isArray(group.conditions) && group.conditions.length > 0;
+  if (!group) return false;
+  const hasConditions = Array.isArray(group.conditions) && group.conditions.length > 0;
+  const hasGroups = Array.isArray(group.groups) && group.groups.length > 0;
+  return hasConditions || hasGroups;
 }
 
 function hasBodyCondition(group: FilterGroup): boolean {
