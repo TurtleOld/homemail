@@ -112,9 +112,8 @@ export async function POST(request: NextRequest) {
       if (f.role === 'trash' || f.role === 'sent' || f.role === 'drafts') {
         return false;
       }
-      if (destinationFolderId && f.id === destinationFolderId) {
-        return false;
-      }
+      // Note: do NOT exclude the destination folder — messages may already be
+      // there (e.g. moved by a Sieve script) and need other actions applied.
       // Optional: allow user to restrict to a specific folder.
       if (folderId) {
         return f.id === folderId || f.role === folderId;
@@ -232,11 +231,6 @@ export async function POST(request: NextRequest) {
 
       const { message } = messagesToCheck[i];
       try {
-        if (i > 0) {
-          // steady pacing
-          await sleep(50);
-        }
-
         const matches = await withBackoff(
           () => checkMessageMatchesRule(message, rule, provider, session.accountId, 'inbox'),
           { label: `checkMatch:${message.id}`, baseDelayMs: 300 }
