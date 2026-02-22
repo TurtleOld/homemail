@@ -3,8 +3,7 @@ services:
     image: ghcr.io/turtleold/homemail:latest
     container_name: homemail-webclient
     restart: unless-stopped
-    command: >
-      sh -c "npm run auto-sort && npm start"
+    command: npm start
     environment:
       - NODE_ENV=production
       - PORT=3000
