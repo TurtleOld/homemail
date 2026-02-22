@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key, HelpCircle, Code2 } from 'lucide-react';
+import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key, HelpCircle, Code2, RotateCcw } from 'lucide-react';
 import type { Folder, SavedFilter, AutoSortRule, SieveScript } from '@/lib/types';
 import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
 import { SieveScriptEditor } from '@/components/sieve-script-editor';
@@ -908,6 +908,7 @@ function FiltersTab() {
   const [ruleEditorOpen, setRuleEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AutoSortRule | undefined>();
   const [isSyncingSieve, setIsSyncingSieve] = useState(false);
+  const [isResettingProcessed, setIsResettingProcessed] = useState(false);
   const { data: filters = [], isLoading: filtersLoading } = useQuery({
     queryKey: ['saved-filters'],
     queryFn: getSavedFilters,
@@ -1173,6 +1174,26 @@ function FiltersTab() {
           >
             <Code2 className="h-4 w-4 mr-2" />
             {isSyncingSieve ? 'Синхронизация...' : 'Синхронизировать в Sieve'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isResettingProcessed}
+            onClick={async () => {
+              setIsResettingProcessed(true);
+              try {
+                const res = await fetch('/api/mail/filters/rules/reset-processed', { method: 'POST' });
+                if (!res.ok) throw new Error('Ошибка сброса кэша');
+                toast.success('Кэш обработанных писем сброшен. При следующем запуске авто-сортировки все письма будут проверены заново.');
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Ошибка сброса кэша');
+              } finally {
+                setIsResettingProcessed(false);
+              }
+            }}
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            {isResettingProcessed ? 'Сброс...' : 'Сбросить кэш авто-сортировки'}
           </Button>
         </div>
         <div className="space-y-4">

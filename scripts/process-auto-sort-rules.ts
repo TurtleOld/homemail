@@ -77,25 +77,9 @@ async function processAccount(accountId: string, provider: any): Promise<void> {
     const processed = await getProcessedMessages();
     const folders = await provider.getFolders(accountId);
 
-    // Collect destination folder IDs from all move actions across all rules
-    // so we skip letters that are already in their target folder.
-    const destinationFolderIds = new Set<string>();
-    for (const rule of rules) {
-      for (const action of rule.actions) {
-        if (action.type === 'moveToFolder' && action.folderId) {
-          // Resolve role-based IDs (inbox, spam, …) to real folder IDs
-          const resolved = folders.find(
-            (f: Folder) => f.id === action.folderId || f.role === action.folderId
-          );
-          destinationFolderIds.add(resolved ? resolved.id : action.folderId);
-        }
-      }
-    }
-
-    // Process all folders except system ones and destination folders
+    // Process all folders except system ones
     const foldersToCheck = folders.filter((f: Folder) => {
       if (f.role && EXCLUDED_FOLDER_ROLES.has(f.role)) return false;
-      if (destinationFolderIds.has(f.id)) return false;
       return true;
     });
 
