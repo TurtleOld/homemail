@@ -80,15 +80,14 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
       }
     }
 
-    // Filter folders to search (exclude system folders and destination folder)
+    // Filter folders to search (exclude system folders only;
+    // do NOT exclude the destination folder — messages may already be there
+    // if moved by Sieve, and other rule actions still need to be applied).
     const foldersToSearch = folders.filter((f) => {
       if (f.role === 'trash' || f.role === 'sent' || f.role === 'drafts') {
         return false;
       }
       if (isDeletedFolderName(f.name)) {
-        return false;
-      }
-      if (destinationFolderId && f.id === destinationFolderId) {
         return false;
       }
       return true;
@@ -115,10 +114,6 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
           const message = result.messages[i];
 
           try {
-            if (i > 0) {
-              await new Promise((resolve) => setTimeout(resolve, 100));
-            }
-
             const matches = await checkMessageMatchesRule(message, rule, provider, accountId, folder.id);
 
             if (matches) {
