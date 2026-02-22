@@ -236,16 +236,6 @@ export async function POST(request: NextRequest) {
           { label: `checkMatch:${message.id}`, baseDelayMs: 300 }
         );
 
-        if (i < 3) {
-          console.log(`[filter-rules/apply] debug message[${i}]:`, {
-            id: message.id,
-            from: message.from,
-            subject: message.subject,
-            conditions: JSON.stringify(rule.conditions),
-            matches,
-          });
-        }
-
         if (matches) {
           console.log(`[filter-rules/apply] Message ${message.id} matches rule ${rule.name}, applying actions...`);
           await withBackoff(
