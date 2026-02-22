@@ -893,12 +893,21 @@ async function deleteFilterRule(ruleId: string): Promise<void> {
   }
 }
 
+async function syncRulesToSieve(): Promise<void> {
+  const res = await fetch('/api/mail/filters/rules/sync-sieve', { method: 'POST' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || 'Ошибка синхронизации');
+  }
+}
+
 function FiltersTab() {
   const queryClient = useQueryClient();
   const [newFilterName, setNewFilterName] = useState('');
   const [newFilterQuery, setNewFilterQuery] = useState('');
   const [ruleEditorOpen, setRuleEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AutoSortRule | undefined>();
+  const [isSyncingSieve, setIsSyncingSieve] = useState(false);
   const { data: filters = [], isLoading: filtersLoading } = useQuery({
     queryKey: ['saved-filters'],
     queryFn: getSavedFilters,
@@ -1145,6 +1154,26 @@ function FiltersTab() {
             <Plus className="h-4 w-4 mr-2" />
             Создать правило
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isSyncingSieve}
+            onClick={async () => {
+              setIsSyncingSieve(true);
+              try {
+                await syncRulesToSieve();
+                queryClient.invalidateQueries({ queryKey: ['sieve-scripts'] });
+                toast.success('Правила синхронизированы в Sieve-скрипт');
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Ошибка синхронизации с Sieve');
+              } finally {
+                setIsSyncingSieve(false);
+              }
+            }}
+          >
+            <Code2 className="h-4 w-4 mr-2" />
+            {isSyncingSieve ? 'Синхронизация...' : 'Синхронизировать в Sieve'}
+          </Button>
         </div>
         <div className="space-y-4">
           {rulesLoading && <p className="text-sm text-muted-foreground">Загрузка правил...</p>}
@@ -1222,7 +1251,8 @@ function FiltersTab() {
               ? await saveFilterRule({ ...ruleData, id: editingRule.id })
               : await saveFilterRule(ruleData);
             queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
-            
+            queryClient.invalidateQueries({ queryKey: ['sieve-scripts'] });
+
             if (rule.applyToExisting) {
               toast.success('Правило сохранено. Применение к существующим письмам запущено в фоне.');
               // Fire-and-forget: don't await so the UI is never blocked
@@ -1234,7 +1264,7 @@ function FiltersTab() {
                 // Errors are logged server-side; background job will retry via daemon
               });
             } else {
-              toast.success('Правило сохранено');
+              toast.success('Правило сохранено и синхронизировано в Sieve');
             }
           } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Ошибка сохранения правила');

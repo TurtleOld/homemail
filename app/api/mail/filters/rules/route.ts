@@ -6,6 +6,19 @@ import { join } from 'path';
 import type { AutoSortRule } from '@/lib/types';
 import { addJob } from '@/lib/filter-job-queue';
 
+function triggerSieveSync(request: NextRequest): void {
+  // Fire-and-forget: sync auto-sort rules to the Sieve script on the server.
+  // We build an absolute URL from the incoming request so this works in any
+  // environment (dev, prod, behind a proxy, etc.)
+  const syncUrl = new URL('/api/mail/filters/rules/sync-sieve', request.url).toString();
+  fetch(syncUrl, {
+    method: 'POST',
+    headers: { cookie: request.headers.get('cookie') || '' },
+  }).catch((err) => {
+    console.error('[filter-rules] Background Sieve sync failed:', err);
+  });
+}
+
 const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
 
 const autoSortRuleSchema = z.object({
@@ -65,6 +78,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Clone the request before body is consumed so we can re-read headers later
+  const clonedRequest = request.clone() as NextRequest;
   try {
     const session = await getSession();
 
@@ -123,6 +138,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Sync updated rules to Sieve script on the mail server (fire-and-forget)
+    triggerSieveSync(clonedRequest);
+
     return NextResponse.json(rule);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -159,6 +177,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     await saveRules(session.accountId, filtered);
+
+    // Sync updated rules to Sieve script on the mail server (fire-and-forget)
+    triggerSieveSync(request);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[filter-rules] Error deleting rule:', error);
