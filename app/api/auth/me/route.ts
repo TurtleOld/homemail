@@ -44,7 +44,7 @@ export async function GET() {
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
       }
       
-      return NextResponse.json({ error: 'Failed to get account', details: errorMessage }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to get account' }, { status: 500 });
     }
   } catch (error) {
     logger.error('Error in /api/auth/me:', error instanceof Error ? error.message : error);

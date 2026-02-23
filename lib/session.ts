@@ -26,7 +26,10 @@ export interface SessionData {
 }
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env.SESSION_SECRET || 'default-secret-key-change-in-production';
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error('SESSION_SECRET env var must be set and at least 32 characters long');
+  }
   return crypto.scryptSync(secret, 'salt', 32);
 }
 

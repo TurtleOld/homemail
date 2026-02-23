@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { validateCsrf } from '@/lib/csrf';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { AutoSortRule, MessageListItem, MessageDetail } from '@/lib/types';
@@ -56,6 +57,11 @@ async function loadRules(accountId: string): Promise<AutoSortRule[]> {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfValid = await validateCsrf(request);
+  if (!csrfValid) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const startTime = Date.now();
   const MAX_PROCESSING_TIME = 25000; // 25 seconds, leave 5s buffer for nginx 30s timeout
 
