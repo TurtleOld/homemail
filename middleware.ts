@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { buildPublicUrl } from '@/lib/public-url';
+import createMiddleware from 'next-intl/middleware';
+import { routing } from '@/i18n/routing';
+
+const intlMiddleware = createMiddleware(routing);
 
 function generateToken(): string {
   const bytes = new Uint8Array(32);
@@ -29,43 +33,76 @@ function ensureCsrfCookie(request: NextRequest, response: NextResponse): NextRes
   return response;
 }
 
+// Extract locale prefix from pathname (/ru, /en)
+function getLocaleFromPath(pathname: string): string {
+  const locales = routing.locales as readonly string[];
+  const segment = pathname.split('/')[1];
+  return locales.includes(segment) ? segment : routing.defaultLocale;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const response = NextResponse.next();
 
-  // Allow auth API routes without authentication
-  // OAuth callback is handled by /api/auth/oauth/callback (no separate client-side page)
+  // API routes: auth is handled separately (no locale prefix)
   if (pathname.startsWith('/api/auth/')) {
-    return response;
+    return NextResponse.next();
   }
 
-  if (pathname.startsWith('/api/mail/')) {
+  if (pathname.startsWith('/api/')) {
     const sessionCookie = request.cookies.get('mail_session');
     if (!sessionCookie) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    return NextResponse.next();
   }
 
-  if (pathname.startsWith('/mail')) {
+  // Determine locale for page routes
+  const locale = getLocaleFromPath(pathname);
+
+  // Routes under /[locale]/mail require auth
+  if (pathname.match(/^\/(ru|en)\/mail/)) {
     const sessionCookie = request.cookies.get('mail_session');
     if (!sessionCookie) {
-      const loginUrl = buildPublicUrl('/login', request);
+      const loginUrl = buildPublicUrl(`/${locale}/login`, request);
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
     }
-    return ensureCsrfCookie(request, response);
+    // Apply next-intl middleware then add CSRF cookie
+    const intlResponse = intlMiddleware(request);
+    return ensureCsrfCookie(request, intlResponse ?? NextResponse.next());
   }
 
-  if (pathname === '/login') {
+  // Routes under /[locale]/settings require auth
+  if (pathname.match(/^\/(ru|en)\/settings/)) {
+    const sessionCookie = request.cookies.get('mail_session');
+    if (!sessionCookie) {
+      const loginUrl = buildPublicUrl(`/${locale}/login`, request);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    const intlResponse = intlMiddleware(request);
+    return ensureCsrfCookie(request, intlResponse ?? NextResponse.next());
+  }
+
+  // Login page: redirect to mail if already authenticated
+  if (pathname.match(/^\/(ru|en)\/login$/)) {
     const sessionCookie = request.cookies.get('mail_session');
     if (sessionCookie) {
-      return NextResponse.redirect(buildPublicUrl('/mail', request));
+      return NextResponse.redirect(buildPublicUrl(`/${locale}/mail`, request));
     }
   }
 
-  return response;
+  // For all other page routes, run next-intl middleware (locale detection & routing)
+  return intlMiddleware(request);
 }
 
 export const config = {
-  matcher: ['/api/mail/:path*', '/api/auth/:path*', '/mail/:path*', '/login'],
+  matcher: [
+    // API routes
+    '/api/:path*',
+    // Locale-prefixed page routes (exclude static files and _next)
+    '/(ru|en)/:path*',
+    // Root path for locale redirect
+    '/',
+  ],
 };
