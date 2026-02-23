@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { groupMessagesByThread } from '@/lib/thread-utils';
 import { ThreadItem } from './thread-item';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 
 interface MessageListProps {
   messages: MessageListItem[];
@@ -65,6 +66,8 @@ export const MessageItem = memo(function MessageItem({
   density?: 'compact' | 'comfortable' | 'spacious';
 }) {
   const localeSettings = useLocaleSettings();
+  const t = useTranslations('messageList');
+  const tCommon = useTranslations('common');
   const { data: labels = [] } = useQuery({
     queryKey: ['labels'],
     queryFn: getLabels,
@@ -91,7 +94,7 @@ export const MessageItem = memo(function MessageItem({
       data-testid="message-item"
       draggable={!!onDragStart}
       role="article"
-      aria-label={`Письмо от ${message.from.name || message.from.email}: ${message.subject || 'без темы'}`}
+      aria-label={t('messageAriaLabel', { sender: message.from.name || message.from.email, subject: message.subject || tCommon('noSubject') })}
       aria-selected={isSelected}
       tabIndex={0}
       onDragStart={(e) => {
@@ -147,7 +150,7 @@ export const MessageItem = memo(function MessageItem({
         }}
         onClick={(e) => e.stopPropagation()}
         className="mt-1 max-md:mt-0.5 max-md:scale-110 max-md:min-w-[24px] max-md:min-h-[24px] touch-manipulation focus:ring-2 focus:ring-primary focus:ring-offset-2"
-        aria-label={`Выбрать письмо от ${message.from.name || message.from.email}`}
+        aria-label={t('selectMessage', { sender: message.from.name || message.from.email })}
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 max-md:gap-1">
@@ -163,8 +166,8 @@ export const MessageItem = memo(function MessageItem({
                 onToggleImportant(message.id, !message.flags.important);
               }}
               className="flex-shrink-0 p-0.5 hover:bg-muted rounded transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2"
-              title={message.flags.important ? 'Убрать важность' : 'Отметить как важное'}
-              aria-label={message.flags.important ? 'Убрать важность' : 'Отметить как важное'}
+              title={message.flags.important ? t('removeImportance') : t('markImportant')}
+              aria-label={message.flags.important ? t('removeImportance') : t('markImportant')}
             >
               <AlertCircle
                 className={cn(
@@ -190,7 +193,7 @@ export const MessageItem = memo(function MessageItem({
             </div>
             <div className={cn('mt-1 max-md:mt-0.5 flex items-center gap-2', textSizeClasses[density], 'max-md:text-xs')}>
               <span className={cn('truncate', message.flags.unread ? 'font-semibold' : 'text-muted-foreground')}>
-                {message.subject || '(без темы)'}
+                {message.subject || tCommon('noSubject')}
               </span>
               <span className={cn('text-muted-foreground flex-shrink-0', density === 'compact' ? 'text-[10px]' : 'text-xs', 'max-md:text-[10px]')}>{formatDate(message.date, localeSettings)}</span>
             </div>
@@ -250,12 +253,14 @@ export function MessageList({
   density = 'comfortable',
   groupBy = 'none',
 }: MessageListProps) {
+  const t = useTranslations('messageList');
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const messagesRef = useRef(messages);
   const onMessageClickRef = useRef(onMessageClick);
   const focusedIndexRef = useRef<number | null>(null);
 
+  const tList = useTranslations('messageList');
   const threads = conversationView ? groupMessagesByThread(messages) : null;
 
   useEffect(() => {
@@ -323,13 +328,13 @@ export function MessageList({
 
         let groupKey: string;
         if (date >= today) {
-          groupKey = 'Сегодня';
+          groupKey = tList('groupToday');
         } else if (date >= yesterday) {
-          groupKey = 'Вчера';
+          groupKey = tList('groupYesterday');
         } else if (date >= thisWeek) {
-          groupKey = 'На этой неделе';
+          groupKey = tList('groupThisWeek');
         } else {
-          const month = date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+          const month = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
           groupKey = month.charAt(0).toUpperCase() + month.slice(1);
         }
 
@@ -341,7 +346,7 @@ export function MessageList({
 
       return Array.from(dateMap.entries())
         .sort((a, b) => {
-          const order = ['Сегодня', 'Вчера', 'На этой неделе'];
+          const order = [tList('groupToday'), tList('groupYesterday'), tList('groupThisWeek')];
           const aIdx = order.indexOf(a[0]);
           const bIdx = order.indexOf(b[0]);
           if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
@@ -429,22 +434,22 @@ export function MessageList({
   }, []);
 
   return (
-    <div className="flex h-full w-full flex-col border-r bg-background max-md:border-r-0" role="region" aria-label="Список писем">
-      <div className="border-b bg-muted/50 p-2 max-md:p-1.5 sticky top-0 z-10" role="toolbar" aria-label="Действия со списком писем">
+    <div className="flex h-full w-full flex-col border-r bg-background max-md:border-r-0" role="region" aria-label={t('regionLabel')}>
+      <div className="border-b bg-muted/50 p-2 max-md:p-1.5 sticky top-0 z-10" role="toolbar" aria-label={t('toolbarLabel')}>
         <div className="flex items-center gap-2 max-md:gap-1">
           <input
             type="checkbox"
             checked={messages.length > 0 && messages.every((m) => selectedIds.has(m.id))}
             onChange={onSelectAll}
             className="ml-1 max-md:ml-0.5 max-md:scale-110 max-md:min-w-[24px] max-md:min-h-[24px] touch-manipulation focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            aria-label="Выбрать все письма"
+            aria-label={t('selectAll')}
             aria-controls="message-list"
           />
           <span className="text-sm max-md:text-xs text-muted-foreground" aria-live="polite" aria-atomic="true">
-            {selectedIds.size > 0 ? `Выбрано: ${selectedIds.size}` : `Всего: ${messages.length}`}
+            {selectedIds.size > 0 ? t('selectedCount', { count: selectedIds.size }) : t('totalCount', { count: messages.length })}
           </span>
           {isFetchingMore && (
-            <span className="ml-auto text-xs max-md:text-[10px] text-muted-foreground">Загрузка...</span>
+            <span className="ml-auto text-xs max-md:text-[10px] text-muted-foreground">{t('loadingMore')}</span>
           )}
         </div>
       </div>
@@ -466,7 +471,7 @@ export function MessageList({
           <div className="flex h-full items-center justify-center text-muted-foreground">
             <div className="text-center">
               <Mail className="mx-auto h-12 w-12 mb-4 opacity-50" />
-              <p>{isSearching ? 'Ничего не найдено' : 'Нет писем'}</p>
+              <p>{isSearching ? t('noResults') : t('empty')}</p>
             </div>
           </div>
         ) : conversationView && threads ? (
@@ -492,7 +497,7 @@ export function MessageList({
                   disabled={isFetchingMore}
                   className="text-sm text-primary hover:underline"
                 >
-                  {isFetchingMore ? 'Загрузка...' : 'Загрузить ещё'}
+                  {isFetchingMore ? t('loadingMore') : t('loadMore')}
                 </button>
               </div>
             )}

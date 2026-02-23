@@ -19,6 +19,7 @@ import {
 import { AttachmentPreview } from '@/components/attachment-preview';
 import { MessageTranslator } from '@/components/message-translator';
 import { DeliveryTracking } from '@/components/delivery-tracking';
+import { useTranslations } from 'next-intl';
 
 interface MessageViewerProps {
   message: MessageDetail | null;
@@ -74,6 +75,8 @@ export function MessageViewer({
   error,
 }: MessageViewerProps) {
   const localeSettings = useLocaleSettings();
+  const t = useTranslations('messageViewer');
+  const tCommon = useTranslations('common');
   const markedAsReadRef = useRef<Set<string>>(new Set());
   const [localAllowImages, setLocalAllowImages] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<{ id: string; filename: string; mime: string } | null>(null);
@@ -97,10 +100,10 @@ export function MessageViewer({
           return { ...old, labels: variables.labelIds };
         });
       }
-      toast.success('Метки обновлены');
+      toast.success(t('labelsUpdated'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка обновления меток');
+      toast.error(error.message || t('labelsUpdateError'));
     },
   });
 
@@ -305,8 +308,8 @@ export function MessageViewer({
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 mb-4 opacity-50 text-destructive" />
-          <p className="text-destructive font-medium mb-2">Ошибка загрузки письма</p>
-          <p className="text-sm">{error.message || 'Не удалось загрузить письмо'}</p>
+          <p className="text-destructive font-medium mb-2">{t('loadError')}</p>
+          <p className="text-sm">{error.message || t('loadErrorDesc')}</p>
         </div>
       </div>
     );
@@ -317,7 +320,7 @@ export function MessageViewer({
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
           <Mail className="mx-auto h-12 w-12 mb-4 opacity-50" />
-          <p>Выберите письмо для просмотра</p>
+          <p>{t('selectToView')}</p>
         </div>
       </div>
     );
@@ -369,27 +372,27 @@ export function MessageViewer({
   };
 
   return (
-    <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden max-md:border-l-0" role="region" aria-label="Просмотр письма">
+    <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden max-md:border-l-0" role="region" aria-label={t('viewerLabel')}>
       <div className="border-b bg-muted/50 p-4 max-md:p-2 transition-colors duration-200">
         <div className="mb-2 flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold max-md:text-base break-words">{message.subject || '(без темы)'}</h2>
+            <h2 className="text-lg font-semibold max-md:text-base break-words">{message.subject || tCommon('noSubject')}</h2>
             <div className="mt-1 text-sm text-muted-foreground max-md:text-xs">
               <div className="break-words">
-                <strong>От:</strong> {message.from?.name ? `${message.from.name} <${message.from.email || ''}>` : message.from?.email || 'Неизвестно'}
+                <strong>{t('from')}</strong> {message.from?.name ? `${message.from.name} <${message.from.email || ''}>` : message.from?.email || tCommon('unknown')}
               </div>
               {message.to && message.to.length > 0 && (
                 <div className="break-words">
-                  <strong>Кому:</strong> {message.to.map((t) => (t?.name ? `${t.name} <${t.email || ''}>` : t?.email || '')).join(', ')}
+                  <strong>{t('to')}</strong> {message.to.map((r) => (r?.name ? `${r.name} <${r.email || ''}>` : r?.email || '')).join(', ')}
                 </div>
               )}
               {message.cc && message.cc.length > 0 && (
                 <div className="break-words">
-                  <strong>Копия:</strong> {message.cc.map((c) => (c?.name ? `${c.name} <${c.email || ''}>` : c?.email || '')).join(', ')}
+                  <strong>{t('cc')}</strong> {message.cc.map((c) => (c?.name ? `${c.name} <${c.email || ''}>` : c?.email || '')).join(', ')}
                 </div>
               )}
               <div>
-                <strong>Дата:</strong> {message.date ? formatDate(message.date, localeSettings) : 'Неизвестно'}
+                <strong>{t('date')}</strong> {message.date ? formatDate(message.date, localeSettings) : tCommon('unknown')}
               </div>
             </div>
             {messageLabelObjects.length > 0 && (
@@ -411,7 +414,7 @@ export function MessageViewer({
                         handleRemoveLabel(label.id);
                       }}
                       className="hover:opacity-70"
-                      aria-label={`Удалить метку ${label.name}`}
+                      aria-label={t('removeLabel', { name: label.name })}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -421,12 +424,12 @@ export function MessageViewer({
             )}
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handleStar} 
-              title={message.flags?.starred ? 'Убрать из избранного' : 'Добавить в избранное'}
-              aria-label={message.flags?.starred ? 'Убрать из избранного' : 'Добавить в избранное'}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleStar}
+              title={message.flags?.starred ? t('removeFromFavorites') : t('addToFavorites')}
+              aria-label={message.flags?.starred ? t('removeFromFavorites') : t('addToFavorites')}
             >
               {message.flags?.starred ? <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" /> : <StarOff className="h-4 w-4" />}
             </Button>
@@ -434,20 +437,20 @@ export function MessageViewer({
               variant="ghost"
               size="icon"
               onClick={handleToggleImportant}
-              title={message.flags?.important ? 'Убрать важность' : 'Отметить как важное'}
-              aria-label={message.flags?.important ? 'Убрать важность' : 'Отметить как важное'}
+              title={message.flags?.important ? t('removeImportance') : t('markImportant')}
+              aria-label={message.flags?.important ? t('removeImportance') : t('markImportant')}
             >
               <AlertCircle
                 className={`h-4 w-4 ${message.flags?.important ? 'fill-orange-500 text-orange-500' : ''}`}
               />
             </Button>
             {message.flags && message.flags.unread && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={handleMarkRead} 
-                title="Отметить как прочитанное"
-                aria-label="Отметить как прочитанное"
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleMarkRead}
+                title={t('markRead')}
+                aria-label={t('markRead')}
               >
                 <Mail className="h-4 w-4" />
               </Button>
@@ -455,55 +458,55 @@ export function MessageViewer({
           </div>
         </div>
         <div className="flex gap-2 max-md:flex-wrap max-md:gap-2 max-md:justify-center">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onReply} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onReply}
             className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label="Ответить"
+            aria-label={t('reply')}
           >
             <Reply className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">Ответить</span>
+            <span className="max-md:hidden">{t('reply')}</span>
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onReplyAll} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onReplyAll}
             className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label="Ответить всем"
+            aria-label={t('replyAll')}
           >
             <ReplyAll className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">Ответить всем</span>
+            <span className="max-md:hidden">{t('replyAll')}</span>
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onForward} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onForward}
             className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label="Переслать"
+            aria-label={t('forward')}
           >
             <Forward className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">Переслать</span>
+            <span className="max-md:hidden">{t('forward')}</span>
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onDelete} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDelete}
             className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label="Удалить"
+            aria-label={tCommon('delete')}
           >
             <Trash2 className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">Удалить</span>
+            <span className="max-md:hidden">{tCommon('delete')}</span>
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setShowTranslator(!showTranslator)} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowTranslator(!showTranslator)}
             className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label="Перевести"
+            aria-label={t('translate')}
           >
             <Languages className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">Перевести</span>
+            <span className="max-md:hidden">{t('translate')}</span>
           </Button>
           {message && message.body && message.body.text && message.body.text.includes('-----BEGIN PGP MESSAGE-----') && (
             <Button 
@@ -520,23 +523,23 @@ export function MessageViewer({
                   });
                   if (res.ok) {
                     const data = await res.json();
-                    toast.success('Письмо расшифровано');
+                    toast.success(t('decrypted'));
                     if (message.body) {
                       message.body.text = data.decryptedMessage;
                       message.body.html = data.decryptedMessage.replace(/\n/g, '<br>');
                     }
                   } else {
-                    toast.error('Не удалось расшифровать. Проверьте наличие приватного ключа.');
+                    toast.error(t('decryptFailed'));
                   }
                 } catch (error) {
-                  toast.error('Ошибка расшифровки');
+                  toast.error(t('decryptError'));
                 }
               }}
               className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-              aria-label="Расшифровать"
+              aria-label={t('decrypt')}
             >
               <Lock className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-              <span className="max-md:hidden">Расшифровать</span>
+              <span className="max-md:hidden">{t('decrypt')}</span>
             </Button>
           )}
           <DropdownMenu>
@@ -545,16 +548,16 @@ export function MessageViewer({
                 variant="outline"
                 size="sm"
                 className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-                aria-label="Управление метками"
+                aria-label={t('labelsAria')}
               >
                 <Tag className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-                <span className="max-md:hidden">Метки</span>
+                <span className="max-md:hidden">{t('labels')}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               {labels.length === 0 ? (
                 <div className="p-2 text-sm text-muted-foreground">
-                  Нет меток. Создайте метки в настройках.
+                  {t('noLabels')}
                 </div>
               ) : (
                 labels.map((label) => {
@@ -585,10 +588,10 @@ export function MessageViewer({
                 variant="outline"
                 size="sm"
                 className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-                aria-label="Экспорт письма"
+                aria-label={t('exportAria')}
               >
                 <FileDown className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-                <span className="max-md:hidden">Экспорт</span>
+                <span className="max-md:hidden">{t('export')}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -601,7 +604,7 @@ export function MessageViewer({
                 className="cursor-pointer"
               >
                 <Download className="mr-2 h-4 w-4" />
-                Экспорт в EML
+                {t('exportEml')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
@@ -612,7 +615,7 @@ export function MessageViewer({
                 className="cursor-pointer"
               >
                 <FileDown className="mr-2 h-4 w-4" />
-                Экспорт в PDF
+                {t('exportPdf')}
               </DropdownMenuItem>
             </DropdownMenuContent>
               </DropdownMenu>
@@ -694,17 +697,17 @@ export function MessageViewer({
               }, 250);
             }}
             className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label="Печать письма"
+            aria-label={t('printAria')}
           >
             <Printer className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">Печать</span>
+            <span className="max-md:hidden">{t('print')}</span>
           </Button>
         </div>
       </div>
       <div className="flex-1 overflow-auto flex flex-col max-md:pb-4">
         {message.attachments && message.attachments.length > 0 && (
           <div className="border-b bg-muted/30 p-4 max-md:p-2 flex-shrink-0">
-            <h3 className="mb-2 text-sm font-semibold max-md:text-xs">Вложения ({message.attachments.length}):</h3>
+            <h3 className="mb-2 text-sm font-semibold max-md:text-xs">{t('attachments', { count: message.attachments.length })}</h3>
             <div className="space-y-2">
               {message.attachments.map((att) => (
                 <div key={att.id} className="flex items-center justify-between rounded border bg-background p-2 max-md:p-1.5">
@@ -720,7 +723,7 @@ export function MessageViewer({
                         variant="ghost"
                         size="sm"
                         onClick={() => setPreviewAttachment({ id: att.id, filename: att.filename, mime: att.mime })}
-                        title="Предпросмотр"
+                        title={t('preview')}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -734,7 +737,7 @@ export function MessageViewer({
                           const response = await fetch(url);
                           if (!response.ok) {
                             const error = await response.json().catch(() => ({ error: 'Failed to download' }));
-                            toast.error(error.error || 'Ошибка скачивания');
+                            toast.error(error.error || t('downloadError'));
                             return;
                           }
                           const blob = await response.blob();
@@ -748,10 +751,10 @@ export function MessageViewer({
                           window.URL.revokeObjectURL(downloadUrl);
                         } catch (error) {
                           console.error('Download error:', error);
-                          toast.error('Ошибка скачивания');
+                          toast.error(t('downloadError'));
                         }
                       }}
-                      title="Скачать"
+                      title={t('download')}
                     >
                       <Download className="h-4 w-4" />
                     </Button>
@@ -769,7 +772,7 @@ export function MessageViewer({
               onClick={() => setLocalAllowImages(true)}
               className="w-full"
             >
-              Изображения по умолчанию не отображаются. Нажмите здесь, чтобы их загрузить
+              {t('showImages')}
             </Button>
           </div>
         )}
@@ -782,7 +785,7 @@ export function MessageViewer({
           />
         ) : (
           <div className="flex-1 w-full min-h-[300px] flex items-center justify-center text-muted-foreground">
-            <p>Тело письма отсутствует</p>
+            <p>{t('noBody')}</p>
           </div>
         )}
       </div>

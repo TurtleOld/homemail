@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 
 function removeSignatureFromHtml(html: string, signatures: Signature[]): string {
   if (signatures.length === 0) return html;
@@ -78,6 +79,8 @@ interface ComposeProps {
 }
 
 export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forwardFrom, signatures = [] }: ComposeProps) {
+  const t = useTranslations('compose');
+  const tCommon = useTranslations('common');
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
@@ -270,17 +273,17 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         setIsDirty(false);
       } else {
         const errorData = await res.json().catch(() => ({}));
-        const errorMessage = errorData.message || errorData.error || 'Не удалось сохранить черновик';
+        const errorMessage = errorData.message || errorData.error || t('draftSaveError');
         console.error('Failed to save draft:', errorMessage, errorData);
-        toast.error('Ошибка сохранения черновика', {
+        toast.error(t('draftSaveError'), {
           description: errorMessage,
           duration: 5000,
         });
       }
     } catch (error) {
       console.error('Failed to save draft:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Не удалось сохранить черновик';
-      toast.error('Ошибка сохранения черновика', {
+      const errorMessage = error instanceof Error ? error.message : t('draftSaveError');
+      toast.error(t('draftSaveError'), {
         description: errorMessage,
         duration: 5000,
       });
@@ -306,13 +309,13 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
     const toList = parseEmailList(to);
     if (toList.length === 0) {
-      toast.error('Укажите получателя');
+      toast.error(t('noRecipient'));
       return;
     }
 
     for (const email of toList) {
       if (!validateEmail(email)) {
-        toast.error(`Неверный email: ${email}`);
+        toast.error(t('invalidEmail', { email }));
         return;
       }
     }
@@ -355,15 +358,10 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             let description = '';
             
             if (missingRecipients.length > 0) {
-              description += `Отсутствуют ключи для: ${missingRecipients.join(', ')}\n\n`;
+              description = t('missingKeys', { recipients: missingRecipients.join(', ') });
             }
-            
-            description += 'Для шифрования необходимо:\n';
-            description += '1. Получить публичный PGP ключ от получателя\n';
-            description += '2. Импортировать его в Настройки → PGP/GPG\n';
-            description += '3. Убедиться, что email ключа совпадает с адресом получателя';
-            
-            toast.error('Не удалось зашифровать сообщение', {
+
+            toast.error(t('encryptFailed'), {
               description: description,
               duration: 12000,
             });
@@ -372,7 +370,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           }
         } catch (error) {
           console.error('Encryption error:', error);
-          toast.error('Ошибка шифрования. Проверьте подключение к серверу.');
+          toast.error(t('encryptError'));
           setSending(false);
           return;
         }
@@ -405,7 +403,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             sendAt: sendAt.toISOString(),
           };
         } else {
-          toast.error('Дата отправки должна быть в будущем');
+          toast.error(t('pasteDateError'));
           setSending(false);
           return;
         }
@@ -429,7 +427,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
       const responseData = await res.json();
       if (responseData.scheduled) {
-        toast.success(`Письмо запланировано на ${new Date(responseData.sendAt).toLocaleString('ru-RU')}`);
+        toast.success(t('scheduledSuccess', { date: new Date(responseData.sendAt).toLocaleString() }));
         onClose();
         setSending(false);
         return;
@@ -463,11 +461,11 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         }
       }
 
-      toast.success('Письмо отправлено');
+      toast.success(t('sent'));
       onClose();
     } catch (error) {
       console.error('Send error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Ошибка отправки';
+      const errorMessage = error instanceof Error ? error.message : t('sendError');
       toast.error(errorMessage);
     } finally {
       setSending(false);
@@ -496,7 +494,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       const file = files[i];
       
       if (file.size > MAX_FILE_SIZE) {
-        toast.error(`Файл "${file.name}" слишком большой. Максимальный размер: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB`);
+        toast.error(t('fileTooLarge', { filename: file.name, size: (MAX_FILE_SIZE / 1024 / 1024).toFixed(0) }));
         continue;
       }
 
@@ -510,7 +508,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         });
       } catch (error) {
         console.error('Error reading file:', error);
-        toast.error(`Ошибка чтения файла "${file.name}"`);
+        toast.error(t('fileReadError', { filename: file.name }));
       }
     }
 
@@ -578,14 +576,14 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] max-md:max-w-full max-md:max-h-full max-md:h-full max-md:rounded-none max-md:m-0 flex flex-col">
         <DialogHeader>
-          <DialogTitle className="max-md:text-base">{replyTo ? 'Ответить' : forwardFrom ? 'Переслать' : 'Новое сообщение'}</DialogTitle>
+          <DialogTitle className="max-md:text-base">{replyTo ? t('replyTitle') : forwardFrom ? t('forwardTitle') : t('newMessage')}</DialogTitle>
         </DialogHeader>
         <div className="flex-1 overflow-auto space-y-4 max-md:space-y-2">
           <div>
             <ContactAutocomplete
               value={to}
               onChange={setTo}
-              placeholder="Кому"
+              placeholder={t('toPlaceholder')}
               className="mb-2"
               multiple
             />
@@ -593,7 +591,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
               <ContactAutocomplete
                 value={cc}
                 onChange={setCc}
-                placeholder="Копия"
+                placeholder={t('ccPlaceholder')}
                 className="mb-2"
                 multiple
               />
@@ -602,7 +600,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
               <ContactAutocomplete
                 value={bcc}
                 onChange={setBcc}
-                placeholder="Скрытая копия"
+                placeholder={t('bccPlaceholder')}
                 className="mb-2"
                 multiple
               />
@@ -613,36 +611,36 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
                 onClick={() => setShowCc(!showCc)}
                 className="text-primary hover:underline"
               >
-                {showCc ? 'Скрыть' : 'Копия'}
+                {showCc ? t('hide') : t('cc')}
               </button>
               <button
                 type="button"
                 onClick={() => setShowBcc(!showBcc)}
                 className="text-primary hover:underline"
               >
-                {showBcc ? 'Скрыть' : 'Скрытая копия'}
+                {showBcc ? t('hide') : t('bcc')}
               </button>
             </div>
           </div>
           <Input
-            placeholder="Тема"
+            placeholder={t('subjectPlaceholder')}
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             className="max-md:text-sm"
           />
           {signatures.length > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Подпись:</span>
+              <span className="text-sm text-muted-foreground">{t('signatureLabel')}</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="max-md:text-xs">
-                    {selectedSignatureId ? signatures.find(s => s.id === selectedSignatureId)?.name || 'Подпись с телефоном' : 'Без подписи'}
+                    {selectedSignatureId ? signatures.find(s => s.id === selectedSignatureId)?.name || t('noSignature') : t('noSignature')}
                     <ChevronDown className="ml-2 h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   <DropdownMenuItem onClick={() => setSelectedSignatureId(null)}>
-                    Без подписи
+                    {t('noSignature')}
                   </DropdownMenuItem>
                   {signatures.map((sig) => (
                     <DropdownMenuItem
@@ -653,7 +651,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
                       <div className="flex items-center gap-2">
                         <span>{sig.name}</span>
                         {sig.isDefault && (
-                          <span className="text-xs text-muted-foreground">(по умолчанию)</span>
+                          <span className="text-xs text-muted-foreground">{t('defaultBadge')}</span>
                         )}
                       </div>
                     </DropdownMenuItem>
@@ -664,7 +662,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           )}
           {attachments.length > 0 && (
             <div className="border rounded-md p-2 max-md:p-1.5 bg-muted/30">
-              <div className="text-sm font-medium mb-2 max-md:text-xs">Вложения ({attachments.length}):</div>
+              <div className="text-sm font-medium mb-2 max-md:text-xs">{t('attachments', { count: attachments.length })}</div>
               <div className="space-y-1">
                 {attachments.map((att) => (
                   <div
@@ -685,7 +683,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
                       size="sm"
                       onClick={() => removeAttachment(att.id)}
                       className="h-7 w-7 max-md:h-6 max-md:w-6 p-0 flex-shrink-0"
-                      aria-label={`Удалить вложение ${att.file.name}`}
+                      aria-label={t('removeAttachment', { filename: att.file.name })}
                     >
                       <X className="h-4 w-4 max-md:h-3 max-md:w-3" />
                     </Button>
@@ -717,10 +715,10 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             >
               <Paperclip className="h-6 w-6 max-md:h-5 max-md:w-5 text-muted-foreground mb-2" />
               <span className="text-sm text-muted-foreground max-md:text-xs text-center">
-                Перетащите файл сюда или нажмите для выбора
+                {t('dropzone')}
               </span>
               <span className="text-xs text-muted-foreground/70 max-md:text-[10px] mt-1">
-                Максимальный размер файла: {(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB
+                {t('maxFileSize', { size: (MAX_FILE_SIZE / 1024 / 1024).toFixed(0) })}
               </span>
             </label>
           </div>
@@ -804,13 +802,13 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             />
             <label htmlFor="scheduledSend" className="text-sm font-medium flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Запланировать отправку
+              {t('scheduleSend')}
             </label>
           </div>
           {scheduledSend && (
             <div className="grid grid-cols-2 gap-3 pl-6">
               <div className="space-y-1">
-                <label htmlFor="scheduledDate" className="text-xs text-muted-foreground">Дата</label>
+                <label htmlFor="scheduledDate" className="text-xs text-muted-foreground">{t('dateLabel')}</label>
                 <Input
                   id="scheduledDate"
                   type="date"
@@ -820,7 +818,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
                 />
               </div>
               <div className="space-y-1">
-                <label htmlFor="scheduledTime" className="text-xs text-muted-foreground">Время</label>
+                <label htmlFor="scheduledTime" className="text-xs text-muted-foreground">{t('timeLabel')}</label>
                 <Input
                   id="scheduledTime"
                   type="time"
@@ -840,7 +838,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             />
             <label htmlFor="requestReadReceipt" className="text-sm font-medium flex items-center gap-2">
               <Mail className="h-4 w-4" />
-              Запросить уведомление о прочтении
+              {t('readReceipt')}
             </label>
           </div>
           <div className="flex items-center gap-2">
@@ -853,16 +851,16 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             />
             <label htmlFor="encryptMessage" className="text-sm font-medium flex items-center gap-2">
               <Lock className="h-4 w-4" />
-              Зашифровать письмо (PGP)
+              {t('encryptPgp')}
             </label>
           </div>
         </div>
         <DialogFooter className="max-md:flex-col max-md:gap-2">
           <Button variant="outline" onClick={handleClose} className="max-md:w-full">
-            Отмена
+            {tCommon('cancel')}
           </Button>
           <Button onClick={handleSend} disabled={sending || saving} className="max-md:w-full">
-            {sending ? 'Отправка...' : saving ? 'Сохранение...' : scheduledSend ? 'Запланировать отправку' : 'Отправить'}
+            {sending ? t('sending') : saving ? tCommon('saving') : scheduledSend ? t('scheduledSend') : t('send')}
           </Button>
         </DialogFooter>
       </DialogContent>

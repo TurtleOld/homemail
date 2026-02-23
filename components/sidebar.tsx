@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SearchBar } from './search-bar';
+import { useTranslations } from 'next-intl';
 
 interface SidebarProps {
   folders: Folder[];
@@ -73,6 +74,7 @@ export function Sidebar({
   onRefreshFolders,
 }: SidebarProps) {
   const router = useRouter();
+  const t = useTranslations('sidebar');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -120,11 +122,11 @@ export function Sidebar({
       queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['messages'] });
       queryClient.invalidateQueries({ queryKey: ['folders'] });
-      toast.success('Аккаунт переключен');
+      toast.success(t('accountSwitched'));
       router.refresh();
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка переключения аккаунта');
+      toast.error(error.message || t('accountSwitchError'));
     },
   });
 
@@ -141,10 +143,10 @@ export function Sidebar({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
-      toast.success('Аккаунт удален');
+      toast.success(t('accountDeleted'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка удаления аккаунта');
+      toast.error(error.message || t('accountDeleteError'));
     },
   });
 
@@ -156,7 +158,7 @@ export function Sidebar({
   };
 
   const handleDeleteAccount = (accountId: string, accountEmail: string) => {
-    if (confirm(`Вы уверены, что хотите удалить аккаунт ${accountEmail}?`)) {
+    if (confirm(t('deleteAccountConfirm', { email: accountEmail }))) {
       deleteAccountMutation.mutate(accountId);
     }
   };
@@ -181,9 +183,9 @@ export function Sidebar({
   };
 
   const getStatusText = (status: ServiceStatus) => {
-    if (status === 'up') return 'доступен';
-    if (status === 'down') return 'недоступен';
-    return 'н/д';
+    if (status === 'up') return t('statusUp');
+    if (status === 'down') return t('statusDown');
+    return t('statusUnknown');
   };
 
   const handleLogout = async () => {
@@ -195,6 +197,7 @@ export function Sidebar({
   const handleSettings = () => {
     router.push('/settings');
   };
+
 
   const organizedFolders = useMemo(() => {
     const folderMap = new Map<string, Folder & { children: Folder[] }>();
@@ -290,7 +293,7 @@ export function Sidebar({
     return (
       <div className="flex h-full w-16 flex-col border-r bg-muted/30">
         <div className="border-b p-2">
-          <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(false)} title="Раскрыть меню">
+          <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(false)} title={t('openMenu')}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -322,7 +325,7 @@ export function Sidebar({
           </nav>
         </div>
         <div className="border-t p-2">
-          <Button variant="ghost" size="icon" className="w-full" onClick={handleSettings} title="Настройки">
+          <Button variant="ghost" size="icon" className="w-full" onClick={handleSettings} title={t('settingsLabel')}>
             <Settings className="h-4 w-4" />
           </Button>
         </div>
@@ -337,13 +340,13 @@ export function Sidebar({
     `}>
       {isMobile && (
         <div className="border-b p-3 flex items-center justify-between">
-          <h1 className="text-lg font-bold">Меню</h1>
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <h1 className="text-lg font-bold">{t('menuHeading')}</h1>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
             className="min-w-[44px] min-h-[44px] touch-manipulation"
-            aria-label="Закрыть меню"
+            aria-label={t('closeMenuAria')}
           >
             <X className="h-6 w-6" />
           </Button>
@@ -354,10 +357,10 @@ export function Sidebar({
           <div className="min-w-0">
             {!isMobile && (
               <div className="flex items-center gap-2">
-                <img src="/icons/mail-icon.png" alt="Почта" className="h-5 w-5 flex-shrink-0" />
-                <h1 className="text-lg font-bold">Почта</h1>
+                <img src="/icons/mail-icon.png" alt={t('appHeading')} className="h-5 w-5 flex-shrink-0" />
+                <h1 className="text-lg font-bold">{t('appHeading')}</h1>
                 {isStatusLoading && (
-                  <span className="text-xs text-muted-foreground">Статус...</span>
+                  <span className="text-xs text-muted-foreground">{t('statusLoading')}</span>
                 )}
               </div>
             )}
@@ -375,31 +378,31 @@ export function Sidebar({
             )}
           </div>
           {!isMobile && (
-            <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(true)} title="Скрыть меню">
+            <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(true)} title={t('closeMenu')}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
           )}
         </div>
-        <Button 
-          className="w-full max-md:min-h-[44px] touch-manipulation" 
+        <Button
+          className="w-full max-md:min-h-[44px] touch-manipulation"
           onClick={onCompose}
-          aria-label="Написать новое письмо"
+          aria-label={t('compose')}
         >
           <Plus className="mr-2 h-4 w-4" />
-          Написать
+          {t('compose')}
         </Button>
         <div className="mt-3">
           <SearchBar
             value={searchQuery}
             onChange={onSearchChange}
             onFilterChange={onFilterChange}
-            placeholder="Поиск..."
+            placeholder={t('searchPlaceholder')}
           />
         </div>
       </div>
       <div className="flex-1 overflow-auto">
         <div className="flex items-center justify-between px-3 py-2 border-b">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Папки</span>
+          <span className="text-xs font-semibold text-muted-foreground uppercase">{t('foldersSection')}</span>
           {onRefreshFolders && (
             <Button
               variant="ghost"
@@ -409,15 +412,15 @@ export function Sidebar({
                 setIsRefreshing(true);
                 try {
                   await onRefreshFolders();
-                  toast.success('Папки обновлены');
+                  toast.success(t('foldersRefreshed'));
                 } catch (error) {
-                  toast.error('Ошибка обновления');
+                  toast.error(t('refreshError'));
                 } finally {
                   setTimeout(() => setIsRefreshing(false), 500);
                 }
               }}
               disabled={isRefreshing}
-              title="Обновить папки"
+              title={t('refreshFolders')}
             >
               <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
@@ -430,21 +433,21 @@ export function Sidebar({
       <div className="border-t p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="w-full justify-start max-md:min-h-[44px] touch-manipulation"
-              aria-label="Настройки"
+              aria-label={t('settingsLabel')}
             >
               <Settings className="mr-2 h-4 w-4" />
-              Настройки
+              {t('settingsLabel')}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel>{account?.email || 'Аккаунт'}</DropdownMenuLabel>
+            <DropdownMenuLabel>{account?.email || t('defaultAccount')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {accountsData && accountsData.accounts.length > 0 && (
               <>
-                <DropdownMenuLabel className="text-xs text-muted-foreground">Аккаунты</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">{t('accountsSection')}</DropdownMenuLabel>
                 {accountsData.accounts.map((acc) => (
                   <DropdownMenuItem
                     key={acc.id}
@@ -465,12 +468,12 @@ export function Sidebar({
             )}
             <DropdownMenuItem onClick={handleAddAccount}>
               <UserPlus className="mr-2 h-4 w-4" />
-              Добавить аккаунт
+              {t('addAccount')}
             </DropdownMenuItem>
             {accountsData && accountsData.accounts.length > 1 && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-xs text-muted-foreground">Управление</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">{t('manageSection')}</DropdownMenuLabel>
                 {accountsData.accounts
                   .filter((acc) => acc.id !== account?.id)
                   .map((acc) => (
@@ -480,7 +483,7 @@ export function Sidebar({
                       className="text-destructive focus:text-destructive"
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Удалить {acc.email}
+                      {t('deleteAccount', { email: acc.email })}
                     </DropdownMenuItem>
                   ))}
               </>
@@ -488,11 +491,11 @@ export function Sidebar({
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSettings}>
               <Settings className="mr-2 h-4 w-4" />
-              Настройки
+              {t('settingsLabel')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
-              Выйти
+              {t('logout')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

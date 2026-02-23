@@ -28,6 +28,7 @@ import {
   Filter,
   X,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface QuickFilter {
   type: QuickFilterType;
@@ -35,29 +36,6 @@ interface QuickFilter {
   icon: React.ReactNode;
   category: 'status' | 'attachments' | 'actions' | 'other';
 }
-
-const QUICK_FILTERS: QuickFilter[] = [
-  { type: 'unread', label: 'Непрочитанные', icon: <Mail className="h-4 w-4" />, category: 'status' },
-  { type: 'read', label: 'Прочитанные', icon: <MailOpen className="h-4 w-4" />, category: 'status' },
-  { type: 'hasAttachments', label: 'С вложениями', icon: <Paperclip className="h-4 w-4" />, category: 'attachments' },
-  { type: 'attachmentsImages', label: 'Только изображения', icon: <Image className="h-4 w-4" />, category: 'attachments' },
-  { type: 'attachmentsDocuments', label: 'Только документы', icon: <FileText className="h-4 w-4" />, category: 'attachments' },
-  { type: 'attachmentsArchives', label: 'Только архивы', icon: <Archive className="h-4 w-4" />, category: 'attachments' },
-  { type: 'starred', label: 'Помеченные', icon: <Star className="h-4 w-4" />, category: 'actions' },
-  { type: 'important', label: 'Важные', icon: <AlertCircle className="h-4 w-4" />, category: 'actions' },
-  { type: 'drafts', label: 'Черновики', icon: <FileText className="h-4 w-4" />, category: 'other' },
-  { type: 'sent', label: 'Отправленные', icon: <Send className="h-4 w-4" />, category: 'other' },
-  { type: 'incoming', label: 'Входящие', icon: <Inbox className="h-4 w-4" />, category: 'other' },
-  { type: 'bounce', label: 'Ошибки доставки', icon: <Download className="h-4 w-4" />, category: 'other' },
-  { type: 'bulk', label: 'Рассылки', icon: <List className="h-4 w-4" />, category: 'other' },
-];
-
-const CATEGORIES = {
-  status: 'Статус',
-  attachments: 'Вложения',
-  actions: 'Действия',
-  other: 'Прочее',
-};
 
 interface QuickFiltersProps {
   activeFilter?: QuickFilterType;
@@ -67,6 +45,31 @@ interface QuickFiltersProps {
 
 export function QuickFilters({ activeFilter, onFilterChange, className }: QuickFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const t = useTranslations('quickFilters');
+
+  const QUICK_FILTERS: QuickFilter[] = [
+    { type: 'unread', label: t('unread'), icon: <Mail className="h-4 w-4" />, category: 'status' },
+    { type: 'read', label: t('read'), icon: <MailOpen className="h-4 w-4" />, category: 'status' },
+    { type: 'hasAttachments', label: t('withAttachments'), icon: <Paperclip className="h-4 w-4" />, category: 'attachments' },
+    { type: 'attachmentsImages', label: t('imagesOnly'), icon: <Image className="h-4 w-4" />, category: 'attachments' },
+    { type: 'attachmentsDocuments', label: t('docsOnly'), icon: <FileText className="h-4 w-4" />, category: 'attachments' },
+    { type: 'attachmentsArchives', label: t('archivesOnly'), icon: <Archive className="h-4 w-4" />, category: 'attachments' },
+    { type: 'starred', label: t('starred'), icon: <Star className="h-4 w-4" />, category: 'actions' },
+    { type: 'important', label: t('important'), icon: <AlertCircle className="h-4 w-4" />, category: 'actions' },
+    { type: 'drafts', label: t('drafts'), icon: <FileText className="h-4 w-4" />, category: 'other' },
+    { type: 'sent', label: t('sent'), icon: <Send className="h-4 w-4" />, category: 'other' },
+    { type: 'incoming', label: t('inbox'), icon: <Inbox className="h-4 w-4" />, category: 'other' },
+    { type: 'bounce', label: t('deliveryErrors'), icon: <Download className="h-4 w-4" />, category: 'other' },
+    { type: 'bulk', label: t('newsletters'), icon: <List className="h-4 w-4" />, category: 'other' },
+  ];
+
+  const CATEGORIES = {
+    status: t('categoryStatus'),
+    attachments: t('categoryAttachments'),
+    actions: t('categoryActions'),
+    other: t('categoryOther'),
+  };
+
   const activeFilterData = QUICK_FILTERS.find((f) => f.type === activeFilter);
 
   const filtersByCategory = QUICK_FILTERS.reduce((acc, filter) => {
@@ -83,7 +86,7 @@ export function QuickFilters({ activeFilter, onFilterChange, className }: QuickF
         <DropdownMenuTrigger asChild>
           <Button variant={activeFilter ? 'default' : 'outline'} size="sm" className="flex items-center gap-2 max-md:text-xs max-md:px-2 max-md:h-8">
             <Filter className="h-4 w-4 max-md:h-3 max-md:w-3" />
-            <span className="max-md:text-xs">{activeFilterData ? activeFilterData.label : 'Фильтры'}</span>
+            <span className="max-md:text-xs">{activeFilterData ? activeFilterData.label : t('button')}</span>
             {activeFilter && (
               <X
                 className="h-3 w-3 ml-1"
