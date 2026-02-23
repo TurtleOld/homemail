@@ -43,9 +43,7 @@ export async function GET(request: NextRequest) {
           } else {
             messageFilter = { filterGroup: parsed as FilterGroup };
           }
-          console.log('[messages] Parsed messageFilter:', JSON.stringify(messageFilter, null, 2));
         } catch (error) {
-          console.warn('[messages] Failed to parse messageFilter as JSON, trying as query:', error);
           const parsed = FilterQueryParser.parse(params.messageFilter);
           messageFilter = {
             filterGroup: parsed.filterGroup,
@@ -60,15 +58,6 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      console.error('[messages] API called:', {
-        accountId: session.accountId,
-        folderId: params.folderId,
-        messageFilter: messageFilter ? JSON.stringify(messageFilter) : undefined,
-        q: params.q,
-        filter: params.filter,
-        cursor: params.cursor,
-        limit: params.limit,
-      });
 
       const provider = process.env.MAIL_PROVIDER === 'stalwart'
         ? getMailProviderForAccount(session.accountId)
