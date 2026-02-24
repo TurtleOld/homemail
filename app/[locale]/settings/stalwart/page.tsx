@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 
 export default function StalwartSettingsPage() {
   const router = useRouter();
+  const locale = useLocale();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,7 +138,7 @@ export default function StalwartSettingsPage() {
         <div className="text-center">
           <p className="text-destructive mb-4">{error}</p>
           <button
-            onClick={() => router.push('/mail')}
+            onClick={() => router.push(`/${locale}/mail`)}
             className="text-primary hover:underline"
           >
             Вернуться в почту
