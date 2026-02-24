@@ -23,6 +23,9 @@ export interface OAuthState {
 // In-memory cache for fast access
 let statesCache: Map<string, OAuthState> | null = null;
 
+// Track states currently being consumed to prevent race conditions from duplicate requests
+const consumingStates = new Set<string>();
+
 async function ensureDataDir(): Promise<void> {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
@@ -105,29 +108,40 @@ export async function storeOAuthState(state: string, codeVerifier: string): Prom
 
 /**
  * Retrieve and remove OAuth state (one-time use)
+ * Protected against race conditions from duplicate requests (e.g. nginx doubling)
  */
 export async function consumeOAuthState(state: string): Promise<string | null> {
-  const states = await loadStates();
-  const data = states.get(state);
-  
-  if (!data) {
+  // If another request is already consuming this state, reject immediately
+  if (consumingStates.has(state)) {
     return null;
   }
 
-  // Check expiration
-  if (data.expiresAt <= Date.now()) {
+  consumingStates.add(state);
+  try {
+    const states = await loadStates();
+    const data = states.get(state);
+
+    if (!data) {
+      return null;
+    }
+
+    // Check expiration
+    if (data.expiresAt <= Date.now()) {
+      states.delete(state);
+      statesCache = states;
+      await saveStates();
+      return null;
+    }
+
+    // Remove state (one-time use)
     states.delete(state);
     statesCache = states;
     await saveStates();
-    return null;
-  }
 
-  // Remove state (one-time use)
-  states.delete(state);
-  statesCache = states;
-  await saveStates();
-  
-  return data.codeVerifier;
+    return data.codeVerifier;
+  } finally {
+    consumingStates.delete(state);
+  }
 }
 
 /**
