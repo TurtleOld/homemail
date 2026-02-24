@@ -4,12 +4,33 @@ import { OAuthDiscovery } from '@/lib/oauth-discovery';
 import { consumeOAuthState } from '@/lib/oauth-state-store';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
 import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
-import { createSession } from '@/lib/session';
+import { createSession, getSession } from '@/lib/session';
 import { addUserAccount, setActiveAccount, type UserAccount } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 import { getClientIp } from '@/lib/client-ip';
 import { SecurityLogger } from '@/lib/security-logger';
 import { buildPublicUrl } from '@/lib/public-url';
+
+/**
+ * Read the user's preferred locale from their saved settings.
+ * Falls back to 'ru' (defaultLocale) if settings don't exist yet.
+ */
+async function getUserLocale(accountId: string): Promise<string> {
+  try {
+    const { promises: fs } = await import('fs');
+    const path = await import('path');
+    const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : process.cwd());
+    const settingsData = await fs.readFile(path.join(DATA_DIR, '.settings.json'), 'utf-8');
+    const allSettings = JSON.parse(settingsData);
+    const language = allSettings[accountId]?.locale?.language;
+    if (language === 'ru' || language === 'en') {
+      return language;
+    }
+  } catch {
+    // Settings file doesn't exist yet for new users
+  }
+  return 'ru';
+}
 
 const callbackSchema = z.object({
   code: z.string().min(1),
@@ -100,9 +121,20 @@ export async function GET(request: NextRequest) {
 
     // 2. Validate and consume state (one-time use, CSRF protection)
     const codeVerifier = await consumeOAuthState(state);
-    
+
     if (!codeVerifier) {
       logger.error('[OAuth Callback] Invalid or expired state', { state: state.substring(0, 8) + '...' });
+
+      // Check if user already has a valid session - this happens when nginx duplicates
+      // the callback request and the first request already consumed the state and created a session
+      const existingSession = await getSession(request);
+      if (existingSession) {
+        logger.info('[OAuth Callback] State already consumed but session exists (duplicate request), redirecting to mail');
+        const dupLocale = await getUserLocale(existingSession.accountId);
+        const mailUrl = buildPublicUrl(`/${dupLocale}/mail`, request);
+        return NextResponse.redirect(mailUrl);
+      }
+
       SecurityLogger.logLoginFailed(request, 'unknown', 'Invalid OAuth state (CSRF or expired)');
 
       const loginUrl = buildPublicUrl('/login', request);
@@ -272,9 +304,10 @@ export async function GET(request: NextRequest) {
 
     SecurityLogger.logLoginSuccess(request, email, accountId);
 
-    // 10. Redirect to mail inbox (standard OAuth flow - single redirect, no client-side navigation)
-    const mailUrl = buildPublicUrl('/mail', request);
-    logger.info('[OAuth Callback] Redirecting to mail inbox');
+    // 10. Redirect to mail inbox with the user's preferred locale
+    const userLocale = await getUserLocale(accountId);
+    const mailUrl = buildPublicUrl(`/${userLocale}/mail`, request);
+    logger.info('[OAuth Callback] Redirecting to mail inbox', { locale: userLocale });
     return NextResponse.redirect(mailUrl);
 
   } catch (error) {
