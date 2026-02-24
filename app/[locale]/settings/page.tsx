@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -2216,6 +2217,7 @@ function FoldersTab() {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const locale = useLocale();
   const [activeTab, setActiveTab] = useState<TabId>('signature');
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
@@ -2240,7 +2242,7 @@ export default function SettingsPage() {
     <div className="flex h-screen flex-col">
       <div className="border-b bg-card p-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/mail')}>
+          <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/mail`)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-2xl font-bold">Настройки</h1>
