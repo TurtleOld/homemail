@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OAuthDiscovery } from '@/lib/oauth-discovery';
 import { generateCodeVerifier, generateCodeChallenge, generateState, buildAuthorizationUrl } from '@/lib/oauth-pkce';
-import { storeOAuthState } from '@/lib/oauth-state-store';
+import { storeOAuthState, findRecentStateByIp } from '@/lib/oauth-state-store';
 import { logger } from '@/lib/logger';
 import { getClientIp } from '@/lib/client-ip';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -31,6 +31,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // 0. Deduplication: check if this IP already has a recent authorize request
+    const existingUrl = await findRecentStateByIp(ip);
+    if (existingUrl) {
+      logger.info('[OAuth Authorize] Reusing recent authorization URL for same IP (duplicate request)', { ip });
+      return NextResponse.redirect(existingUrl);
+    }
+
     // 1. Get configuration from environment (NEVER hardcode!)
     const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
     const publicUrl = process.env.STALWART_PUBLIC_URL;
@@ -44,7 +51,7 @@ export async function GET(request: NextRequest) {
         hasRedirectUri: !!redirectUri,
       });
       return NextResponse.json(
-        { 
+        {
           error: 'OAuth configuration incomplete',
           hint: 'Please set STALWART_PUBLIC_URL, OAUTH_CLIENT_ID, and OAUTH_REDIRECT_URI in environment'
         },
@@ -53,12 +60,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Determine discovery URL (internal for server-side requests)
-    const isInternalBaseUrl = baseUrl.includes('stalwart') || 
-                              baseUrl.includes('localhost') || 
-                              baseUrl.includes('127.0.0.1') || 
+    const isInternalBaseUrl = baseUrl.includes('stalwart') ||
+                              baseUrl.includes('localhost') ||
+                              baseUrl.includes('127.0.0.1') ||
                               /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
-    
-    const discoveryUrl = isInternalBaseUrl 
+
+    const discoveryUrl = isInternalBaseUrl
       ? `${baseUrl.replace(/\/$/, '')}/.well-known/oauth-authorization-server`
       : `${publicUrl.replace(/\/$/, '')}/.well-known/oauth-authorization-server`;
 
@@ -92,10 +99,7 @@ export async function GET(request: NextRequest) {
       challengeLength: codeChallenge.length,
     });
 
-    // 5. Store state + verifier (encrypted, temporary)
-    await storeOAuthState(state, codeVerifier);
-
-    // 6. Build authorization URL
+    // 5. Build authorization URL
     const authorizationUrl = buildAuthorizationUrl({
       authorizationEndpoint: endpoints.authorization_endpoint,
       clientId,
@@ -107,6 +111,12 @@ export async function GET(request: NextRequest) {
       ],
       state,
       codeChallenge,
+    });
+
+    // 6. Store state + verifier (encrypted, temporary) with IP and URL for deduplication
+    await storeOAuthState(state, codeVerifier, {
+      clientIp: ip,
+      authorizationUrl: authorizationUrl.toString(),
     });
 
     logger.info('[OAuth Authorize] Authorization URL generated', {
