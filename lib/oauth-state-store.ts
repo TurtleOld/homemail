@@ -1,30 +1,35 @@
 /**
  * Temporary storage for OAuth state and PKCE verifiers
  * Used during Authorization Code Flow to prevent CSRF and validate PKCE
+ *
+ * Uses file-based locking to handle concurrent requests across multiple
+ * Node.js worker processes (Next.js production spawns several workers).
  */
 
 import fs from 'node:fs/promises';
+import { openSync, closeSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { encryptData, decryptData } from './storage';
 
 const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : path.join(process.cwd(), 'data'));
 const STATE_FILE = path.join(DATA_DIR, 'oauth_states.enc');
+const LOCK_FILE = path.join(DATA_DIR, 'oauth_states.lock');
 
 // States are short-lived (10 minutes max)
 const STATE_TTL = 10 * 60 * 1000; // 10 minutes
+
+// Lock acquisition parameters
+const LOCK_RETRY_INTERVAL = 20; // ms between retries
+const LOCK_MAX_WAIT = 5000; // ms max wait for lock
+const LOCK_STALE_AFTER = 10000; // ms after which a lock is considered stale
 
 export interface OAuthState {
   state: string;
   codeVerifier: string;
   createdAt: number;
   expiresAt: number;
+  consumedAt?: number; // set when consumed, kept briefly so duplicate requests can detect it
 }
-
-// In-memory cache for fast access
-let statesCache: Map<string, OAuthState> | null = null;
-
-// Track states currently being consumed to prevent race conditions from duplicate requests
-const consumingStates = new Set<string>();
 
 async function ensureDataDir(): Promise<void> {
   try {
@@ -35,55 +40,83 @@ async function ensureDataDir(): Promise<void> {
 }
 
 /**
- * Load all states from encrypted file
+ * Acquire an exclusive file lock.
+ * Uses O_EXCL (exclusive create) which is atomic on all POSIX filesystems.
  */
-async function loadStates(): Promise<Map<string, OAuthState>> {
-  if (statesCache !== null) {
-    return statesCache;
+async function acquireLock(): Promise<void> {
+  await ensureDataDir();
+  const deadline = Date.now() + LOCK_MAX_WAIT;
+
+  while (Date.now() < deadline) {
+    try {
+      // O_EXCL ensures atomic creation - only one process succeeds
+      const fd = openSync(LOCK_FILE, 'wx');
+      // Write PID + timestamp for stale detection
+      const { writeSync } = await import('node:fs');
+      writeSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }));
+      closeSync(fd);
+      return;
+    } catch {
+      // Lock file exists - check if stale
+      try {
+        const lockData = JSON.parse(await fs.readFile(LOCK_FILE, 'utf-8'));
+        if (Date.now() - lockData.at > LOCK_STALE_AFTER) {
+          // Stale lock - remove and retry immediately
+          try { unlinkSync(LOCK_FILE); } catch { /* ignore */ }
+          continue;
+        }
+      } catch {
+        // Lock file disappeared or unreadable - retry
+      }
+      // Wait before retrying
+      await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_INTERVAL));
+    }
   }
 
-  await ensureDataDir();
-  statesCache = new Map();
+  throw new Error('Timeout waiting for OAuth state lock');
+}
 
+function releaseLock(): void {
+  try {
+    unlinkSync(LOCK_FILE);
+  } catch {
+    // Already removed - fine
+  }
+}
+
+/**
+ * Read states directly from file (bypasses cache, for cross-process consistency)
+ */
+async function readStatesFromFile(): Promise<Map<string, OAuthState>> {
+  const map = new Map<string, OAuthState>();
   try {
     const encryptedData = await fs.readFile(STATE_FILE, 'utf-8');
     const decryptedData = decryptData(encryptedData);
-    
     if (decryptedData) {
       const states = JSON.parse(decryptedData) as Record<string, OAuthState>;
       const now = Date.now();
-      
-      // Only load non-expired states
       for (const [state, data] of Object.entries(states)) {
         if (data.expiresAt > now) {
-          statesCache.set(state, data);
+          map.set(state, data);
         }
       }
     }
   } catch {
     // File doesn't exist or corrupted - start fresh
   }
-
-  return statesCache;
+  return map;
 }
 
 /**
- * Save states to encrypted file
+ * Write states directly to file
  */
-async function saveStates(): Promise<void> {
-  if (statesCache === null) {
-    return;
-  }
-
+async function writeStatesToFile(states: Map<string, OAuthState>): Promise<void> {
   await ensureDataDir();
   const statesObj: Record<string, OAuthState> = {};
-  
-  for (const [state, data] of statesCache.entries()) {
+  for (const [state, data] of states.entries()) {
     statesObj[state] = data;
   }
-
-  const jsonData = JSON.stringify(statesObj);
-  const encryptedData = encryptData(jsonData);
+  const encryptedData = encryptData(JSON.stringify(statesObj));
   await fs.writeFile(STATE_FILE, encryptedData, 'utf-8');
 }
 
@@ -91,77 +124,104 @@ async function saveStates(): Promise<void> {
  * Store OAuth state + code verifier
  */
 export async function storeOAuthState(state: string, codeVerifier: string): Promise<void> {
-  const states = await loadStates();
-  
-  const now = Date.now();
-  const oauthState: OAuthState = {
-    state,
-    codeVerifier,
-    createdAt: now,
-    expiresAt: now + STATE_TTL,
-  };
-
-  states.set(state, oauthState);
-  statesCache = states;
-  await saveStates();
+  await acquireLock();
+  try {
+    const states = await readStatesFromFile();
+    const now = Date.now();
+    states.set(state, {
+      state,
+      codeVerifier,
+      createdAt: now,
+      expiresAt: now + STATE_TTL,
+    });
+    await writeStatesToFile(states);
+  } finally {
+    releaseLock();
+  }
 }
 
 /**
- * Retrieve and remove OAuth state (one-time use)
- * Protected against race conditions from duplicate requests (e.g. nginx doubling)
+ * Check if a state was recently consumed (by another worker).
+ * Returns true if the state exists and has a consumedAt timestamp.
+ */
+export async function isStateRecentlyConsumed(state: string): Promise<boolean> {
+  await acquireLock();
+  try {
+    const states = await readStatesFromFile();
+    const data = states.get(state);
+    return data !== undefined && data.consumedAt !== undefined;
+  } finally {
+    releaseLock();
+  }
+}
+
+/**
+ * Retrieve and consume OAuth state (one-time use).
+ *
+ * Uses file locking to be safe across multiple Node.js worker processes.
+ * Returns the codeVerifier if valid and not yet consumed, null otherwise.
+ *
+ * "Already consumed" states are kept for 30 seconds with consumedAt set,
+ * so that a duplicate request arriving within that window gets null (not
+ * an error) and the callback handler can check the session instead.
  */
 export async function consumeOAuthState(state: string): Promise<string | null> {
-  // If another request is already consuming this state, reject immediately
-  if (consumingStates.has(state)) {
-    return null;
-  }
-
-  consumingStates.add(state);
+  await acquireLock();
   try {
-    const states = await loadStates();
+    const states = await readStatesFromFile();
     const data = states.get(state);
 
     if (!data) {
       return null;
     }
 
-    // Check expiration
-    if (data.expiresAt <= Date.now()) {
-      states.delete(state);
-      statesCache = states;
-      await saveStates();
+    // Already consumed by another worker - return null
+    // The callback handler will check for an existing session
+    if (data.consumedAt !== undefined) {
       return null;
     }
 
-    // Remove state (one-time use)
-    states.delete(state);
-    statesCache = states;
-    await saveStates();
+    // Expired
+    if (data.expiresAt <= Date.now()) {
+      states.delete(state);
+      await writeStatesToFile(states);
+      return null;
+    }
 
-    return data.codeVerifier;
+    const codeVerifier = data.codeVerifier;
+
+    // Mark as consumed (keep for 30s so duplicate requests can detect it)
+    states.set(state, { ...data, consumedAt: Date.now(), expiresAt: Date.now() + 30_000 });
+    await writeStatesToFile(states);
+
+    return codeVerifier;
   } finally {
-    consumingStates.delete(state);
+    releaseLock();
   }
 }
 
 /**
- * Clean up expired states (called periodically)
+ * Clean up expired and old consumed states (called periodically)
  */
 export async function cleanupExpiredStates(): Promise<void> {
-  const states = await loadStates();
-  const now = Date.now();
-  let hasChanges = false;
+  await acquireLock();
+  try {
+    const states = await readStatesFromFile();
+    const now = Date.now();
+    let hasChanges = false;
 
-  for (const [state, data] of states.entries()) {
-    if (data.expiresAt <= now) {
-      states.delete(state);
-      hasChanges = true;
+    for (const [state, data] of states.entries()) {
+      if (data.expiresAt <= now) {
+        states.delete(state);
+        hasChanges = true;
+      }
     }
-  }
 
-  if (hasChanges) {
-    statesCache = states;
-    await saveStates();
+    if (hasChanges) {
+      await writeStatesToFile(states);
+    }
+  } finally {
+    releaseLock();
   }
 }
 
