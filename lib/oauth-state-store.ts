@@ -29,6 +29,8 @@ export interface OAuthState {
   createdAt: number;
   expiresAt: number;
   consumedAt?: number; // set when consumed, kept briefly so duplicate requests can detect it
+  clientIp?: string; // IP of the client that initiated this authorization
+  authorizationUrl?: string; // full authorization URL for deduplication
 }
 
 async function ensureDataDir(): Promise<void> {
@@ -120,10 +122,17 @@ async function writeStatesToFile(states: Map<string, OAuthState>): Promise<void>
   await fs.writeFile(STATE_FILE, encryptedData, 'utf-8');
 }
 
+// Window within which we reuse an existing authorize request from the same IP
+const DEDUP_WINDOW = 5000; // 5 seconds
+
 /**
  * Store OAuth state + code verifier
  */
-export async function storeOAuthState(state: string, codeVerifier: string): Promise<void> {
+export async function storeOAuthState(
+  state: string,
+  codeVerifier: string,
+  opts?: { clientIp?: string; authorizationUrl?: string },
+): Promise<void> {
   await acquireLock();
   try {
     const states = await readStatesFromFile();
@@ -133,8 +142,36 @@ export async function storeOAuthState(state: string, codeVerifier: string): Prom
       codeVerifier,
       createdAt: now,
       expiresAt: now + STATE_TTL,
+      clientIp: opts?.clientIp,
+      authorizationUrl: opts?.authorizationUrl,
     });
     await writeStatesToFile(states);
+  } finally {
+    releaseLock();
+  }
+}
+
+/**
+ * Find a recent (within DEDUP_WINDOW) unconsumed state for the given IP.
+ * Returns the stored authorization URL if found, null otherwise.
+ * Used to prevent duplicate authorize requests from the same client.
+ */
+export async function findRecentStateByIp(clientIp: string): Promise<string | null> {
+  await acquireLock();
+  try {
+    const states = await readStatesFromFile();
+    const now = Date.now();
+    for (const data of states.values()) {
+      if (
+        data.clientIp === clientIp &&
+        data.authorizationUrl &&
+        !data.consumedAt &&
+        now - data.createdAt < DEDUP_WINDOW
+      ) {
+        return data.authorizationUrl;
+      }
+    }
+    return null;
   } finally {
     releaseLock();
   }
