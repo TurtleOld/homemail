@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
         // Another worker already processed this callback successfully.
         // Wait briefly for the session to be written, then redirect to mail.
         logger.info('[OAuth Callback] State consumed by another worker (duplicate request), waiting for session');
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         const existingSession = await getSession(request);
         if (existingSession) {
           const dupLocale = await getUserLocale(existingSession.accountId);
@@ -139,10 +139,13 @@ export async function GET(request: NextRequest) {
           logger.info('[OAuth Callback] Duplicate request resolved via session, redirecting to mail');
           return NextResponse.redirect(mailUrl);
         }
-        // Session not available yet (cookie not sent to browser for this parallel request) -
-        // redirect to login without error so the user can try again cleanly
-        logger.info('[OAuth Callback] Duplicate request - session not readable, redirecting to login');
-        return NextResponse.redirect(buildPublicUrl('/login', request));
+        // Session cookie not readable in this response (set by the other parallel request).
+        // Redirect to mail anyway — by the time the browser follows this redirect,
+        // the session cookie from the first successful response will be available.
+        logger.info('[OAuth Callback] Duplicate request - redirecting to mail (session cookie will be set by first response)');
+        const defaultLocale = 'ru';
+        const mailUrl = buildPublicUrl(`/${defaultLocale}/mail`, request);
+        return NextResponse.redirect(mailUrl);
       }
 
       logger.error('[OAuth Callback] Invalid or expired state', { state: state.substring(0, 8) + '...' });
