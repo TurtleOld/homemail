@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -2159,7 +2158,8 @@ function FoldersTab() {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const locale = useLocale();
+  const pathname = usePathname();
+  const locale = pathname.split('/')[1] || 'en';
   const [activeTab, setActiveTab] = useState<TabId>('signature');
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
