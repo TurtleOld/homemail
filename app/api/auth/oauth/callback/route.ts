@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { OAuthDiscovery } from '@/lib/oauth-discovery';
-import { consumeOAuthState } from '@/lib/oauth-state-store';
+import { consumeOAuthState, isStateRecentlyConsumed } from '@/lib/oauth-state-store';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
 import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
 import { createSession, getSession } from '@/lib/session';
@@ -123,18 +123,29 @@ export async function GET(request: NextRequest) {
     const codeVerifier = await consumeOAuthState(state);
 
     if (!codeVerifier) {
-      logger.error('[OAuth Callback] Invalid or expired state', { state: state.substring(0, 8) + '...' });
-
-      // Check if user already has a valid session - this happens when nginx duplicates
-      // the callback request and the first request already consumed the state and created a session
-      const existingSession = await getSession(request);
-      if (existingSession) {
-        logger.info('[OAuth Callback] State already consumed but session exists (duplicate request), redirecting to mail');
-        const dupLocale = await getUserLocale(existingSession.accountId);
-        const mailUrl = buildPublicUrl(`/${dupLocale}/mail`, request);
-        return NextResponse.redirect(mailUrl);
+      // Check if state was recently consumed by another worker process (duplicate request scenario).
+      // Next.js production runs multiple workers, each with separate memory - the in-memory Set
+      // guard doesn't work across workers, so we use the file-based consumedAt marker instead.
+      const recentlyConsumed = await isStateRecentlyConsumed(state);
+      if (recentlyConsumed) {
+        // Another worker already processed this callback successfully.
+        // Wait briefly for the session to be written, then redirect to mail.
+        logger.info('[OAuth Callback] State consumed by another worker (duplicate request), waiting for session');
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const existingSession = await getSession(request);
+        if (existingSession) {
+          const dupLocale = await getUserLocale(existingSession.accountId);
+          const mailUrl = buildPublicUrl(`/${dupLocale}/mail`, request);
+          logger.info('[OAuth Callback] Duplicate request resolved via session, redirecting to mail');
+          return NextResponse.redirect(mailUrl);
+        }
+        // Session not available yet (cookie not sent to browser for this parallel request) -
+        // redirect to login without error so the user can try again cleanly
+        logger.info('[OAuth Callback] Duplicate request - session not readable, redirecting to login');
+        return NextResponse.redirect(buildPublicUrl('/login', request));
       }
 
+      logger.error('[OAuth Callback] Invalid or expired state', { state: state.substring(0, 8) + '...' });
       SecurityLogger.logLoginFailed(request, 'unknown', 'Invalid OAuth state (CSRF or expired)');
 
       const loginUrl = buildPublicUrl('/login', request);
