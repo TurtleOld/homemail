@@ -41,6 +41,7 @@
     "archiveAria": "Archive messages",
     "move": "Move",
     "moveAria": "Move messages",
+    "delete": "Delete",
     "deleteAria": "Delete messages",
     "hotkeysHint": "Shortcuts: Ctrl+K — new message, Delete — delete, R — reply, F — forward",
     "draftLoadError": "Failed to load draft",

@@ -712,7 +712,6 @@ export class StalwartJMAPProvider implements MailProvider {
       // Parse DKIM/SPF/DMARC from Authentication-Results header
       const authHeader: string = (email as any)['header:Authentication-Results:asText'] || '';
       const spfHeader: string = (email as any)['header:Received-SPF:asText'] || '';
-      console.log(`[authHeaders] id=${email.id} auth=${JSON.stringify(authHeader)} spf=${JSON.stringify(spfHeader)}`);
 
       const parseAuthResult = (text: string, key: string): import('@/lib/types').AuthResult => {
         const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

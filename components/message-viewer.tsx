@@ -394,7 +394,6 @@ export function MessageViewer({
               <div>
                 <strong>{t('date')}</strong> {message.date ? formatDate(message.date, localeSettings) : tCommon('unknown')}
               </div>
-              {console.log('[authResults-render]', message.id, JSON.stringify(message.authResults)) as any}
               {message.authResults && (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {(['dkim', 'spf', 'dmarc'] as const).map((key) => {
