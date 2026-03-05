@@ -10,6 +10,10 @@ try {
   // use system default DNS if Docker DNS is unavailable
 }
 
+// Module-level DNS resolution cache (TTL: 60 seconds)
+const dnsCache = new Map<string, { resolved: string; expiresAt: number }>();
+const DNS_CACHE_TTL_MS = 60_000;
+
 interface JMAPSession {
   apiUrl: string;
   downloadUrl: string;
@@ -168,62 +172,35 @@ export class JMAPClient {
   }
 
   private async resolveHostnameToIp(hostname: string): Promise<string | null> {
-    console.log(`[JMAPClient] ===== Resolving ${hostname} =====`);
-    console.log(`[JMAPClient] Current DNS servers:`, dns.getServers());
-    
     try {
-      console.log(`[JMAPClient] Attempting resolve4 through Docker DNS...`);
       const ips = await resolve4(hostname);
-      if (ips && ips.length > 0) {
-        for (const ip of ips) {
-          console.log(`[JMAPClient] resolve4 result: ${ip}`);
-          if (this.isDockerInternalIp(ip) || this.isAllowedHostIp(ip)) {
-            const ipType = this.isDockerInternalIp(ip) ? 'Docker internal' : 'allowed host';
-            console.log(`[JMAPClient] ✓ Found ${ipType} IP via resolve4: ${ip}`);
-            return ip;
-          } else {
-            console.warn(`[JMAPClient] ✗ resolve4 returned external IP: ${ip}`);
-          }
-        }
+      for (const ip of ips) {
+        if (this.isDockerInternalIp(ip) || this.isAllowedHostIp(ip)) return ip;
       }
-    } catch (resolveError) {
-      console.warn(`[JMAPClient] resolve4 failed for ${hostname}:`, resolveError);
+    } catch {
+      // resolve4 failed, try lookup
     }
-    
+
     try {
-      console.log(`[JMAPClient] Attempting lookup as fallback...`);
       const addresses = await lookup(hostname, { family: 4, all: true });
-      if (addresses && addresses.length > 0) {
-        for (const addr of addresses) {
-          const ip = addr.address;
-          console.log(`[JMAPClient] lookup result: ${ip}`);
-          if (this.isDockerInternalIp(ip) || this.isAllowedHostIp(ip)) {
-            const ipType = this.isDockerInternalIp(ip) ? 'Docker internal' : 'allowed host';
-            console.log(`[JMAPClient] ✓ Found ${ipType} IP via lookup: ${ip}`);
-            return ip;
-          } else {
-            console.warn(`[JMAPClient] ✗ lookup returned external IP: ${ip}`);
-          }
-        }
+      for (const addr of addresses) {
+        if (this.isDockerInternalIp(addr.address) || this.isAllowedHostIp(addr.address)) return addr.address;
       }
     } catch (lookupError) {
-      console.error(`[JMAPClient] lookup failed for ${hostname}:`, lookupError);
+      console.error(`[JMAPClient] DNS lookup failed for ${hostname}:`, lookupError);
     }
-    
-    console.error(`[JMAPClient] ===== FAILED: Could not resolve ${hostname} to Docker internal or allowed host IP =====`);
-    console.error(`[JMAPClient] All DNS resolutions returned external/public IPs or failed`);
-    console.error(`[JMAPClient] This indicates Docker DNS is not working properly or IP is not in ALLOWED_DOCKER_NETWORKS`);
-    console.error(`[JMAPClient] Possible solutions:`);
-    console.error(`[JMAPClient] 1. Ensure containers are in the same Docker network`);
-    console.error(`[JMAPClient] 2. Check /etc/resolv.conf in container (should contain 127.0.0.11)`);
-    console.error(`[JMAPClient] 3. Use container IP directly in STALWART_BASE_URL`);
-    console.error(`[JMAPClient] 4. Configure extra_hosts in docker-compose.yml`);
-    console.error(`[JMAPClient] 5. Add IP to ALLOWED_DOCKER_NETWORKS if using network_mode: host`);
-    
+
+    console.error(`[JMAPClient] Failed to resolve ${hostname} to internal IP`);
     return null;
   }
 
   private async resolveUrlToIp(url: string): Promise<string> {
+    // Check cache first
+    const cached = dnsCache.get(url);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.resolved;
+    }
+
     try {
       const urlObj = new URL(url);
       const hostname = urlObj.hostname;
@@ -238,34 +215,24 @@ export class JMAPClient {
       const isContainerName = !hostname.includes('.') || hostname === 'stalwart' || hostname === 'homemail-stalwart' || hostname.startsWith('homemail-');
       
       if (isContainerName) {
-        console.log(`[JMAPClient] Hostname ${hostname} appears to be a container name, attempting DNS resolution...`);
         const ip = await this.resolveHostnameToIp(hostname);
         if (ip && (this.isDockerInternalIp(ip) || this.isAllowedHostIp(ip))) {
           urlObj.hostname = ip;
           const resolvedUrl = urlObj.toString();
-          const ipType = this.isDockerInternalIp(ip) ? 'Docker internal' : 'allowed host';
-          console.log(`[JMAPClient] ✓ Successfully resolved container name to ${ipType} IP: ${url} -> ${resolvedUrl}`);
+          dnsCache.set(url, { resolved: resolvedUrl, expiresAt: Date.now() + DNS_CACHE_TTL_MS });
           return resolvedUrl;
         } else {
           console.error(`[JMAPClient] ✗ CRITICAL: Container name ${hostname} resolved to external IP or failed`);
           console.error(`[JMAPClient] ✗ This means Docker DNS is not working - fetch will also fail`);
           console.error(`[JMAPClient] ✗ Solutions:`);
-          console.error(`[JMAPClient] ✗ 1. Check that containers are in the same Docker network`);
-          console.error(`[JMAPClient] ✗ 2. Verify /etc/resolv.conf contains 127.0.0.11`);
-          console.error(`[JMAPClient] ✗ 3. Use container IP directly (get with: docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' homemail-stalwart)`);
-          console.error(`[JMAPClient] ✗ 4. Configure extra_hosts in docker-compose.yml`);
-          console.error(`[JMAPClient] ✗ 5. Add IP to ALLOWED_DOCKER_NETWORKS if using network_mode: host`);
-          throw new Error(`Container name ${hostname} cannot be resolved to Docker internal or allowed host IP. Docker DNS is not working. Please check network configuration, use container IP directly, or add IP to ALLOWED_DOCKER_NETWORKS.`);
+          throw new Error(`Container name ${hostname} cannot be resolved to internal IP. Check Docker network configuration.`);
         }
       } else {
-        console.warn(`[JMAPClient] ⚠ Hostname ${hostname} appears to be a domain name, not a container name`);
-        console.warn(`[JMAPClient] ⚠ For Docker container communication, use container name (e.g., 'stalwart' or 'homemail-stalwart') instead of domain name`);
         const ip = await this.resolveHostnameToIp(hostname);
         if (ip && (this.isDockerInternalIp(ip) || this.isAllowedHostIp(ip))) {
           urlObj.hostname = ip;
           const resolvedUrl = urlObj.toString();
-          const ipType = this.isDockerInternalIp(ip) ? 'Docker internal' : 'allowed host';
-          console.log(`[JMAPClient] ✓ Resolved domain to ${ipType} IP: ${url} -> ${resolvedUrl}`);
+          dnsCache.set(url, { resolved: resolvedUrl, expiresAt: Date.now() + DNS_CACHE_TTL_MS });
           return resolvedUrl;
         } else {
           throw new Error(`Failed to resolve ${hostname} to Docker internal or allowed host IP. DNS is resolving to external IP (${ip || 'unknown'}), which indicates Docker DNS is not working or IP is not in ALLOWED_DOCKER_NETWORKS. Please use container name (e.g., 'stalwart' or 'homemail-stalwart') in STALWART_BASE_URL instead of domain name, or add IP to ALLOWED_DOCKER_NETWORKS.`);
@@ -289,22 +256,15 @@ export class JMAPClient {
         const baseProtocol = baseUrlObj.protocol;
         
         if (u.protocol !== baseProtocol) {
-          console.warn(`[JMAPClient] ⚠ Session URL uses ${u.protocol} but baseUrl uses ${baseProtocol}`);
-          console.warn(`[JMAPClient] ⚠ Replacing protocol to match baseUrl for Docker container communication`);
           u.protocol = baseProtocol;
         }
-        
+
         if (urlHostname === 'localhost' || urlHostname === '127.0.0.1') {
-          console.log(`[JMAPClient] Normalizing localhost URL: ${raw} -> replacing hostname with ${baseHostname}`);
           u.hostname = baseHostname;
           u.port = baseUrlObj.port || u.port;
         } else if (urlHostname.includes('.') && urlHostname !== baseHostname) {
-          console.warn(`[JMAPClient] ⚠ Session URL contains domain name (${urlHostname}) instead of container name (${baseHostname})`);
-          console.warn(`[JMAPClient] ⚠ This happens when Stalwart server.hostname differs from STALWART_BASE_URL`);
-          console.warn(`[JMAPClient] ⚠ Replacing domain hostname with container hostname for Docker communication`);
           u.hostname = baseHostname;
           u.port = baseUrlObj.port || u.port;
-          console.log(`[JMAPClient] ✓ Normalized URL: ${raw} -> ${u.toString()}`);
         }
         
         return u.toString().replace(/\/$/, '');
@@ -656,8 +616,8 @@ export class JMAPClient {
 
     const [method, data] = response.methodResponses[0];
     if (method === 'error') {
-      if ((data as any).type === 'cannotCalculateChanges') return { cannotCalculateChanges: true };
-      throw new Error(`Mailbox/changes error: ${(data as any).description}`);
+      // Treat any error (invalidState, cannotCalculateChanges, etc.) as a signal to re-seed
+      return { cannotCalculateChanges: true };
     }
 
     const d = data as { newState: string; hasMoreChanges: boolean; changed: string[]; destroyed: string[] };
@@ -684,8 +644,8 @@ export class JMAPClient {
 
     const [method, data] = response.methodResponses[0];
     if (method === 'error') {
-      if ((data as any).type === 'cannotCalculateChanges') return { cannotCalculateChanges: true };
-      throw new Error(`Email/changes error: ${(data as any).description}`);
+      // Treat any error (invalidState, cannotCalculateChanges, etc.) as a signal to re-seed
+      return { cannotCalculateChanges: true };
     }
 
     const d = data as { newState: string; hasMoreChanges: boolean; created: string[]; updated: string[]; destroyed: string[] };
