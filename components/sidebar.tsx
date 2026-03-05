@@ -272,12 +272,12 @@ export function Sidebar({
           <span className="flex-1 truncate">{folder.name}</span>
           {folder.unreadCount > 0 && (
             <span className={cn(
-              'flex items-center justify-center rounded-full px-1.5 min-w-[20px] h-5 text-xs font-semibold tabular-nums',
+              'flex items-center justify-center rounded-full px-2 min-w-[24px] h-5 text-[11px] font-semibold tabular-nums whitespace-nowrap',
               selectedFolderId === folder.id
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground'
             )}>
-              {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
+              {folder.unreadCount > 999 ? '999+' : folder.unreadCount}
             </span>
           )}
         </button>
