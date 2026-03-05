@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { Button } from '@/components/ui/button';
-import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download, AlertCircle, Tag, X, FileDown, Printer, Eye, Languages, Lock } from 'lucide-react';
+import { Mail, Star, StarOff, Reply, ReplyAll, Forward, Trash2, Download, AlertCircle, Tag, X, FileDown, Printer, Eye, Languages, Lock, MoreHorizontal, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -371,70 +371,86 @@ export function MessageViewer({
     updateLabelsMutation.mutate({ messageId: message.id, labelIds: newLabelIds });
   };
 
+  const handlePrint = () => {
+    if (!message) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const printContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${message.subject || 'Letter'}</title><style>@media print{@page{margin:2cm}body{margin:0;padding:0}}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:800px;margin:0 auto;padding:20px;line-height:1.6}.header{border-bottom:2px solid #e0e0e0;padding-bottom:15px;margin-bottom:20px}.header h1{margin:0 0 10px 0;font-size:20px}.header-info{font-size:12px;color:#666}.header-info div{margin:5px 0}.content{margin-top:20px}</style></head><body><div class="header"><h1>${message.subject || '(no subject)'}</h1><div class="header-info"><div><strong>From:</strong> ${message.from.name ? `${message.from.name} <${message.from.email}>` : message.from.email}</div>${message.to.length > 0 ? `<div><strong>To:</strong> ${message.to.map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join(', ')}</div>` : ''}${message.cc && message.cc.length > 0 ? `<div><strong>Cc:</strong> ${message.cc.map((c) => (c.name ? `${c.name} <${c.email}>` : c.email)).join(', ')}</div>` : ''}<div><strong>Date:</strong> ${formatDate(message.date, localeSettings)}</div></div></div><div class="content">${sanitizedHtml}</div></body></html>`;
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+  };
+
   return (
     <div className="flex h-full w-full flex-col border-l bg-background overflow-hidden max-md:border-l-0" role="region" aria-label={t('viewerLabel')}>
-      <div className="border-b bg-muted/50 p-4 max-md:p-2 transition-colors duration-200">
-        <div className="mb-2 flex items-start justify-between gap-2">
+      {/* Header — subject, from/to, auth badges, secondary actions */}
+      <div className="border-b bg-background px-4 pt-4 pb-3 max-md:px-3 max-md:pt-3 max-md:pb-2 flex-shrink-0">
+        <div className="flex items-start gap-2">
+          {isMobile && onBack && (
+            <Button variant="ghost" size="icon" onClick={onBack} className="flex-shrink-0 -ml-1" aria-label="Back">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          )}
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold max-md:text-base break-words">{message.subject || tCommon('noSubject')}</h2>
-            <div className="mt-1 text-sm text-muted-foreground max-md:text-xs">
+            <h2 className="text-xl font-semibold max-md:text-base break-words leading-tight">{message.subject || tCommon('noSubject')}</h2>
+            <div className="mt-1.5 text-sm text-muted-foreground max-md:text-xs space-y-0.5">
               <div className="break-words">
-                <strong>{t('from')}</strong> {message.from?.name ? `${message.from.name} <${message.from.email || ''}>` : message.from?.email || tCommon('unknown')}
+                <span className="font-medium text-foreground">{message.from?.name || message.from?.email}</span>
+                {message.from?.name && <span className="ml-1 text-muted-foreground">&lt;{message.from.email}&gt;</span>}
               </div>
               {message.to && message.to.length > 0 && (
-                <div className="break-words">
-                  <strong>{t('to')}</strong> {message.to.map((r) => (r?.name ? `${r.name} <${r.email || ''}>` : r?.email || '')).join(', ')}
+                <div className="break-words text-muted-foreground text-xs">
+                  {t('to')} {message.to.map((r) => (r?.name ? `${r.name} <${r.email || ''}>` : r?.email || '')).join(', ')}
                 </div>
               )}
               {message.cc && message.cc.length > 0 && (
-                <div className="break-words">
-                  <strong>{t('cc')}</strong> {message.cc.map((c) => (c?.name ? `${c.name} <${c.email || ''}>` : c?.email || '')).join(', ')}
+                <div className="break-words text-muted-foreground text-xs">
+                  {t('cc')} {message.cc.map((c) => (c?.name ? `${c.name} <${c.email || ''}>` : c?.email || '')).join(', ')}
                 </div>
               )}
-              <div>
-                <strong>{t('date')}</strong> {message.date ? formatDate(message.date, localeSettings) : tCommon('unknown')}
+              <div className="text-muted-foreground text-xs tabular-nums">
+                {message.date ? formatDate(message.date, localeSettings) : tCommon('unknown')}
               </div>
-              {message.authResults && (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {(['dkim', 'spf', 'dmarc'] as const).map((key) => {
-                    const result = message.authResults![key];
-                    if (!result || result === 'none') return null;
-                    const isPass = result === 'pass';
-                    return (
-                      <span
-                        key={key}
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-medium ${
-                          isPass
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                        }`}
-                        title={`${key.toUpperCase()}: ${result}`}
-                      >
-                        {key.toUpperCase()} {isPass ? '✓' : '✗'}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
             </div>
+            {/* Auth badges */}
+            {message.authResults && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {(['dkim', 'spf', 'dmarc'] as const).map((key) => {
+                  const result = message.authResults![key];
+                  if (!result || result === 'none') return null;
+                  const isPass = result === 'pass';
+                  return (
+                    <span
+                      key={key}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold ${
+                        isPass
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
+                          : 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+                      }`}
+                      title={`${key.toUpperCase()}: ${result}`}
+                    >
+                      {key.toUpperCase()} {isPass ? '✓' : '✗'}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            {/* Labels */}
             {messageLabelObjects.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {messageLabelObjects.map((label) => (
                   <span
                     key={label.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium"
                     style={{
-                      backgroundColor: `${label.color || '#3b82f6'}20`,
+                      backgroundColor: `${label.color || '#3b82f6'}15`,
                       color: label.color || '#3b82f6',
-                      border: `1px solid ${label.color || '#3b82f6'}40`,
+                      border: `1px solid ${label.color || '#3b82f6'}30`,
                     }}
                   >
                     {label.name}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveLabel(label.id);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); handleRemoveLabel(label.id); }}
                       className="hover:opacity-70"
                       aria-label={t('removeLabel', { name: label.name })}
                     >
@@ -445,340 +461,130 @@ export function MessageViewer({
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          {/* Top-right: star, important, overflow menu */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={handleStar}
               title={message.flags?.starred ? t('removeFromFavorites') : t('addToFavorites')}
               aria-label={message.flags?.starred ? t('removeFromFavorites') : t('addToFavorites')}
+              className="h-8 w-8"
             >
-              {message.flags?.starred ? <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" /> : <StarOff className="h-4 w-4" />}
+              {message.flags?.starred
+                ? <Star className="h-4 w-4 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" />
+                : <Star className="h-4 w-4 text-muted-foreground" />}
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleToggleImportant}
-              title={message.flags?.important ? t('removeImportance') : t('markImportant')}
-              aria-label={message.flags?.important ? t('removeImportance') : t('markImportant')}
-            >
-              <AlertCircle
-                className={`h-4 w-4 ${message.flags?.important ? 'fill-orange-500 text-orange-500' : ''}`}
-              />
-            </Button>
-            {message.flags && message.flags.unread && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleMarkRead}
-                title={t('markRead')}
-                aria-label={t('markRead')}
-              >
-                <Mail className="h-4 w-4" />
-              </Button>
-            )}
+            {/* Overflow menu — secondary actions */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More actions">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={handleToggleImportant} className="cursor-pointer">
+                  <AlertCircle className={`mr-2 h-4 w-4 ${message.flags?.important ? 'fill-orange-500 text-orange-500' : ''}`} />
+                  {message.flags?.important ? t('removeImportance') : t('markImportant')}
+                </DropdownMenuItem>
+                {message.flags?.unread && (
+                  <DropdownMenuItem onClick={handleMarkRead} className="cursor-pointer">
+                    <Mail className="mr-2 h-4 w-4" />
+                    {t('markRead')}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => setShowTranslator(!showTranslator)} className="cursor-pointer">
+                  <Languages className="mr-2 h-4 w-4" />
+                  {t('translate')}
+                </DropdownMenuItem>
+                {/* Labels submenu inline */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                      <Tag className="mr-2 h-4 w-4" />
+                      {t('labels')}
+                    </DropdownMenuItem>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="left" className="w-48">
+                    {labels.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground">{t('noLabels')}</div>
+                    ) : labels.map((label) => {
+                      const isSelected = message?.labels?.includes(label.id) || false;
+                      return (
+                        <DropdownMenuItem key={label.id} onClick={() => handleToggleLabel(label.id)} className="flex items-center gap-2 cursor-pointer">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: label.color || '#3b82f6' }} />
+                          <span className="flex-1">{label.name}</span>
+                          {isSelected && <span className="text-xs text-muted-foreground">✓</span>}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {message && message.body && message.body.text && message.body.text.includes('-----BEGIN PGP MESSAGE-----') && (
+                  <DropdownMenuItem onClick={async () => {
+                    try {
+                      const res = await fetch('/api/pgp/decrypt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ encryptedMessage: message.body?.text || message.body?.html?.replace(/<[^>]*>/g, '') || '' }) });
+                      if (res.ok) {
+                        const data = await res.json();
+                        toast.success(t('decrypted'));
+                        if (message.body) { message.body.text = data.decryptedMessage; message.body.html = data.decryptedMessage.replace(/\n/g, '<br>'); }
+                      } else { toast.error(t('decryptFailed')); }
+                    } catch { toast.error(t('decryptError')); }
+                  }} className="cursor-pointer">
+                    <Lock className="mr-2 h-4 w-4" />
+                    {t('decrypt')}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => { if (!message) return; window.open(`/api/mail/messages/${message.id}/export?format=eml`, '_blank'); }} className="cursor-pointer">
+                  <Download className="mr-2 h-4 w-4" />
+                  {t('exportEml')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { if (!message) return; window.open(`/api/mail/messages/${message.id}/export?format=pdf`, '_blank'); }} className="cursor-pointer">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  {t('exportPdf')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handlePrint} className="cursor-pointer">
+                  <Printer className="mr-2 h-4 w-4" />
+                  {t('print')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-        <div className="flex gap-2 max-md:flex-wrap max-md:gap-2 max-md:justify-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onReply}
-            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label={t('reply')}
-          >
-            <Reply className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">{t('reply')}</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onReplyAll}
-            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label={t('replyAll')}
-          >
-            <ReplyAll className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">{t('replyAll')}</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onForward}
-            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label={t('forward')}
-          >
-            <Forward className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">{t('forward')}</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onDelete}
-            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label={tCommon('delete')}
-          >
-            <Trash2 className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">{tCommon('delete')}</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowTranslator(!showTranslator)}
-            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label={t('translate')}
-          >
-            <Languages className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">{t('translate')}</span>
-          </Button>
-          {message && message.body && message.body.text && message.body.text.includes('-----BEGIN PGP MESSAGE-----') && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={async () => {
-                try {
-                  const res = await fetch('/api/pgp/decrypt', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      encryptedMessage: message.body?.text || message.body?.html?.replace(/<[^>]*>/g, '') || '',
-                    }),
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    toast.success(t('decrypted'));
-                    if (message.body) {
-                      message.body.text = data.decryptedMessage;
-                      message.body.html = data.decryptedMessage.replace(/\n/g, '<br>');
-                    }
-                  } else {
-                    toast.error(t('decryptFailed'));
-                  }
-                } catch (error) {
-                  toast.error(t('decryptError'));
-                }
-              }}
-              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-              aria-label={t('decrypt')}
-            >
-              <Lock className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-              <span className="max-md:hidden">{t('decrypt')}</span>
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-                aria-label={t('labelsAria')}
-              >
-                <Tag className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-                <span className="max-md:hidden">{t('labels')}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {labels.length === 0 ? (
-                <div className="p-2 text-sm text-muted-foreground">
-                  {t('noLabels')}
-                </div>
-              ) : (
-                labels.map((label) => {
-                  const isSelected = message?.labels?.includes(label.id) || false;
-                  return (
-                    <DropdownMenuItem
-                      key={label.id}
-                      onClick={() => handleToggleLabel(label.id)}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: label.color || '#3b82f6' }}
-                      />
-                      <span className="flex-1">{label.name}</span>
-                      {isSelected && (
-                        <span className="text-xs text-muted-foreground">✓</span>
-                      )}
-                    </DropdownMenuItem>
-                  );
-                })
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-                aria-label={t('exportAria')}
-              >
-                <FileDown className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-                <span className="max-md:hidden">{t('export')}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!message) return;
-                  const url = `/api/mail/messages/${message.id}/export?format=eml`;
-                  window.open(url, '_blank');
-                }}
-                className="cursor-pointer"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                {t('exportEml')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!message) return;
-                  const url = `/api/mail/messages/${message.id}/export?format=pdf`;
-                  window.open(url, '_blank');
-                }}
-                className="cursor-pointer"
-              >
-                <FileDown className="mr-2 h-4 w-4" />
-                {t('exportPdf')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-              </DropdownMenu>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (!message) return;
-              const printWindow = window.open('', '_blank');
-              if (!printWindow) return;
-              
-              const printContent = `
-                <!DOCTYPE html>
-                <html>
-                  <head>
-                    <meta charset="utf-8">
-                    <title>${message.subject || 'Письмо'}</title>
-                    <style>
-                      @media print {
-                        @page {
-                          margin: 2cm;
-                        }
-                        body {
-                          margin: 0;
-                          padding: 0;
-                        }
-                      }
-                      body {
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                        max-width: 800px;
-                        margin: 0 auto;
-                        padding: 20px;
-                        line-height: 1.6;
-                      }
-                      .header {
-                        border-bottom: 2px solid #e0e0e0;
-                        padding-bottom: 15px;
-                        margin-bottom: 20px;
-                      }
-                      .header h1 {
-                        margin: 0 0 10px 0;
-                        font-size: 20px;
-                      }
-                      .header-info {
-                        font-size: 12px;
-                        color: #666;
-                      }
-                      .header-info div {
-                        margin: 5px 0;
-                      }
-                      .content {
-                        margin-top: 20px;
-                      }
-                    </style>
-                  </head>
-                  <body>
-                    <div class="header">
-                      <h1>${message.subject || '(без темы)'}</h1>
-                      <div class="header-info">
-                        <div><strong>От:</strong> ${message.from.name ? `${message.from.name} <${message.from.email}>` : message.from.email}</div>
-                        ${message.to.length > 0 ? `<div><strong>Кому:</strong> ${message.to.map((t) => (t.name ? `${t.name} <${t.email}>` : t.email)).join(', ')}</div>` : ''}
-                        ${message.cc && message.cc.length > 0 ? `<div><strong>Копия:</strong> ${message.cc.map((c) => (c.name ? `${c.name} <${c.email}>` : c.email)).join(', ')}</div>` : ''}
-                        <div><strong>Дата:</strong> ${formatDate(message.date, localeSettings)}</div>
-                      </div>
-                    </div>
-                    <div class="content">
-                      ${sanitizedHtml}
-                    </div>
-                  </body>
-                </html>
-              `;
-              
-              printWindow.document.write(printContent);
-              printWindow.document.close();
-              
-              setTimeout(() => {
-                printWindow.print();
-                printWindow.close();
-              }, 250);
-            }}
-            className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
-            aria-label={t('printAria')}
-          >
-            <Printer className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
-            <span className="max-md:hidden">{t('print')}</span>
-          </Button>
-        </div>
       </div>
-      <div className="flex-1 overflow-auto flex flex-col max-md:pb-4">
+
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-auto flex flex-col">
         {message.attachments && message.attachments.length > 0 && (
-          <div className="border-b bg-muted/30 p-4 max-md:p-2 flex-shrink-0">
-            <h3 className="mb-2 text-sm font-semibold max-md:text-xs">{t('attachments', { count: message.attachments.length })}</h3>
-            <div className="space-y-2">
+          <div className="border-b bg-muted/20 px-4 py-3 max-md:px-3 max-md:py-2 flex-shrink-0">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('attachments', { count: message.attachments.length })}</h3>
+            <div className="flex flex-wrap gap-2">
               {message.attachments.map((att) => (
-                <div key={att.id} className="flex items-center justify-between rounded border bg-background p-2 max-md:p-1.5">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium max-md:text-xs truncate">{att.filename}</div>
-                    <div className="text-xs text-muted-foreground max-md:text-[10px]">
-                      {(att.size / 1024).toFixed(1)} KB • {att.mime}
-                    </div>
+                <div key={att.id} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate max-w-[160px]">{att.filename}</div>
+                    <div className="text-xs text-muted-foreground">{(att.size / 1024).toFixed(1)} KB</div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     {(att.mime.startsWith('image/') || att.mime === 'application/pdf' || att.mime.startsWith('text/')) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPreviewAttachment({ id: att.id, filename: att.filename, mime: att.mime })}
-                        title={t('preview')}
-                      >
-                        <Eye className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewAttachment({ id: att.id, filename: att.filename, mime: att.mime })} title={t('preview')}>
+                        <Eye className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          const url = `/api/mail/attachments/${att.id}/download?messageId=${message.id}`;
-                          const response = await fetch(url);
-                          if (!response.ok) {
-                            const error = await response.json().catch(() => ({ error: 'Failed to download' }));
-                            toast.error(error.error || t('downloadError'));
-                            return;
-                          }
-                          const blob = await response.blob();
-                          const downloadUrl = window.URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = downloadUrl;
-                          link.download = att.filename;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          window.URL.revokeObjectURL(downloadUrl);
-                        } catch (error) {
-                          console.error('Download error:', error);
-                          toast.error(t('downloadError'));
-                        }
-                      }}
-                      title={t('download')}
-                    >
-                      <Download className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={async () => {
+                      try {
+                        const url = `/api/mail/attachments/${att.id}/download?messageId=${message.id}`;
+                        const response = await fetch(url);
+                        if (!response.ok) { const error = await response.json().catch(() => ({ error: 'Failed to download' })); toast.error(error.error || t('downloadError')); return; }
+                        const blob = await response.blob();
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl; link.download = att.filename;
+                        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                        window.URL.revokeObjectURL(downloadUrl);
+                      } catch { toast.error(t('downloadError')); }
+                    }} title={t('download')}>
+                      <Download className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -787,13 +593,8 @@ export function MessageViewer({
           </div>
         )}
         {hasRemoteImages && !effectiveAllowImages && (
-          <div className="border-b bg-muted/30 p-4 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLocalAllowImages(true)}
-              className="w-full"
-            >
+          <div className="border-b bg-amber-50 dark:bg-amber-900/10 px-4 py-2 flex-shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setLocalAllowImages(true)} className="h-7 text-xs">
               {t('showImages')}
             </Button>
           </div>
@@ -810,9 +611,8 @@ export function MessageViewer({
             <p>{t('noBody')}</p>
           </div>
         )}
-      </div>
         {showTranslator && message && message.body && (
-          <div className="mb-4 p-4 border rounded-lg">
+          <div className="p-4 border-t">
             <MessageTranslator
               originalText={message.body.text || message.body.html?.replace(/<[^>]*>/g, '') || ''}
               originalHtml={message.body.html}
@@ -820,20 +620,69 @@ export function MessageViewer({
           </div>
         )}
         {message && (
-          <div className="mb-4">
+          <div className="p-4 border-t">
             <DeliveryTracking messageId={message.id} />
           </div>
         )}
-        {previewAttachment && (
-          <AttachmentPreview
-            attachmentId={previewAttachment.id}
-            messageId={message.id}
-            filename={previewAttachment.filename}
-            mime={previewAttachment.mime}
-            open={!!previewAttachment}
-            onClose={() => setPreviewAttachment(null)}
-          />
-        )}
+      </div>
+
+      {/* Sticky bottom toolbar — primary actions */}
+      <div className="flex-shrink-0 border-t bg-background px-4 py-2.5 max-md:px-3 max-md:pb-safe-bottom">
+        <div className="flex items-center gap-2 max-md:gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onReply}
+            className="gap-1.5 font-medium max-md:min-h-[44px] touch-manipulation"
+            aria-label={t('reply')}
+          >
+            <Reply className="h-4 w-4" />
+            <span className="max-md:hidden">{t('reply')}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onReplyAll}
+            className="gap-1.5 font-medium max-md:min-h-[44px] touch-manipulation"
+            aria-label={t('replyAll')}
+          >
+            <ReplyAll className="h-4 w-4" />
+            <span className="max-md:hidden">{t('replyAll')}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onForward}
+            className="gap-1.5 font-medium max-md:min-h-[44px] touch-manipulation"
+            aria-label={t('forward')}
+          >
+            <Forward className="h-4 w-4" />
+            <span className="max-md:hidden">{t('forward')}</span>
+          </Button>
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDelete}
+            className="gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 max-md:min-h-[44px] touch-manipulation"
+            aria-label={tCommon('delete')}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="max-md:hidden">{tCommon('delete')}</span>
+          </Button>
+        </div>
+      </div>
+
+      {previewAttachment && (
+        <AttachmentPreview
+          attachmentId={previewAttachment.id}
+          messageId={message.id}
+          filename={previewAttachment.filename}
+          mime={previewAttachment.mime}
+          open={!!previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+        />
+      )}
     </div>
   );
 }
