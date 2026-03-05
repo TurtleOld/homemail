@@ -6,16 +6,52 @@ const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' 
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const CREDENTIALS_FILE = path.join(DATA_DIR, 'credentials.enc');
 
+/**
+ * Write data to a file atomically: write to a temp file, then rename.
+ * Prevents partial-write corruption for security-critical files.
+ */
+async function atomicWriteFile(filePath: string, content: string): Promise<void> {
+  const tmp = `${filePath}.tmp.${process.pid}.${Date.now()}`;
+  try {
+    await fs.writeFile(tmp, content, 'utf-8');
+    await fs.rename(tmp, filePath);
+  } catch (err) {
+    // Best-effort cleanup of temp file on failure.
+    try { await fs.unlink(tmp); } catch { /* ignore */ }
+    throw err;
+  }
+}
+
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
 
-function getEncryptionKey(): Buffer {
+/**
+ * Derive a 32-byte AES key from SESSION_SECRET using HKDF-SHA256.
+ * The `context` string separates keys for different purposes so that
+ * compromising one derived key does not compromise another.
+ *
+ * HKDF replaces the previous `scryptSync(secret, 'salt', 32)` which used
+ * a hard-coded salt and produced the same key for all callers.
+ */
+function deriveKey(context: string): Buffer {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) {
     throw new Error('SESSION_SECRET env var must be set and at least 32 characters long');
   }
-  return crypto.scryptSync(secret, 'salt', 32);
+  // HKDF: extract phase (HMAC-SHA256 with a fixed info salt)
+  const prk = crypto.createHmac('sha256', 'mailclient-hkdf-salt-v1')
+    .update(secret)
+    .digest();
+  // HKDF: expand phase — one block (32 bytes) with the context as info
+  const okm = crypto.createHmac('sha256', prk)
+    .update(`${context}\x01`)
+    .digest();
+  return okm; // 32 bytes — correct for AES-256
+}
+
+function getEncryptionKey(): Buffer {
+  return deriveKey('storage-encryption-v1');
 }
 
 export function encryptData(data: string): string {
@@ -86,15 +122,34 @@ export interface StoredCredentials {
 }
 
 let sessionsCache: Map<string, StoredSession> | null = null;
+let sessionsCacheMtime: number = 0; // mtime of sessions.json when cache was last loaded
 let credentialsCache: Map<string, StoredCredentials> | null = null;
 
+/**
+ * Return the mtime (ms) of a file, or 0 if the file does not exist yet.
+ */
+async function fileMtime(filePath: string): Promise<number> {
+  try {
+    const stat = await fs.stat(filePath);
+    return stat.mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
 export async function loadSessions(): Promise<Map<string, StoredSession>> {
-  if (sessionsCache !== null) {
+  // In production Next.js runs multiple worker processes, each with its own
+  // module-level cache. To keep them consistent without Redis, we stat the
+  // sessions file on every call and reload if another worker has written a
+  // newer version (indicated by a changed mtime). The stat syscall is cheap.
+  const currentMtime = await fileMtime(SESSIONS_FILE);
+  if (sessionsCache !== null && currentMtime === sessionsCacheMtime) {
     return sessionsCache;
   }
 
   await ensureDataDir();
   sessionsCache = new Map();
+  sessionsCacheMtime = currentMtime;
 
   try {
     const data = await fs.readFile(SESSIONS_FILE, 'utf-8');
@@ -131,7 +186,10 @@ export async function saveSessions(): Promise<void> {
     }
   }
 
-  await fs.writeFile(SESSIONS_FILE, JSON.stringify(validSessions, null, 2), 'utf-8');
+  await atomicWriteFile(SESSIONS_FILE, JSON.stringify(validSessions, null, 2));
+  // Update cached mtime so this worker doesn't immediately re-read the file
+  // it just wrote.
+  sessionsCacheMtime = await fileMtime(SESSIONS_FILE);
 }
 
 export async function getSessionByCookie(cookieValue: string): Promise<StoredSession | null> {
@@ -196,7 +254,7 @@ export async function saveCredentials(): Promise<void> {
 
   const jsonData = JSON.stringify(credentialsObj);
   const encryptedData = encryptData(jsonData);
-  await fs.writeFile(CREDENTIALS_FILE, encryptedData, 'utf-8');
+  await atomicWriteFile(CREDENTIALS_FILE, encryptedData);
 }
 
 export async function getCredentials(accountId: string): Promise<StoredCredentials | null> {
@@ -216,10 +274,32 @@ export async function deleteCredentials(accountId: string): Promise<void> {
   await saveCredentials();
 }
 
+/** Whitelist pattern for storage keys: alphanumeric, hyphens, underscores, colons. */
+const STORAGE_KEY_RE = /^[a-zA-Z0-9_\-:]{1,256}$/;
+
+/**
+ * Convert a storage key to an absolute file path that is guaranteed to stay
+ * inside DATA_DIR.  Throws a SecurityError-style Error if the key is invalid.
+ */
+function storageKeyToPath(key: string): string {
+  if (!STORAGE_KEY_RE.test(key)) {
+    throw Object.assign(new Error('Invalid storage key'), { code: 'SECURITY_INVALID_KEY' });
+  }
+  // Colons → underscores (filesystem-safe).
+  const filename = `${key.replace(/:/g, '_')}.json`;
+  const resolved = path.resolve(DATA_DIR, filename);
+  // Must stay inside DATA_DIR (path.resolve already normalises .. etc.)
+  if (!resolved.startsWith(path.resolve(DATA_DIR) + path.sep) &&
+      resolved !== path.resolve(DATA_DIR)) {
+    throw Object.assign(new Error('Storage key resolves outside data directory'), { code: 'SECURITY_PATH_TRAVERSAL' });
+  }
+  return resolved;
+}
+
 export async function readStorage<T>(key: string, defaultValue: T): Promise<T> {
   await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `${key.replace(/:/g, '_')}.json`);
-  
+  const filePath = storageKeyToPath(key);
+
   try {
     const data = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(data) as T;
@@ -230,8 +310,38 @@ export async function readStorage<T>(key: string, defaultValue: T): Promise<T> {
 
 export async function writeStorage<T>(key: string, value: T): Promise<void> {
   await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `${key.replace(/:/g, '_')}.json`);
-  await fs.writeFile(filePath, JSON.stringify(value, null, 2), 'utf-8');
+  const filePath = storageKeyToPath(key);
+  await atomicWriteFile(filePath, JSON.stringify(value, null, 2));
+}
+
+/**
+ * Read an encrypted storage slot.
+ * The file contains a base64url-encoded AES-256-GCM blob (same format as
+ * encryptData/decryptData). Falls back to `defaultValue` if the file does
+ * not exist or decryption fails.
+ */
+export async function readEncryptedStorage<T>(key: string, defaultValue: T): Promise<T> {
+  await ensureDataDir();
+  const filePath = storageKeyToPath(key);
+  try {
+    const encryptedData = await fs.readFile(filePath, 'utf-8');
+    const decrypted = decryptData(encryptedData.trim());
+    if (!decrypted) return defaultValue;
+    return JSON.parse(decrypted) as T;
+  } catch {
+    return defaultValue;
+  }
+}
+
+/**
+ * Write an encrypted storage slot.
+ * Data is JSON-serialised then AES-256-GCM encrypted before writing.
+ */
+export async function writeEncryptedStorage<T>(key: string, value: T): Promise<void> {
+  await ensureDataDir();
+  const filePath = storageKeyToPath(key);
+  const encrypted = encryptData(JSON.stringify(value));
+  await atomicWriteFile(filePath, encrypted);
 }
 
 export interface UserAccount {
@@ -277,7 +387,7 @@ export async function saveUserAccounts(): Promise<void> {
     accountsObj[userId] = accounts;
   }
 
-  await fs.writeFile(ACCOUNTS_FILE, JSON.stringify(accountsObj, null, 2), 'utf-8');
+  await atomicWriteFile(ACCOUNTS_FILE, JSON.stringify(accountsObj, null, 2));
 }
 
 export async function getUserAccounts(userId: string): Promise<UserAccount[]> {
