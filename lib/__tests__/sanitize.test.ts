@@ -40,4 +40,38 @@ describe('sanitizeHtml', () => {
     expect(result).toContain('href="#"');
     expect(result).not.toContain('javascript:');
   });
+
+  // P0-2 additions
+  it('should strip style= attributes', () => {
+    const result = sanitizeHtml('<p style="color:red">text</p>');
+    expect(result).not.toContain('style=');
+  });
+
+  it('should strip cid: href (email inline image protocol)', () => {
+    const result = sanitizeHtml('<a href="cid:image001@example.com">click</a>');
+    expect(result).not.toContain('cid:');
+  });
+
+  it('should strip <base> tag', () => {
+    const result = sanitizeHtml('<base href="https://evil.com">safe text');
+    expect(result).not.toContain('<base');
+  });
+
+  it('should strip <meta> tag', () => {
+    const result = sanitizeHtml('<meta http-equiv="refresh" content="0; url=https://evil.com">');
+    expect(result).not.toContain('<meta');
+  });
+
+  it('should strip all on* event handlers beyond the original set', () => {
+    for (const h of ['onfocus', 'onblur', 'oninput', 'onchange', 'onsubmit', 'ondblclick']) {
+      const result = sanitizeHtml(`<input ${h}="alert(1)">`);
+      expect(result, `${h} should be stripped`).not.toContain(h);
+    }
+  });
+
+  it('should not allow tracking pixels via CSS background-image in style=', () => {
+    const html = '<div style="background-image:url(https://tracker.example.com/px)">x</div>';
+    const result = sanitizeHtml(html);
+    expect(result).not.toContain('tracker.example.com');
+  });
 });

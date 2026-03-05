@@ -72,6 +72,25 @@ const nextConfig = {
           ...(useHttps ? ["upgrade-insecure-requests"] : []),
         ].join('; '),
       });
+
+      // Stricter Report-Only policy (no unsafe-eval) — violations logged to /api/csp-report
+      securityHeaders.push({
+        key: 'Content-Security-Policy-Report-Only',
+        value: [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline'",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data: https:",
+          "font-src 'self' data: blob:",
+          "connect-src 'self'",
+          "frame-src 'self'",
+          "object-src 'none'",
+          "base-uri 'self'",
+          "form-action 'self'",
+          "frame-ancestors 'none'",
+          "report-uri /api/csp-report",
+        ].join('; '),
+      });
     }
 
     return [

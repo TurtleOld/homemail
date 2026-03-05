@@ -6,6 +6,20 @@ import { routing } from '@/i18n/routing';
 
 const intlMiddleware = createMiddleware(routing);
 
+/**
+ * Validate that a redirect target is a safe relative path within this app.
+ * Rejects absolute URLs, protocol-relative URLs (//) and scheme-bearing values.
+ * Prevents open-redirect attacks via the ?redirect= query parameter.
+ */
+function isSafeRedirectPath(value: string): boolean {
+  if (!value) return false;
+  // Must start with single /  (not // which is protocol-relative)
+  if (!value.startsWith('/') || value.startsWith('//')) return false;
+  // Reject anything that looks like a scheme
+  if (/^[a-zA-Z][a-zA-Z0-9+\-.]*:/.test(value)) return false;
+  return true;
+}
+
 function generateToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -64,7 +78,10 @@ export function middleware(request: NextRequest) {
     const sessionCookie = request.cookies.get('mail_session');
     if (!sessionCookie) {
       const loginUrl = buildPublicUrl(`/${locale}/login`, request);
-      loginUrl.searchParams.set('redirect', pathname);
+      // Only include redirect if it's a safe relative path (open-redirect guard).
+      if (isSafeRedirectPath(pathname)) {
+        loginUrl.searchParams.set('redirect', pathname);
+      }
       return NextResponse.redirect(loginUrl);
     }
     // Apply next-intl middleware then add CSRF cookie
@@ -77,7 +94,9 @@ export function middleware(request: NextRequest) {
     const sessionCookie = request.cookies.get('mail_session');
     if (!sessionCookie) {
       const loginUrl = buildPublicUrl(`/${locale}/login`, request);
-      loginUrl.searchParams.set('redirect', pathname);
+      if (isSafeRedirectPath(pathname)) {
+        loginUrl.searchParams.set('redirect', pathname);
+      }
       return NextResponse.redirect(loginUrl);
     }
     const intlResponse = intlMiddleware(request);

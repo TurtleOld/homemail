@@ -6,6 +6,18 @@ export function validateOrigin(request: Request): boolean {
     return true;
   }
 
+  // Fast-path: Sec-Fetch-Site is a browser-enforced fetch metadata header.
+  // If present and value is 'cross-site', reject immediately — no need to
+  // inspect Origin/Referer (those can be missing or spoofed by curl/scripts,
+  // but real browsers always set Sec-Fetch-Site).
+  const secFetchSite = request.headers.get('sec-fetch-site');
+  if (secFetchSite === 'cross-site') {
+    return false;
+  }
+  // 'same-origin' and 'same-site' are safe; 'none' is navigation (also safe
+  // for our purposes). Absent header means old browser → fall through to
+  // Origin/Referer check below.
+
   const origin = request.headers.get('origin');
   const referer = request.headers.get('referer');
   const hostHeader = request.headers.get('host');
