@@ -930,6 +930,38 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     toast.error(t('importanceError'));
                   }
                 }}
+                onStar={async (messageId, starred) => {
+                  try {
+                    await fetch(`/api/mail/messages/${messageId}/flags`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ starred }),
+                    });
+                    updateMessageInList(messageId, (message) => ({
+                      ...message,
+                      flags: { ...message.flags, starred },
+                    }));
+                  } catch {
+                    toast.error(t('importanceError'));
+                  }
+                }}
+                onDelete={async (messageId) => {
+                  try {
+                    const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+                    const csrfToken = csrfMatch ? decodeURIComponent(csrfMatch[1]!) : '';
+                    await fetch('/api/mail/messages/bulk', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}) },
+                      body: JSON.stringify({ ids: [messageId], action: 'delete' }),
+                    });
+                    updateMessageInList(messageId, () => null as never);
+                    if (selectedMessageId === messageId) setSelectedMessageId(null);
+                    queryClient.invalidateQueries({ queryKey: ['messages'] });
+                    queryClient.invalidateQueries({ queryKey: ['folders'] });
+                  } catch {
+                    toast.error(t('actionError'));
+                  }
+                }}
               />
             </div>
           </div>
