@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SearchBar } from './search-bar';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 
 interface SidebarProps {
   folders: Folder[];
@@ -74,6 +74,7 @@ export function Sidebar({
   onRefreshFolders,
 }: SidebarProps) {
   const router = useRouter();
+  const locale = useLocale();
   const t = useTranslations('sidebar');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
@@ -195,7 +196,7 @@ export function Sidebar({
   };
 
   const handleSettings = () => {
-    router.push('/settings');
+    router.push(`/${locale}/settings`);
   };
 
 

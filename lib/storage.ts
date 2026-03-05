@@ -11,6 +11,7 @@ const CREDENTIALS_FILE = path.join(DATA_DIR, 'credentials.enc');
  * Prevents partial-write corruption for security-critical files.
  */
 async function atomicWriteFile(filePath: string, content: string): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp.${process.pid}.${Date.now()}`;
   try {
     await fs.writeFile(tmp, content, 'utf-8');

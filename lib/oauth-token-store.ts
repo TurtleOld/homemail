@@ -73,14 +73,20 @@ export class OAuthTokenStore {
 
     await ensureDataDir();
     const tokensObj: Record<string, StoredToken> = {};
-    
+
     for (const [accountId, token] of tokensCache.entries()) {
       tokensObj[accountId] = token;
     }
 
-    const jsonData = JSON.stringify(tokensObj);
-    const encryptedData = encryptData(jsonData);
-    await fs.writeFile(TOKENS_FILE, encryptedData, 'utf-8');
+    const encryptedData = encryptData(JSON.stringify(tokensObj));
+    const tmp = `${TOKENS_FILE}.tmp.${process.pid}.${Date.now()}`;
+    try {
+      await fs.writeFile(tmp, encryptedData, 'utf-8');
+      await fs.rename(tmp, TOKENS_FILE);
+    } catch (err) {
+      try { await fs.unlink(tmp); } catch { /* ignore */ }
+      throw err;
+    }
   }
 
   async getToken(accountId: string): Promise<StoredToken | null> {

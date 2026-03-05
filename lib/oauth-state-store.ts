@@ -59,16 +59,19 @@ async function acquireLock(): Promise<void> {
       closeSync(fd);
       return;
     } catch {
-      // Lock file exists - check if stale
+      // Lock file exists - check if stale or corrupt
       try {
-        const lockData = JSON.parse(await fs.readFile(LOCK_FILE, 'utf-8'));
+        const raw = await fs.readFile(LOCK_FILE, 'utf-8');
+        const lockData = JSON.parse(raw);
         if (Date.now() - lockData.at > LOCK_STALE_AFTER) {
           // Stale lock - remove and retry immediately
           try { unlinkSync(LOCK_FILE); } catch { /* ignore */ }
           continue;
         }
       } catch {
-        // Lock file disappeared or unreadable - retry
+        // Lock file is unreadable, empty, or corrupt — treat as stale
+        try { unlinkSync(LOCK_FILE); } catch { /* ignore */ }
+        continue;
       }
       // Wait before retrying
       await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_INTERVAL));
