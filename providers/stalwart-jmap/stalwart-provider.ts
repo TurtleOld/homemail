@@ -10,6 +10,13 @@ import type {
 import { JMAPClient } from './jmap-client';
 import { convertFilterToJMAP } from '@/lib/filter-to-jmap';
 import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
+import { readStorage, writeStorage } from '@/lib/storage';
+
+interface JMAPStateSnapshot {
+  mailboxState: string;
+  emailObjectState: string;
+  savedAt: number;
+}
 
 interface JMAPAccount {
   id: string;
@@ -555,6 +562,9 @@ export class StalwartJMAPProvider implements MailProvider {
           'htmlBody',
           'hasAttachment',
           'size',
+          'header:Authentication-Results:asText',
+          'header:Received-SPF:asText',
+          'header:DKIM-Signature:asText',
         ],
         fetchTextBodyValues: true,
         fetchHTMLBodyValues: true,
@@ -699,6 +709,30 @@ export class StalwartJMAPProvider implements MailProvider {
         }
       }
 
+      // Parse DKIM/SPF/DMARC from Authentication-Results header
+      const authHeader: string = (email as any)['header:Authentication-Results:asText'] || '';
+      const spfHeader: string = (email as any)['header:Received-SPF:asText'] || '';
+
+      const parseAuthResult = (text: string, key: string): import('@/lib/types').AuthResult => {
+        const re = new RegExp(`${key}\\s*=\\s*(pass|fail|none|neutral|softfail|temperror|permerror)`, 'i');
+        const m = text.match(re);
+        if (!m) return 'none';
+        const v = m[1].toLowerCase();
+        if (v === 'pass') return 'pass';
+        if (v === 'fail' || v === 'softfail' || v === 'permerror') return 'fail';
+        return 'none';
+      };
+
+      const authResults: import('@/lib/types').MessageAuthResults = {
+        dkim: parseAuthResult(authHeader, 'dkim'),
+        spf: parseAuthResult(authHeader, 'spf') !== 'none'
+          ? parseAuthResult(authHeader, 'spf')
+          : parseAuthResult(spfHeader, 'Received-SPF') !== 'none'
+            ? parseAuthResult(spfHeader, 'Received-SPF')
+            : parseAuthResult(spfHeader, 'spf'),
+        dmarc: parseAuthResult(authHeader, 'dmarc'),
+      };
+
       return {
         id: email.id,
         from: {
@@ -721,6 +755,7 @@ export class StalwartJMAPProvider implements MailProvider {
           important: email.keywords?.['$important'] === true,
           hasAttachments: attachments.length > 0,
         },
+        authResults,
       };
     } catch (error) {
       return null;
@@ -1617,95 +1652,129 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   }
 
+  async syncMessages(accountId: string): Promise<{
+    created: string[];
+    updated: string[];
+    destroyed: string[];
+    mailboxCountsChanged: boolean;
+    needsFullRefresh: boolean;
+  }> {
+    const STATE_KEY = `jmapState:${accountId}`;
+    const STATE_TTL_MS = 24 * 60 * 60 * 1000;
+
+    const client = await this.getClient(accountId);
+    const session = await client.getSession();
+    const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+
+    const stored = await readStorage<JMAPStateSnapshot | null>(STATE_KEY, null);
+
+    // Stale or missing state → seed and request full refresh
+    if (!stored || Date.now() - stored.savedAt > STATE_TTL_MS) {
+      const { state: mailboxState } = await client.getMailboxesWithState(actualAccountId);
+      const seedResp = await client.request([
+        ['Email/get', { accountId: actualAccountId, ids: [] }, '0'],
+      ]);
+      const emailObjectState = (seedResp.methodResponses[0][1] as any).state as string || '';
+      await writeStorage<JMAPStateSnapshot>(STATE_KEY, { mailboxState, emailObjectState, savedAt: Date.now() });
+      return { created: [], updated: [], destroyed: [], mailboxCountsChanged: true, needsFullRefresh: true };
+    }
+
+    let newMailboxState = stored.mailboxState;
+    let newEmailObjectState = stored.emailObjectState;
+    let mailboxCountsChanged = false;
+    let needsFullRefresh = false;
+
+    // Mailbox/changes
+    const mailboxChanges = await client.getMailboxChanges(stored.mailboxState, actualAccountId);
+    if ('cannotCalculateChanges' in mailboxChanges) {
+      mailboxCountsChanged = true;
+      needsFullRefresh = true;
+      const { state } = await client.getMailboxesWithState(actualAccountId);
+      newMailboxState = state;
+    } else {
+      newMailboxState = mailboxChanges.newState;
+      if (mailboxChanges.changed.length > 0 || mailboxChanges.destroyed.length > 0) {
+        mailboxCountsChanged = true;
+      }
+    }
+
+    // Email/changes
+    const emailChanges = await client.getEmailChanges(stored.emailObjectState, actualAccountId);
+    let created: string[] = [];
+    let updated: string[] = [];
+    let destroyed: string[] = [];
+
+    if ('cannotCalculateChanges' in emailChanges) {
+      needsFullRefresh = true;
+      const seedResp = await client.request([
+        ['Email/get', { accountId: actualAccountId, ids: [] }, '0'],
+      ]);
+      newEmailObjectState = (seedResp.methodResponses[0][1] as any).state as string || stored.emailObjectState;
+    } else {
+      newEmailObjectState = emailChanges.newState;
+      created = emailChanges.created;
+      updated = emailChanges.updated;
+      destroyed = emailChanges.destroyed;
+      if (emailChanges.hasMoreChanges) needsFullRefresh = true;
+    }
+
+    await writeStorage<JMAPStateSnapshot>(STATE_KEY, {
+      mailboxState: newMailboxState,
+      emailObjectState: newEmailObjectState,
+      savedAt: Date.now(),
+    });
+
+    return { created, updated, destroyed, mailboxCountsChanged, needsFullRefresh };
+  }
+
   subscribeToUpdates(
     accountId: string,
     callback: (event: { type: string; data: any }) => void
   ): () => void {
     let intervalId: NodeJS.Timeout | null = null;
-    // Track seen message IDs per mailbox to detect new arrivals
-    const lastMessageIdsByMailbox = new Map<string, Set<string>>();
-    // Track query states per mailbox to detect any changes
-    const lastQueryStateByMailbox = new Map<string, string | undefined>();
     let isActive = true;
     let isPollRunning = false;
 
-    const EXCLUDED_ROLES = new Set(['sent', 'trash', 'drafts']);
-    // Poll last 50 messages per folder to catch bursts
-    const POLL_LIMIT = 50;
-
     const poll = async () => {
-      if (!isActive) return;
-      // Prevent concurrent polls if the previous one is still running
-      if (isPollRunning) return;
+      if (!isActive || isPollRunning) return;
       isPollRunning = true;
 
       try {
-        const client = await this.getClient(accountId);
-        const session = await client.getSession();
-        const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-        const mailboxes = await client.getMailboxes(actualAccountId);
+        const result = await this.syncMessages(accountId);
 
-        // Watch inbox + spam + any custom folder (exclude sent/trash/drafts)
-        const mailboxesToWatch = mailboxes.filter((mb) => {
-          if (mb.role && EXCLUDED_ROLES.has(mb.role)) return false;
-          return true;
-        });
+        if (result.needsFullRefresh) {
+          // Full reload — let clients refetch everything
+          if (result.mailboxCountsChanged) {
+            callback({ type: 'mailbox.counts', data: {} });
+          }
+          callback({ type: 'message.updated', data: {} });
+          return;
+        }
 
-        let anyCountsChanged = false;
+        if (result.mailboxCountsChanged) {
+          callback({ type: 'mailbox.counts', data: {} });
+        }
 
-        for (const mailbox of mailboxesToWatch) {
-          if (!isActive) break;
-
+        if (result.created.length > 0) {
           try {
-            const queryResult = await client.queryEmails(mailbox.id, {
+            const client = await this.getClient(accountId);
+            const session = await client.getSession();
+            const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+            const newEmails = await client.getEmails(result.created, {
               accountId: actualAccountId,
-              position: 0,
-              limit: POLL_LIMIT,
-              filter: { inMailbox: mailbox.id },
+              properties: ['id', 'mailboxIds'],
             });
-
-            const prevQueryState = lastQueryStateByMailbox.get(mailbox.id);
-
-            if (queryResult.queryState !== prevQueryState) {
-              lastQueryStateByMailbox.set(mailbox.id, queryResult.queryState);
-              anyCountsChanged = true;
-
-              if (queryResult.ids && queryResult.ids.length > 0) {
-                const prevIds = lastMessageIdsByMailbox.get(mailbox.id) ?? new Set<string>();
-                const newMessageIds = queryResult.ids.filter((id) => !prevIds.has(id));
-
-                // Only emit new-message events for truly new IDs (not the very first poll
-                // where prevIds is empty — that would fire for all existing messages).
-                if (prevIds.size > 0 && newMessageIds.length > 0) {
-                  for (const messageId of newMessageIds) {
-                    callback({
-                      type: 'message.new',
-                      data: {
-                        messageId,
-                        id: messageId,
-                        folderId: mailbox.id,
-                        mailboxId: mailbox.id,
-                      },
-                    });
-                  }
-                }
-
-                lastMessageIdsByMailbox.set(mailbox.id, new Set(queryResult.ids));
-              } else {
-                // Mailbox is empty or IDs unavailable — reset so next non-empty poll works
-                lastMessageIdsByMailbox.set(mailbox.id, new Set<string>());
-              }
+            for (const email of newEmails) {
+              const mailboxId = Object.keys((email as any).mailboxIds || {})[0] || '';
+              callback({ type: 'message.new', data: { messageId: email.id, id: email.id, folderId: mailboxId, mailboxId } });
             }
-          } catch (mbError) {
-            console.error(`[stalwart-provider] Error polling mailbox ${mailbox.id}:`, mbError);
+          } catch {
+            callback({ type: 'message.updated', data: {} });
           }
         }
 
-        if (anyCountsChanged) {
-          callback({
-            type: 'mailbox.counts',
-            data: {},
-          });
+        if (result.updated.length > 0 || result.destroyed.length > 0) {
+          callback({ type: 'message.updated', data: {} });
         }
       } catch (error) {
         console.error('[stalwart-provider] Error in subscribeToUpdates poll:', error);
@@ -1715,14 +1784,12 @@ export class StalwartJMAPProvider implements MailProvider {
     };
 
     intervalId = setInterval(poll, 15000);
-    // Run an initial poll to seed lastMessageIdsByMailbox (no events emitted on first run)
+    // First poll seeds state (needsFullRefresh=true on first run → safe)
     poll();
 
     return () => {
       isActive = false;
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
+      if (intervalId) clearInterval(intervalId);
     };
   }
 

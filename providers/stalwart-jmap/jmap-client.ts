@@ -616,13 +616,16 @@ export class JMAPClient {
   }
 
   async getMailboxes(accountId?: string): Promise<JMAPMailbox[]> {
+    const { mailboxes } = await this.getMailboxesWithState(accountId);
+    return mailboxes;
+  }
+
+  async getMailboxesWithState(accountId?: string): Promise<{ mailboxes: JMAPMailbox[]; state: string }> {
     const targetAccountId = accountId || this.accountId;
     const response = await this.request([
       [
         'Mailbox/get',
-        {
-          accountId: targetAccountId,
-        },
+        { accountId: targetAccountId },
         '0',
       ],
     ]);
@@ -631,13 +634,68 @@ export class JMAPClient {
     if (mailboxResponse[0] !== 'Mailbox/get') {
       throw new Error('Invalid mailbox response');
     }
-
     if ('type' in mailboxResponse[1] && mailboxResponse[1].type === 'error') {
       throw new Error(`JMAP mailbox error: ${(mailboxResponse[1] as any).description}`);
     }
 
-    const data = mailboxResponse[1] as { list: JMAPMailbox[] };
-    return data.list || [];
+    const data = mailboxResponse[1] as { list: JMAPMailbox[]; state: string };
+    return { mailboxes: data.list || [], state: data.state || '' };
+  }
+
+  async getMailboxChanges(
+    sinceState: string,
+    accountId?: string
+  ): Promise<
+    | { changed: string[]; destroyed: string[]; newState: string; hasMoreChanges: boolean }
+    | { cannotCalculateChanges: true }
+  > {
+    const targetAccountId = accountId || this.accountId;
+    const response = await this.request([
+      ['Mailbox/changes', { accountId: targetAccountId, sinceState }, '0'],
+    ]);
+
+    const [method, data] = response.methodResponses[0];
+    if (method === 'error') {
+      if ((data as any).type === 'cannotCalculateChanges') return { cannotCalculateChanges: true };
+      throw new Error(`Mailbox/changes error: ${(data as any).description}`);
+    }
+
+    const d = data as { newState: string; hasMoreChanges: boolean; changed: string[]; destroyed: string[] };
+    return {
+      changed: d.changed || [],
+      destroyed: d.destroyed || [],
+      newState: d.newState,
+      hasMoreChanges: d.hasMoreChanges,
+    };
+  }
+
+  async getEmailChanges(
+    sinceState: string,
+    accountId?: string,
+    maxChanges = 500
+  ): Promise<
+    | { created: string[]; updated: string[]; destroyed: string[]; newState: string; hasMoreChanges: boolean }
+    | { cannotCalculateChanges: true }
+  > {
+    const targetAccountId = accountId || this.accountId;
+    const response = await this.request([
+      ['Email/changes', { accountId: targetAccountId, sinceState, maxChanges }, '0'],
+    ]);
+
+    const [method, data] = response.methodResponses[0];
+    if (method === 'error') {
+      if ((data as any).type === 'cannotCalculateChanges') return { cannotCalculateChanges: true };
+      throw new Error(`Email/changes error: ${(data as any).description}`);
+    }
+
+    const d = data as { newState: string; hasMoreChanges: boolean; created: string[]; updated: string[]; destroyed: string[] };
+    return {
+      created: d.created || [],
+      updated: d.updated || [],
+      destroyed: d.destroyed || [],
+      newState: d.newState,
+      hasMoreChanges: d.hasMoreChanges,
+    };
   }
 
   async getIdentities(accountId?: string): Promise<JMAPIdentity[]> {

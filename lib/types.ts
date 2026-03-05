@@ -62,6 +62,14 @@ export type MessageListItem = {
   size: number;
 };
 
+export type AuthResult = 'pass' | 'fail' | 'none';
+
+export type MessageAuthResults = {
+  dkim?: AuthResult;
+  spf?: AuthResult;
+  dmarc?: AuthResult;
+};
+
 export type MessageDetail = {
   id: string;
   from: { email: string; name?: string };
@@ -78,6 +86,7 @@ export type MessageDetail = {
   inReplyTo?: string;
   references?: string[];
   messageId?: string;
+  authResults?: MessageAuthResults;
 };
 
 export type Attachment = {
