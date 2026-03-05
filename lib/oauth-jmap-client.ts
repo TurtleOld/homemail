@@ -164,6 +164,34 @@ export class OAuthJMAPClient {
     this.jmapClient = null;
   }
 
+  async revokeToken(): Promise<void> {
+    const token = await this.tokenStore.getToken(this.config.accountId);
+    if (!token) return;
+
+    try {
+      const discovery = await this.deviceFlow.getDiscovery();
+      // RFC 7009 revocation endpoint — try standard path first, fall back to token_endpoint base
+      const revocationUrl = (discovery as any).revocation_endpoint
+        || discovery.token_endpoint.replace(/\/token$/, '/revoke');
+
+      const body = new URLSearchParams();
+      body.append('token', token.accessToken);
+      body.append('token_type_hint', 'access_token');
+      body.append('client_id', this.config.clientId);
+
+      await fetch(revocationUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        },
+        body: body.toString(),
+      });
+    } catch {
+      // Best-effort: log but don't block logout
+    }
+  }
+
   async logout(): Promise<void> {
     await this.tokenStore.deleteToken(this.config.accountId);
     this.jmapClient = null;

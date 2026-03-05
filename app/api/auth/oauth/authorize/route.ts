@@ -45,18 +45,12 @@ export async function GET(request: NextRequest) {
     const redirectUri = process.env.OAUTH_REDIRECT_URI;
 
     if (!publicUrl || !clientId || !redirectUri) {
-      logger.error('[OAuth] Missing required configuration', {
+      logger.error('[OAuth] Missing required configuration — check STALWART_PUBLIC_URL, OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI', {
         hasPublicUrl: !!publicUrl,
         hasClientId: !!clientId,
         hasRedirectUri: !!redirectUri,
       });
-      return NextResponse.json(
-        {
-          error: 'OAuth configuration incomplete',
-          hint: 'Please set STALWART_PUBLIC_URL, OAUTH_CLIENT_ID, and OAUTH_REDIRECT_URI in environment'
-        },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'OAuth configuration error' }, { status: 500 });
     }
 
     // 2. Determine discovery URL (internal for server-side requests)
@@ -130,12 +124,9 @@ export async function GET(request: NextRequest) {
     // 7. Redirect to Stalwart OAuth authorization endpoint
     return NextResponse.redirect(authorizationUrl);
   } catch (error) {
-    logger.error('[OAuth Authorize] Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    return NextResponse.json(
-      { error: `Failed to initiate authorization: ${errorMessage}` },
-      { status: 500 }
-    );
+    logger.error('[OAuth Authorize] Error', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'Failed to initiate authorization' }, { status: 500 });
   }
 }

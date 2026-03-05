@@ -110,7 +110,7 @@ async function readStatesFromFile(): Promise<Map<string, OAuthState>> {
 }
 
 /**
- * Write states directly to file
+ * Write states to file atomically: write temp file then rename.
  */
 async function writeStatesToFile(states: Map<string, OAuthState>): Promise<void> {
   await ensureDataDir();
@@ -119,7 +119,14 @@ async function writeStatesToFile(states: Map<string, OAuthState>): Promise<void>
     statesObj[state] = data;
   }
   const encryptedData = encryptData(JSON.stringify(statesObj));
-  await fs.writeFile(STATE_FILE, encryptedData, 'utf-8');
+  const tmp = `${STATE_FILE}.tmp.${process.pid}.${Date.now()}`;
+  try {
+    await fs.writeFile(tmp, encryptedData, 'utf-8');
+    await fs.rename(tmp, STATE_FILE);
+  } catch (err) {
+    try { await fs.unlink(tmp); } catch { /* ignore */ }
+    throw err;
+  }
 }
 
 // Window within which we reuse an existing authorize request from the same IP

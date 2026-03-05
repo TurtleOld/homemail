@@ -11,6 +11,18 @@ import { getClientIp } from './client-ip';
 
 const SESSION_COOKIE_NAME = 'mail_session';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Allowlist for accountId characters.
+ * Stalwart accountIds are typically email addresses or similar identifiers.
+ * Rejecting unexpected characters here is a belt-and-suspenders guard
+ * against IDOR/path-traversal if an accountId were ever used as a path segment.
+ */
+const ACCOUNT_ID_RE = /^[a-zA-Z0-9@._\-+]{1,256}$/;
+
+function isValidAccountId(accountId: string): boolean {
+  return ACCOUNT_ID_RE.test(accountId);
+}
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
@@ -25,12 +37,23 @@ export interface SessionData {
   userAgent?: string;
 }
 
+/**
+ * Derive a 32-byte AES key from SESSION_SECRET via HKDF-SHA256.
+ * Uses a distinct context string from storage.ts so session cookies and
+ * storage blobs use different encryption keys.
+ */
 function getEncryptionKey(): Buffer {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) {
     throw new Error('SESSION_SECRET env var must be set and at least 32 characters long');
   }
-  return crypto.scryptSync(secret, 'salt', 32);
+  const prk = crypto.createHmac('sha256', 'mailclient-hkdf-salt-v1')
+    .update(secret)
+    .digest();
+  const okm = crypto.createHmac('sha256', prk)
+    .update('session-cookie-v1\x01')
+    .digest();
+  return okm;
 }
 
 function encryptSessionData(data: SessionData): string {
@@ -84,6 +107,10 @@ export async function createSession(
   email: string,
   request?: Request
 ): Promise<string> {
+  if (!isValidAccountId(accountId)) {
+    throw new Error(`Invalid accountId format: ${JSON.stringify(accountId)}`);
+  }
+
   const sessionId = `sess_${crypto.randomBytes(32).toString('base64url')}`;
   const expiresAt = Date.now() + SESSION_DURATION;
   const createdAt = Date.now();
