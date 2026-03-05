@@ -131,8 +131,6 @@ export class StalwartJMAPProvider implements MailProvider {
       throw new Error('OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required');
     }
 
-    console.log(`[StalwartProvider] Getting OAuth client for accountId: ${accountId}`);
-
     const oauthClient = new OAuthJMAPClient({
       discoveryUrl: config.oauthDiscoveryUrl,
       clientId: config.oauthClientId,
@@ -143,11 +141,9 @@ export class StalwartJMAPProvider implements MailProvider {
 
     const hasToken = await oauthClient.hasValidToken();
     if (!hasToken) {
-      console.log(`[StalwartProvider] No OAuth token found for accountId: ${accountId}`);
       throw new Error('OAuth token required. Please authorize first.');
     }
 
-    console.log(`[StalwartProvider] OAuth token found for accountId: ${accountId}`);
     return await oauthClient.getJMAPClient();
   }
 
