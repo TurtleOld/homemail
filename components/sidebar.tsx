@@ -262,21 +262,21 @@ export function Sidebar({
             }
           }}
           className={cn(
-            'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-all duration-200 hover:bg-muted active:bg-muted/70 max-md:min-h-[44px] touch-manipulation hover:shadow-sm',
-            selectedFolderId === folder.id && 'bg-muted font-medium shadow-sm',
+            'group flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-all duration-150 hover:bg-muted active:bg-muted/70 max-md:min-h-[44px] touch-manipulation',
+            selectedFolderId === folder.id && 'bg-primary/8 font-medium border-l-2 border-primary rounded-l-none',
             draggedOverFolderId === folder.id && 'bg-primary/20 ring-2 ring-primary ring-offset-1',
             level > 0 && 'ml-4'
           )}
         >
           {folderIcons[folder.role] || folderIcons.custom}
           <span className="flex-1 truncate">{folder.name}</span>
-          {folder.role === 'drafts' && folder.unreadCount > 0 && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-              {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
-            </span>
-          )}
-          {folder.role !== 'drafts' && folder.unreadCount > 0 && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+          {folder.unreadCount > 0 && (
+            <span className={cn(
+              'flex items-center justify-center rounded-full px-1.5 min-w-[20px] h-5 text-xs font-semibold tabular-nums',
+              selectedFolderId === folder.id
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground'
+            )}>
               {folder.unreadCount > 99 ? '99+' : folder.unreadCount}
             </span>
           )}
@@ -385,7 +385,7 @@ export function Sidebar({
           )}
         </div>
         <Button
-          className="w-full max-md:min-h-[44px] touch-manipulation"
+          className="w-full max-md:min-h-[44px] touch-manipulation font-semibold shadow-sm"
           onClick={onCompose}
           aria-label={t('compose')}
         >
@@ -436,11 +436,18 @@ export function Sidebar({
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="w-full justify-start max-md:min-h-[44px] touch-manipulation"
+              className="w-full justify-start gap-2 max-md:min-h-[44px] touch-manipulation"
               aria-label={t('settingsLabel')}
             >
-              <Settings className="mr-2 h-4 w-4" />
-              {t('settingsLabel')}
+              {account ? (
+                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                  {(account.displayName || account.email || '?')[0].toUpperCase()}
+                </div>
+              ) : (
+                <Settings className="h-4 w-4 flex-shrink-0" />
+              )}
+              <span className="flex-1 truncate text-left text-xs text-muted-foreground">{account?.email || t('settingsLabel')}</span>
+              <Settings className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
