@@ -8,19 +8,18 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get('content-type') || '';
     let report: Record<string, unknown> = {};
 
-    if (contentType.includes('application/csp-report') || contentType.includes('application/json')) {
-      const body = await request.json().catch(() => null);
-      if (body && typeof body === 'object') {
-        // application/csp-report wraps in { "csp-report": { ... } }
+    const body = await request.json().catch(() => null);
+    if (body != null) {
+      if (Array.isArray(body)) {
+        // application/reports+json (Reporting API v1) — array of report objects
+        report = body[0]?.body ?? body[0] ?? {};
+      } else if (typeof body === 'object') {
+        // application/csp-report — wraps payload in { "csp-report": { ... } }
+        // application/json — flat object
         report = (body as any)['csp-report'] ?? body;
       }
-    } else {
-      // application/reports+json (Reporting API v1) — array of reports
-      const body = await request.json().catch(() => null);
-      if (Array.isArray(body) && body.length > 0) {
-        report = body[0]?.body ?? body[0] ?? {};
-      }
     }
+    void contentType; // consumed implicitly via body shape detection above
 
     SecurityLogger.logSuspiciousActivity(request, 'csp_violation', {
       blockedUri: report['blocked-uri'] ?? report.blockedURL,

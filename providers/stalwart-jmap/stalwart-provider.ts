@@ -714,7 +714,8 @@ export class StalwartJMAPProvider implements MailProvider {
       const spfHeader: string = (email as any)['header:Received-SPF:asText'] || '';
 
       const parseAuthResult = (text: string, key: string): import('@/lib/types').AuthResult => {
-        const re = new RegExp(`${key}\\s*=\\s*(pass|fail|none|neutral|softfail|temperror|permerror)`, 'i');
+        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(`${escapedKey}\\s*=\\s*(pass|fail|none|neutral|softfail|temperror|permerror)`, 'i');
         const m = text.match(re);
         if (!m) return 'none';
         const v = m[1].toLowerCase();
@@ -1674,7 +1675,9 @@ export class StalwartJMAPProvider implements MailProvider {
       const seedResp = await client.request([
         ['Email/get', { accountId: actualAccountId, ids: [] }, '0'],
       ]);
-      const emailObjectState = (seedResp.methodResponses[0][1] as any).state as string || '';
+      const emailObjectState: string = seedResp.methodResponses?.[0]?.[1] != null
+        ? ((seedResp.methodResponses[0][1] as any).state ?? '')
+        : '';
       await writeStorage<JMAPStateSnapshot>(STATE_KEY, { mailboxState, emailObjectState, savedAt: Date.now() });
       return { created: [], updated: [], destroyed: [], mailboxCountsChanged: true, needsFullRefresh: true };
     }
@@ -1709,7 +1712,9 @@ export class StalwartJMAPProvider implements MailProvider {
       const seedResp = await client.request([
         ['Email/get', { accountId: actualAccountId, ids: [] }, '0'],
       ]);
-      newEmailObjectState = (seedResp.methodResponses[0][1] as any).state as string || stored.emailObjectState;
+      newEmailObjectState = seedResp.methodResponses?.[0]?.[1] != null
+        ? ((seedResp.methodResponses[0][1] as any).state ?? stored.emailObjectState)
+        : stored.emailObjectState;
     } else {
       newEmailObjectState = emailChanges.newState;
       created = emailChanges.created;
