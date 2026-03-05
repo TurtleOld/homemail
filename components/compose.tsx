@@ -6,16 +6,9 @@ import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import CodeBlock from '@tiptap/extension-code-block';
 import Underline from '@tiptap/extension-underline';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File, Clock, ChevronDown, FileText, Lock, Mail } from 'lucide-react';
+import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File, Clock, ChevronDown, FileText, Lock, Mail, Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { validateEmail, parseEmailList } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -106,6 +99,8 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   const suppressDirtyRef = useRef(false);
   const didInitRef = useRef(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   
   const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -572,13 +567,50 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
   if (!editor) return null;
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] max-md:max-w-full max-md:max-h-full max-md:h-full max-md:rounded-none max-md:m-0 flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="max-md:text-base">{replyTo ? t('replyTitle') : forwardFrom ? t('forwardTitle') : t('newMessage')}</DialogTitle>
-        </DialogHeader>
-        <div className="flex-1 overflow-auto space-y-4 max-md:space-y-2">
+    <div
+      className={cn(
+        'fixed z-50 flex flex-col bg-background border rounded-xl shadow-2xl transition-all duration-200',
+        isExpanded
+          ? 'inset-4 max-md:inset-0 max-md:rounded-none'
+          : isMinimized
+          ? 'bottom-4 right-4 w-80 h-12 overflow-hidden max-md:bottom-0 max-md:right-0 max-md:left-0 max-md:w-full max-md:rounded-none'
+          : 'bottom-4 right-4 w-[520px] max-h-[calc(100vh-2rem)] max-md:inset-0 max-md:rounded-none'
+      )}
+      role="dialog"
+      aria-modal="true"
+      aria-label={replyTo ? t('replyTitle') : forwardFrom ? t('forwardTitle') : t('newMessage')}
+    >
+      {/* Floating panel header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 rounded-t-xl max-md:rounded-none flex-shrink-0">
+        <span className="flex-1 text-sm font-semibold truncate">
+          {replyTo ? t('replyTitle') : forwardFrom ? t('forwardTitle') : t('newMessage')}
+        </span>
+        <button
+          onClick={() => setIsMinimized(!isMinimized)}
+          className="p-1 rounded hover:bg-muted transition-colors"
+          aria-label={isMinimized ? 'Expand' : 'Minimize'}
+        >
+          <Minimize2 className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="p-1 rounded hover:bg-muted transition-colors max-md:hidden"
+          aria-label={isExpanded ? 'Restore' : 'Expand to fullscreen'}
+        >
+          <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+        <button
+          onClick={handleClose}
+          className="p-1 rounded hover:bg-muted transition-colors"
+          aria-label={tCommon('close')}
+        >
+          <X className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-auto space-y-4 p-4 max-md:space-y-2 max-md:p-3">
           <div>
             <ContactAutocomplete
               value={to}
@@ -855,15 +887,15 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
             </label>
           </div>
         </div>
-        <DialogFooter className="max-md:flex-col max-md:gap-2">
-          <Button variant="outline" onClick={handleClose} className="max-md:w-full">
-            {tCommon('cancel')}
-          </Button>
-          <Button onClick={handleSend} disabled={sending || saving} className="max-md:w-full">
-            {sending ? t('sending') : saving ? tCommon('saving') : scheduledSend ? t('scheduledSend') : t('send')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <div className="flex items-center gap-2 border-t px-4 py-3 flex-shrink-0">
+        <Button variant="ghost" size="sm" onClick={handleClose} className="text-muted-foreground">
+          {tCommon('cancel')}
+        </Button>
+        <div className="flex-1" />
+        <Button onClick={handleSend} disabled={sending || saving} size="sm" className="font-semibold px-5">
+          {sending ? t('sending') : saving ? tCommon('saving') : scheduledSend ? t('scheduledSend') : t('send')}
+        </Button>
+      </div>
+    </div>
   );
 }
