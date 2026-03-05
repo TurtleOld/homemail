@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { validateCsrf } from '@/lib/csrf';
 import { logger } from '@/lib/logger';
-import { writeStorage, readStorage } from '@/lib/storage';
+import { writeStorage, readStorage, encryptData, decryptData } from '@/lib/storage';
 import { validateEmailList, sanitizeEmail } from '@/lib/email-validator';
 import { SecurityLogger } from '@/lib/security-logger';
 import type { DeliveryTracking } from '@/lib/types';
@@ -110,7 +110,8 @@ export async function POST(request: NextRequest) {
         cc: validatedData.cc,
         bcc: validatedData.bcc,
         subject: validatedData.subject,
-        html: validatedData.html,
+        // Encrypt HTML body at rest — may contain sensitive email content.
+        html: encryptData(validatedData.html),
         attachments: validatedData.attachments,
         sendAt: sendAt.toISOString(),
         draftId: validatedData.draftId,
@@ -148,22 +149,6 @@ export async function POST(request: NextRequest) {
         data: Buffer.from(att.data, 'base64'),
       })),
     });
-
-    if (validatedData.requestReadReceipt) {
-      const tracking: DeliveryTracking = {
-        messageId,
-        status: 'sent',
-        sentAt: new Date(),
-        recipients: [
-          ...validatedData.to.map((email) => ({ email, status: 'pending' as const })),
-          ...(validatedData.cc || []).map((email) => ({ email, status: 'pending' as const })),
-          ...(validatedData.bcc || []).map((email) => ({ email, status: 'pending' as const })),
-        ],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      await writeStorage(`delivery:${session.accountId}:${messageId}`, tracking);
-    }
 
     if (validatedData.requestReadReceipt) {
       const tracking: DeliveryTracking = {

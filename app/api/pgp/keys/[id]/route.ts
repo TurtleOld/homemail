@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readEncryptedStorage, writeEncryptedStorage } from '@/lib/storage';
 import { validateOrigin } from '@/lib/csrf';
 import type { PGPKey } from '@/lib/types';
 
@@ -20,7 +20,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const keys = await readStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
+    const keys = await readEncryptedStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
     const keyIndex = keys.findIndex((k) => k.id === id);
 
     if (keyIndex === -1) {
@@ -28,7 +28,7 @@ export async function DELETE(
     }
 
     const filteredKeys = keys.filter((k) => k.id !== id);
-    await writeStorage(`pgpKeys:${session.accountId}`, filteredKeys);
+    await writeEncryptedStorage(`pgpKeys:${session.accountId}`, filteredKeys);
 
     return NextResponse.json({ success: true });
   } catch (error) {

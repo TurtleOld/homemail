@@ -394,6 +394,28 @@ export function MessageViewer({
               <div>
                 <strong>{t('date')}</strong> {message.date ? formatDate(message.date, localeSettings) : tCommon('unknown')}
               </div>
+              {message.authResults && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {(['dkim', 'spf', 'dmarc'] as const).map((key) => {
+                    const result = message.authResults![key];
+                    if (!result || result === 'none') return null;
+                    const isPass = result === 'pass';
+                    return (
+                      <span
+                        key={key}
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-medium ${
+                          isPass
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                        }`}
+                        title={`${key.toUpperCase()}: ${result}`}
+                      >
+                        {key.toUpperCase()} {isPass ? '✓' : '✗'}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             {messageLabelObjects.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">

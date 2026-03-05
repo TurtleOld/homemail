@@ -5,6 +5,18 @@ import { useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Languages, Loader2 } from 'lucide-react';
+import { sanitizeHtml } from '@/lib/sanitize';
+
+/** Escape plain text for safe HTML rendering (newlines → <br>). */
+function escapePlainText(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/\n/g, '<br>');
+}
 
 const LANGUAGES = [
   { code: 'ru', name: 'Русский' },
@@ -72,6 +84,14 @@ export function MessageTranslator({ originalText, originalHtml, onTranslated }: 
     translateMutation.mutate();
   };
 
+  // Sanitize HTML before rendering to prevent XSS from email content.
+  const safeOriginal = originalHtml
+    ? sanitizeHtml(originalHtml)
+    : escapePlainText(originalText);
+  const safeTranslated = translatedHtml
+    ? sanitizeHtml(translatedHtml)
+    : escapePlainText(translatedText ?? '');
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -127,9 +147,7 @@ export function MessageTranslator({ originalText, originalHtml, onTranslated }: 
           <div
             className="prose prose-sm max-w-none"
             dangerouslySetInnerHTML={{
-              __html: showOriginal
-                ? originalHtml || originalText.replace(/\n/g, '<br>')
-                : translatedHtml || translatedText.replace(/\n/g, '<br>'),
+              __html: showOriginal ? safeOriginal : safeTranslated,
             }}
           />
         </div>

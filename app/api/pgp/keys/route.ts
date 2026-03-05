@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readEncryptedStorage, writeEncryptedStorage } from '@/lib/storage';
 import { validateOrigin } from '@/lib/csrf';
 import { z } from 'zod';
 import type { PGPKey } from '@/lib/types';
@@ -13,7 +13,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const keys = await readStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
+    const keys = await readEncryptedStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
 
     return NextResponse.json(keys);
   } catch (error) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const publicKey = await openpgp.readKey({ armoredKey: data.keyData });
     const fingerprint = publicKey.getFingerprint();
 
-    const keys = await readStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
+    const keys = await readEncryptedStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
 
     const existingKey = keys.find((k) => k.fingerprint === fingerprint);
     if (existingKey) {
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     };
 
     keys.push(key);
-    await writeStorage(`pgpKeys:${session.accountId}`, keys);
+    await writeEncryptedStorage(`pgpKeys:${session.accountId}`, keys);
 
     return NextResponse.json(key);
   } catch (error) {

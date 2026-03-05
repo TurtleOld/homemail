@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { readStorage } from '@/lib/storage';
+import { readEncryptedStorage } from '@/lib/storage';
 import { validateOrigin } from '@/lib/csrf';
 import { z } from 'zod';
 import type { PGPKey } from '@/lib/types';
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = decryptSchema.parse(body);
 
-    const keys = await readStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
+    const keys = await readEncryptedStorage<PGPKey[]>(`pgpKeys:${session.accountId}`, []);
     const privateKey = keys.find((key) => key.privateKey);
 
     if (!privateKey || !privateKey.privateKey) {
