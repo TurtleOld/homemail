@@ -716,13 +716,17 @@ export class StalwartJMAPProvider implements MailProvider {
 
       const parseAuthResult = (text: string, key: string): import('@/lib/types').AuthResult => {
         const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const re = new RegExp(`${escapedKey}\\s*=\\s*(pass|fail|none|neutral|softfail|temperror|permerror)`, 'i');
-        const m = text.match(re);
-        if (!m) return 'none';
-        const v = m[1].toLowerCase();
-        if (v === 'pass') return 'pass';
-        if (v === 'fail' || v === 'softfail' || v === 'permerror') return 'fail';
-        return 'none';
+        const re = new RegExp(`(?:^|[;\\s])${escapedKey}\\s*=\\s*(pass|fail|none|neutral|softfail|temperror|permerror)`, 'gi');
+        const matches = [...text.matchAll(re)];
+        if (matches.length === 0) return 'none';
+        // Return worst result across all matches: fail > pass > none
+        let result: import('@/lib/types').AuthResult = 'none';
+        for (const m of matches) {
+          const v = m[1].toLowerCase();
+          if (v === 'fail' || v === 'softfail' || v === 'permerror' || v === 'temperror') return 'fail';
+          if (v === 'pass') result = 'pass';
+        }
+        return result;
       };
 
       const authResults: import('@/lib/types').MessageAuthResults = {
