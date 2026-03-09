@@ -7,12 +7,13 @@ type ToasterProps = React.ComponentProps<typeof Sonner>;
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
-      position="top-center"
+      position="bottom-center"
+      offset={24}
       className="toaster group"
       toastOptions={{
         duration: 4000,
         classNames: {
-          toast: 'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-2xl group-[.toaster]:border-2 group-[.toaster]:rounded-lg group-[.toaster]:px-5 group-[.toaster]:py-4 group-[.toaster]:min-w-[360px] group-[.toaster]:max-w-[600px] group-[.toaster]:font-semibold group-[.toaster]:text-base group-[.toaster]:backdrop-blur-sm',
+          toast: 'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-2xl group-[.toaster]:border-2 group-[.toaster]:rounded-lg group-[.toaster]:px-5 group-[.toaster]:py-4 group-[.toaster]:min-w-[320px] group-[.toaster]:max-w-[420px] group-[.toaster]:font-semibold group-[.toaster]:text-base group-[.toaster]:backdrop-blur-sm',
           description: 'group-[.toast]:text-muted-foreground group-[.toast]:text-sm group-[.toast]:mt-1.5 group-[.toast]:font-normal',
           actionButton: 'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground group-[.toast]:rounded-md group-[.toast]:px-3 group-[.toast]:py-1.5 group-[.toast]:text-sm group-[.toast]:font-medium',
           cancelButton: 'group-[.toast]:bg-muted group-[.toast]:text-muted-foreground group-[.toast]:rounded-md group-[.toast]:px-3 group-[.toast]:py-1.5 group-[.toast]:text-sm group-[.toast]:font-medium',
