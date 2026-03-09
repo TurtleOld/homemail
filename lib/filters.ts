@@ -166,14 +166,28 @@ function matchCondition(message: MessageListItem, condition: FilterCondition): b
     return false;
   }
 
-  const target = field === 'subject'
-    ? message.subject || ''
-    : field === 'body'
-      ? `${message.from.name || ''} ${message.from.email || ''} ${message.subject || ''} ${message.snippet || ''}`
-      : message.from.email || '';
-  const candidates = field === 'from'
-    ? [message.from.email || '', message.from.name || ''].filter(Boolean)
-    : [target];
+  let candidates: string[];
+  if (field === 'from') {
+    candidates = [message.from.email || '', message.from.name || ''].filter(Boolean);
+  } else if (field === 'to') {
+    candidates = message.to.flatMap((t) => [t.email || '', t.name || ''].filter(Boolean));
+  } else if (field === 'cc' || field === 'bcc') {
+    // MessageListItem doesn't have cc/bcc — check if present (MessageDetail)
+    const recipients = (message as Record<string, unknown>)[field];
+    if (Array.isArray(recipients)) {
+      candidates = recipients.flatMap((r: { email?: string; name?: string }) =>
+        [r.email || '', r.name || ''].filter(Boolean)
+      );
+    } else {
+      candidates = [];
+    }
+  } else if (field === 'subject') {
+    candidates = [message.subject || ''];
+  } else if (field === 'body') {
+    candidates = [`${message.from.name || ''} ${message.from.email || ''} ${message.subject || ''} ${message.snippet || ''}`];
+  } else {
+    candidates = [message.from.email || ''];
+  }
 
   if (Array.isArray(value)) {
     return candidates.some((text) => {

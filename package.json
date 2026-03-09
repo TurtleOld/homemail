@@ -18,7 +18,8 @@
     "docker:logs": "docker-compose logs -f",
     "backup": "tsx scripts/backup.ts",
     "restore": "tsx scripts/restore.ts",
-    "auto-sort": "tsx scripts/process-auto-sort-rules.ts"
+    "auto-sort": "tsx scripts/process-auto-sort-rules.ts",
+    "auto-sort:worker": "tsx scripts/auto-sort-worker.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.1",

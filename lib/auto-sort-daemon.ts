@@ -80,14 +80,19 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
       }
     }
 
-    // Filter folders to search (exclude system folders only;
-    // do NOT exclude the destination folder — messages may already be there
-    // if moved by Sieve, and other rule actions still need to be applied).
+    // Separate move action from other actions to enable batching
+    const hasOnlyMoveAction = rule.actions.length === 1 && moveToFolderAction != null;
+    const nonMoveActions = rule.actions.filter((a) => a.type !== 'moveToFolder');
+
     const foldersToSearch = folders.filter((f) => {
       if (f.role === 'trash' || f.role === 'sent' || f.role === 'drafts') {
         return false;
       }
       if (isDeletedFolderName(f.name)) {
+        return false;
+      }
+      // Skip destination folder for move-only rules (nothing to do for messages already there)
+      if (hasOnlyMoveAction && destinationFolderId && f.id === destinationFolderId) {
         return false;
       }
       return true;
@@ -97,47 +102,125 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
 
     let totalProcessed = 0;
     let totalApplied = 0;
+    const BATCH_MOVE_SIZE = 50;
 
-    // Process folders one by one to avoid rate limiting
     for (const folder of foldersToSearch) {
       try {
         console.log(`[auto-sort-daemon] Job ${jobId}: Processing folder ${folder.name}`);
 
-        const result = await provider.getMessages(accountId, folder.id, { limit: 2000 });
+        // Paginate through all messages in the folder using cursor-based pagination
+        let cursor: string | undefined;
+        let hasMore = true;
 
-        if (!result || !result.messages || result.messages.length === 0) {
-          continue;
-        }
+        while (hasMore) {
+          const result = await provider.getMessages(accountId, folder.id, {
+            limit: 500,
+            ...(cursor ? { cursor } : {}),
+          });
 
-        // Process messages one by one with delays
-        for (let i = 0; i < result.messages.length; i++) {
-          const message = result.messages[i];
+          if (!result || !result.messages || result.messages.length === 0) {
+            break;
+          }
 
-          try {
-            const matches = await checkMessageMatchesRule(message, rule, provider, accountId, folder.id);
+          const messages = result.messages;
+          hasMore = !!result.nextCursor;
+          cursor = result.nextCursor;
 
-            if (matches) {
-              console.log(`[auto-sort-daemon] Job ${jobId}: Message ${message.id} matches rule, applying actions...`);
-              await applyRuleActions(message.id, rule, provider, accountId);
-              totalApplied++;
+          // Collect matching message IDs for batch operations
+          const matchedIds: string[] = [];
 
-              // Extra delay after applying actions
-              if (totalApplied % 5 === 0) {
-                await new Promise((resolve) => setTimeout(resolve, 500));
+          for (const message of messages) {
+            try {
+              const matches = await checkMessageMatchesRule(message, rule, provider, accountId, folder.id);
+              if (matches) {
+                matchedIds.push(message.id);
+              }
+              totalProcessed++;
+            } catch (error) {
+              console.error(`[auto-sort-daemon] Job ${jobId}: Error checking message ${message.id}:`, error);
+              if (isRateLimitError(error)) {
+                await new Promise((resolve) => setTimeout(resolve, 2000));
               }
             }
+          }
 
-            totalProcessed++;
-          } catch (error) {
-            console.error(`[auto-sort-daemon] Job ${jobId}: Error processing message ${message.id}:`, error);
-            if (isRateLimitError(error)) {
-              await new Promise((resolve) => setTimeout(resolve, 2000));
+          if (matchedIds.length === 0) {
+            continue;
+          }
+
+          console.log(`[auto-sort-daemon] Job ${jobId}: ${matchedIds.length} messages matched in folder ${folder.name}`);
+
+          // Batch move: send up to BATCH_MOVE_SIZE IDs per JMAP call
+          if (destinationFolderId) {
+            for (let i = 0; i < matchedIds.length; i += BATCH_MOVE_SIZE) {
+              const batch = matchedIds.slice(i, i + BATCH_MOVE_SIZE);
+              try {
+                await provider.bulkUpdateMessages(accountId, {
+                  ids: batch,
+                  action: 'move',
+                  payload: { folderId: destinationFolderId },
+                });
+                totalApplied += batch.length;
+              } catch (error) {
+                console.error(`[auto-sort-daemon] Job ${jobId}: Batch move failed, falling back to individual:`, error);
+                if (isRateLimitError(error)) {
+                  await new Promise((resolve) => setTimeout(resolve, 3000));
+                }
+                // Fallback: move one by one
+                for (const id of batch) {
+                  try {
+                    await provider.bulkUpdateMessages(accountId, {
+                      ids: [id],
+                      action: 'move',
+                      payload: { folderId: destinationFolderId },
+                    });
+                    totalApplied++;
+                  } catch (innerError) {
+                    console.error(`[auto-sort-daemon] Job ${jobId}: Individual move failed for ${id}:`, innerError);
+                  }
+                  await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+              }
+              // Small delay between batches
+              if (i + BATCH_MOVE_SIZE < matchedIds.length) {
+                await new Promise((resolve) => setTimeout(resolve, 300));
+              }
             }
           }
+
+          // Apply non-move actions individually (markRead, markImportant, etc.)
+          if (nonMoveActions.length > 0) {
+            for (const id of matchedIds) {
+              try {
+                for (const action of nonMoveActions) {
+                  switch (action.type) {
+                    case 'markRead':
+                      await provider.updateMessageFlags(accountId, id, { unread: false });
+                      break;
+                    case 'markImportant':
+                      await provider.updateMessageFlags(accountId, id, { starred: true });
+                      break;
+                    case 'delete':
+                      await provider.bulkUpdateMessages(accountId, { ids: [id], action: 'delete' });
+                      break;
+                  }
+                }
+                if (!destinationFolderId) {
+                  totalApplied++;
+                }
+              } catch (error) {
+                console.error(`[auto-sort-daemon] Job ${jobId}: Error applying non-move action for ${id}:`, error);
+              }
+              await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+          }
+
+          // Delay between pages
+          await new Promise((resolve) => setTimeout(resolve, 300));
         }
 
         // Delay between folders
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       } catch (error) {
         console.error(`[auto-sort-daemon] Job ${jobId}: Error processing folder ${folder.id}:`, error);
         if (isRateLimitError(error)) {
@@ -354,7 +437,7 @@ async function startAutoSortDaemon(): Promise<void> {
   await refreshAccounts();
   setInterval(refreshAccounts, 60_000);
 
-  // Process pending filter jobs every 30 seconds
+  // Process pending filter jobs every 10 seconds
   const processJobs = async () => {
     try {
       await processJobQueue();
@@ -365,7 +448,7 @@ async function startAutoSortDaemon(): Promise<void> {
 
   // Start job processing immediately and then periodically
   void processJobs();
-  setInterval(processJobs, 30_000);
+  setInterval(processJobs, 10_000);
 
   // Periodic full-scan fallback: every 10 minutes run rules over all folders
   // for all accounts. This catches messages that slipped through the real-time

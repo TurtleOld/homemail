@@ -74,6 +74,11 @@ export async function getPendingJobs(): Promise<FilterJob[]> {
   return jobs.filter((job) => job.status === 'pending');
 }
 
+export async function getActiveJobs(): Promise<FilterJob[]> {
+  const jobs = await loadJobs();
+  return jobs.filter((job) => job.status === 'pending' || job.status === 'processing');
+}
+
 export async function updateJob(jobId: string, updates: Partial<FilterJob>): Promise<void> {
   const jobs = await loadJobs();
   const index = jobs.findIndex((job) => job.id === jobId);
