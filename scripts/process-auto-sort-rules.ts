@@ -4,7 +4,7 @@ import { logger } from '../lib/logger';
 import { getMailProvider, getMailProviderForAccount } from '../lib/get-provider';
 import { checkMessageMatchesRule, applyRuleActions } from '../lib/apply-auto-sort-rules';
 import type { AutoSortRule, MessageListItem, Folder } from '../lib/types';
-import { readStorage } from '../lib/storage';
+import { readStorage, writeStorage } from '../lib/storage';
 import { OAuthTokenStore } from '../lib/oauth-token-store';
 
 const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
@@ -24,43 +24,42 @@ async function loadRules(accountId: string): Promise<AutoSortRule[]> {
   }
 }
 
-async function getProcessedMessages(): Promise<Set<string>> {
+/**
+ * Load processed messages map from disk.
+ * Returns a mutable object that callers can add entries to.
+ */
+async function loadProcessedMessages(): Promise<Record<string, number>> {
   try {
-    const processed = await readStorage<Record<string, number>>(PROCESSED_MESSAGES_KEY, {});
-    return new Set(Object.keys(processed));
+    return await readStorage<Record<string, number>>(PROCESSED_MESSAGES_KEY, {});
   } catch {
-    return new Set();
+    return {};
   }
 }
 
-async function markMessageAsProcessed(messageId: string): Promise<void> {
+/**
+ * Flush the processed messages map to disk.
+ * Performs cleanup (remove entries older than 30 days, cap at MAX_PROCESSED_MESSAGES).
+ * Should be called infrequently — once per folder or per account, NOT per message.
+ */
+async function flushProcessedMessages(processed: Record<string, number>): Promise<void> {
   try {
-    const processed = await readStorage<Record<string, number>>(PROCESSED_MESSAGES_KEY, {});
     const now = Date.now();
-
-    processed[messageId] = now;
-
-    // Remove old entries (older than 30 days)
     const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+    // Filter and sort in a single pass
+    const entries = Object.entries(processed)
+      .filter(([, timestamp]) => timestamp > thirtyDaysAgo)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_PROCESSED_MESSAGES);
+
     const cleaned: Record<string, number> = {};
-    for (const [id, timestamp] of Object.entries(processed)) {
-      if (timestamp > thirtyDaysAgo) {
-        cleaned[id] = timestamp;
-      }
+    for (const [id, timestamp] of entries) {
+      cleaned[id] = timestamp;
     }
 
-    // Also limit by count
-    const entries = Object.entries(cleaned).sort((a, b) => b[1] - a[1]);
-    const limited = entries.slice(0, MAX_PROCESSED_MESSAGES);
-    const finalProcessed: Record<string, number> = {};
-    for (const [id, timestamp] of limited) {
-      finalProcessed[id] = timestamp;
-    }
-
-    const { writeStorage } = await import('../lib/storage');
-    await writeStorage(PROCESSED_MESSAGES_KEY, finalProcessed);
+    await writeStorage(PROCESSED_MESSAGES_KEY, cleaned);
   } catch (error) {
-    logger.error(`[auto-sort] Error marking message as processed:`, error);
+    logger.error(`[auto-sort] Error flushing processed messages:`, error);
   }
 }
 
@@ -74,7 +73,9 @@ async function processAccount(accountId: string, provider: any): Promise<void> {
       return;
     }
 
-    const processed = await getProcessedMessages();
+    // Load once at the start — all mutations happen in memory
+    const processedMap = await loadProcessedMessages();
+    const processedSet = new Set(Object.keys(processedMap));
     const folders = await provider.getFolders(accountId);
 
     // Process all folders except system ones
@@ -84,6 +85,8 @@ async function processAccount(accountId: string, provider: any): Promise<void> {
     });
 
     logger.info(`[auto-sort] Checking ${foldersToCheck.length} folder(s) for account ${accountId}`);
+
+    let dirtyCount = 0;
 
     for (const folder of foldersToCheck) {
       logger.info(`[auto-sort] Checking folder ${folder.name} (${folder.id})`);
@@ -107,7 +110,7 @@ async function processAccount(accountId: string, provider: any): Promise<void> {
 
         for (const message of messages) {
           // Skip if already processed by this script
-          if (processed.has(message.id)) {
+          if (processedSet.has(message.id)) {
             continue;
           }
 
@@ -138,12 +141,11 @@ async function processAccount(accountId: string, provider: any): Promise<void> {
               }
             }
 
-            // Mark as processed regardless of match to skip on next run
-            await markMessageAsProcessed(message.id);
-            if (!applied) {
-              // Also add to in-memory set so we don't re-check within the same run
-              processed.add(message.id);
-            }
+            // Mark as processed in memory (NOT on disk — we flush once per folder)
+            const now = Date.now();
+            processedMap[message.id] = now;
+            processedSet.add(message.id);
+            dirtyCount++;
           } catch (messageError) {
             logger.error(`[auto-sort] Error processing message ${message.id}:`, messageError);
           }
@@ -157,8 +159,19 @@ async function processAccount(accountId: string, provider: any): Promise<void> {
         logger.error(`[auto-sort] Error processing folder ${folder.name}:`, folderError);
       }
 
+      // Flush processed messages to disk after each folder (not per message)
+      if (dirtyCount > 0) {
+        await flushProcessedMessages(processedMap);
+        dirtyCount = 0;
+      }
+
       // Small delay between folders
       await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    // Final flush in case there are remaining dirty entries
+    if (dirtyCount > 0) {
+      await flushProcessedMessages(processedMap);
     }
   } catch (error) {
     logger.error(`[auto-sort] Error processing account ${accountId}:`, error);
@@ -174,6 +187,7 @@ export async function processAutoSortRules(): Promise<void> {
 
     try {
       const tokenStore = new OAuthTokenStore();
+      tokenStore.invalidateCache();
       const tokens = await tokenStore.loadTokens();
       for (const id of tokens.keys()) {
         accountIds.add(id);
