@@ -32,14 +32,13 @@ const ALLOWED_TAGS = [
   'th',
 ];
 
-// 'style' is intentionally excluded — inline styles can carry CSS-based trackers
-// and CSS injection vectors.  If specific formatting is needed, use class= instead.
-const ALLOWED_ATTR = ['href', 'src', 'alt', 'title', 'class', 'target', 'rel'];
+// Allow 'style' but restrict it to safe CSS properties via DOMPurify hooks below.
+// This preserves email layout (width, padding, text-align) while blocking
+// dangerous properties (url(), expression(), -moz-binding, etc.).
+const ALLOWED_ATTR = ['href', 'src', 'alt', 'title', 'class', 'target', 'rel', 'style', 'width', 'height', 'align', 'valign', 'cellpadding', 'cellspacing', 'bgcolor', 'colspan', 'rowspan'];
 
 // All event-handler attributes (on*) are forbidden at the DOMPurify level.
-// style= is also explicitly forbidden here as belt-and-suspenders.
 const FORBIDDEN_ATTR = [
-  'style',
   'onerror',
   'onload',
   'onclick',
@@ -89,6 +88,51 @@ const FORBIDDEN_TAGS = [
   'slot',
 ];
 
+// Safe CSS properties allowed in inline styles.  Anything not on this list
+// is stripped, which blocks url(), expression(), -moz-binding, etc.
+const SAFE_CSS_PROPERTIES = new Set([
+  'color', 'background-color', 'background',
+  'font-size', 'font-weight', 'font-style', 'font-family', 'font',
+  'text-align', 'text-decoration', 'text-transform', 'text-indent',
+  'line-height', 'letter-spacing', 'word-spacing', 'white-space', 'word-break', 'word-wrap', 'overflow-wrap',
+  'vertical-align',
+  'width', 'min-width', 'max-width', 'height', 'min-height', 'max-height',
+  'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+  'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+  'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
+  'border-width', 'border-style', 'border-color', 'border-radius',
+  'border-collapse', 'border-spacing',
+  'display', 'float', 'clear', 'overflow', 'overflow-x', 'overflow-y',
+  'list-style', 'list-style-type',
+  'table-layout',
+  'box-sizing',
+  'opacity',
+]);
+
+// Patterns that are dangerous in CSS values regardless of property name
+const DANGEROUS_CSS_VALUE = /url\s*\(|expression\s*\(|import\s|javascript:|\\|@import/i;
+
+function sanitizeCssValue(value: string): string {
+  if (DANGEROUS_CSS_VALUE.test(value)) return '';
+  return value;
+}
+
+function sanitizeInlineStyle(styleStr: string): string {
+  const parts: string[] = [];
+  // Split on semicolons, handling simple cases
+  for (const decl of styleStr.split(';')) {
+    const colonIdx = decl.indexOf(':');
+    if (colonIdx === -1) continue;
+    const prop = decl.slice(0, colonIdx).trim().toLowerCase();
+    const value = decl.slice(colonIdx + 1).trim();
+    if (!prop || !value) continue;
+    if (!SAFE_CSS_PROPERTIES.has(prop)) continue;
+    const safeVal = sanitizeCssValue(value);
+    if (safeVal) parts.push(`${prop}: ${safeVal}`);
+  }
+  return parts.join('; ');
+}
+
 export function sanitizeHtml(html: string, allowRemoteImages: boolean = false): string {
   const config: Parameters<typeof DOMPurify.sanitize>[1] = {
     ALLOWED_TAGS,
@@ -105,7 +149,23 @@ export function sanitizeHtml(html: string, allowRemoteImages: boolean = false): 
     FORCE_BODY: true,
   };
 
+  // Hook: sanitize inline style values to only allow safe CSS properties
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.hasAttribute('style')) {
+      const raw = node.getAttribute('style') || '';
+      const safe = sanitizeInlineStyle(raw);
+      if (safe) {
+        node.setAttribute('style', safe);
+      } else {
+        node.removeAttribute('style');
+      }
+    }
+  });
+
   let sanitized = DOMPurify.sanitize(html, config);
+
+  // Remove hooks to avoid leaking into other callers
+  DOMPurify.removeAllHooks();
 
   if (!allowRemoteImages) {
     sanitized = sanitized.replace(
