@@ -403,9 +403,12 @@ async function startAutoSortDaemon(): Promise<void> {
     try {
       const accountIds = new Set<string>();
 
-      // Get accounts from OAuth tokens (OAuth-only mode)
+      // Get accounts from OAuth tokens (OAuth-only mode).
+      // Invalidate cache first — tokens may have been saved by a different
+      // Next.js worker or process since our last check.
       try {
         const tokenStore = new OAuthTokenStore();
+        tokenStore.invalidateCache();
         const tokens = await tokenStore.loadTokens();
         for (const accountId of tokens.keys()) {
           accountIds.add(accountId);

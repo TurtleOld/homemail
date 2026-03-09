@@ -25,6 +25,15 @@ async function ensureDataDir(): Promise<void> {
 }
 
 export class OAuthTokenStore {
+  /**
+   * Invalidate the in-memory cache so the next loadTokens() re-reads from disk.
+   * Useful for background processes (daemon, worker) that need to pick up tokens
+   * saved by a different Next.js worker or process.
+   */
+  invalidateCache(): void {
+    tokensCache = null;
+  }
+
   async loadTokens(): Promise<Map<string, StoredToken>> {
     if (tokensCache !== null) {
       return tokensCache;
