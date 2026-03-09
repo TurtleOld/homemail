@@ -77,27 +77,67 @@ export class FilterQueryParser {
       return undefined;
     }
 
-    const conditions: FilterCondition[] = [];
     const tokens = this.tokenize(query);
+
+    // Split tokens into OR-separated segments, then each segment is AND-joined
+    const orSegments: FilterCondition[][] = [[]];
     let i = 0;
 
     while (i < tokens.length) {
+      const upper = tokens[i].toUpperCase();
+      if (upper === 'OR') {
+        // Start a new OR segment
+        orSegments.push([]);
+        i++;
+        continue;
+      }
+      if (upper === 'AND') {
+        // Explicit AND — just skip, conditions within a segment are AND-joined
+        i++;
+        continue;
+      }
+
       const condition = this.parseCondition(tokens, i);
       if (condition) {
-        conditions.push(condition.condition);
+        orSegments[orSegments.length - 1].push(condition.condition);
         i = condition.nextIndex;
       } else {
         i++;
       }
     }
 
-    if (conditions.length === 0) {
+    // Remove empty segments
+    const validSegments = orSegments.filter((s) => s.length > 0);
+    if (validSegments.length === 0) {
       return undefined;
     }
 
+    // Single segment — all conditions are AND-joined
+    if (validSegments.length === 1) {
+      return {
+        logic: 'AND',
+        conditions: validSegments[0],
+      };
+    }
+
+    // Multiple OR segments — create an OR group with sub-groups
+    // If each segment has exactly one condition, flatten to a single OR group
+    const allSingle = validSegments.every((s) => s.length === 1);
+    if (allSingle) {
+      return {
+        logic: 'OR',
+        conditions: validSegments.map((s) => s[0]),
+      };
+    }
+
+    // Mixed: OR group with AND sub-groups
     return {
-      logic: 'AND',
-      conditions,
+      logic: 'OR',
+      conditions: [],
+      groups: validSegments.map((seg) => ({
+        logic: 'AND' as const,
+        conditions: seg,
+      })),
     };
   }
 
@@ -113,17 +153,31 @@ export class FilterQueryParser {
 
       if (char === '"' && (i === 0 || query[i - 1] !== '\\')) {
         if (inQuotes) {
-          if (current.trim()) {
-            tokens.push(current.trim());
-            current = '';
+          // End of quoted section
+          if (inField) {
+            // field:"quoted value" — keep building the token
+            current += '"';
+            inQuotes = false;
+          } else {
+            if (current.trim()) {
+              tokens.push(current.trim());
+              current = '';
+            }
+            inQuotes = false;
           }
-          inQuotes = false;
         } else {
-          if (current.trim()) {
-            tokens.push(current.trim());
-            current = '';
+          // Start of quoted section
+          if (inField) {
+            // field:" — start quoted value within field token
+            current += '"';
+            inQuotes = true;
+          } else {
+            if (current.trim()) {
+              tokens.push(current.trim());
+              current = '';
+            }
+            inQuotes = true;
           }
-          inQuotes = true;
         }
         continue;
       }
@@ -148,7 +202,7 @@ export class FilterQueryParser {
         inField = false;
         continue;
       }
-      
+
       if (inField) {
         current += char;
         continue;
@@ -379,34 +433,67 @@ export class FilterQueryParser {
     return parts.join(' ');
   }
 
-  private static buildQueryFromGroup(group: FilterGroup): string[] {
-    const parts: string[] = [];
+  // Preferred prefix for each FilterField when serializing back to query string
+  private static readonly FIELD_TO_PREFIX: Record<string, string> = {
+    from: 'from',
+    to: 'to',
+    cc: 'cc',
+    bcc: 'bcc',
+    subject: 'subject',
+    body: 'body',
+    date: 'date',
+    folder: 'folder',
+    tags: 'tag',
+    size: 'size',
+    messageId: 'message-id',
+    status: 'status',
+    attachment: 'attachment',
+    filename: 'filename',
+  };
 
-    for (const condition of group.conditions) {
-      const fieldName = Object.entries(this.FIELD_PREFIXES).find(([, v]) => v === condition.field)?.[0] || condition.field;
-      const operator = condition.operator;
-      let value = condition.value;
+  private static buildConditionString(condition: FilterCondition): string {
+    const prefix = this.FIELD_TO_PREFIX[condition.field] || condition.field;
+    let value: string;
 
-      if (typeof value === 'string' && value.includes(' ')) {
-        value = `"${value}"`;
-      }
-
-      if (operator === 'notIn') {
-        parts.push(`-${fieldName}:${value}`);
-      } else {
-        parts.push(`${fieldName}:${value}`);
-      }
+    if (Array.isArray(condition.value)) {
+      value = condition.value.join(',');
+    } else {
+      value = String(condition.value);
     }
 
+    if (value.includes(' ')) {
+      value = `"${value}"`;
+    }
+
+    if (condition.operator === 'notIn') {
+      return `-${prefix}:${value}`;
+    }
+    return `${prefix}:${value}`;
+  }
+
+  private static buildQueryFromGroup(group: FilterGroup): string[] {
+    const parts: string[] = [];
+    const joiner = group.logic === 'OR' ? ' OR ' : ' ';
+
+    // Serialize conditions
+    const conditionStrings = group.conditions.map((c) => this.buildConditionString(c));
+    if (conditionStrings.length > 0) {
+      parts.push(conditionStrings.join(joiner));
+    }
+
+    // Serialize sub-groups
     if (group.groups) {
       for (const subGroup of group.groups) {
         const subParts = this.buildQueryFromGroup(subGroup);
         if (subParts.length > 0) {
-          parts.push(`(${subParts.join(` ${subGroup.logic} `)})`);
+          const subStr = subParts.join(' ');
+          // Wrap in parens if the sub-group has multiple conditions and parent is OR
+          const needsParens = subGroup.conditions.length > 1 && group.logic === 'OR';
+          parts.push(needsParens ? `(${subStr})` : subStr);
         }
       }
     }
 
-    return parts;
+    return [parts.join(joiner)].filter((s) => s.length > 0);
   }
 }
