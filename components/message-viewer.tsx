@@ -160,6 +160,12 @@ export function MessageViewer({
     return document.documentElement.classList.contains('dark');
   }, [message?.id]);
 
+  const isTableLayout = useMemo(() => {
+    if (!sanitizedHtml) return false;
+    const trimmed = sanitizedHtml.trim();
+    return /^<table[\s>]/i.test(trimmed);
+  }, [sanitizedHtml]);
+
   const iframeSrcDoc = useMemo(() => {
     if (!sanitizedHtml) return '';
     const bgColor = isDark ? 'hsl(217.2, 32.6%, 17.5%)' : '#ffffff';
@@ -178,7 +184,10 @@ export function MessageViewer({
       '<style>',
       '* { box-sizing: border-box; }',
       'html, body { height: 100%; margin: 0; padding: 0; }',
-      `body { padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: ${bgColor}; color: ${textColor}; line-height: 1.6; font-size: 15px; transition: background-color 0.3s ease, color 0.3s ease; word-wrap: break-word; overflow-wrap: break-word; overflow-x: hidden; }`,
+      `body { padding: 0; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: ${bgColor}; color: ${textColor}; line-height: 1.6; font-size: 15px; transition: background-color 0.3s ease, color 0.3s ease; word-wrap: break-word; overflow-wrap: break-word; overflow-x: hidden; }`,
+      '.email-content { padding: 20px; }',
+      '.email-content--table-layout { padding: 0; }',
+      '.email-content--table-layout > table { width: 100% !important; }',
       'p { margin: 0 0 12px 0; }',
       'p:last-child { margin-bottom: 0; }',
       'h1, h2, h3, h4, h5, h6 { margin: 0 0 12px 0; font-weight: 600; line-height: 1.3; }',
@@ -200,7 +209,7 @@ export function MessageViewer({
       'img[align="left"] { float: left; margin: 0 16px 12px 0; }',
       'img[align="right"] { float: right; margin: 0 0 12px 16px; }',
       'img[align="center"] { display: block; margin: 12px auto; float: none; }',
-      'table { max-width: 100%; border-collapse: collapse; border: none !important; }',
+      'table { max-width: 100%; border-collapse: collapse; border: none !important; margin-left: auto; margin-right: auto; }',
       'table td, table th { word-wrap: break-word; }',
       `table th { font-weight: 600; color: ${textColor}; }`,
       'table[role="presentation"] { border: none !important; }',
@@ -221,17 +230,18 @@ export function MessageViewer({
       'table[align="left"] { margin-left: 0; margin-right: auto; }',
       'table[align="right"] { margin-left: auto; margin-right: 0; }',
       '@media (max-width: 600px) {',
-      '  body { padding: 12px; font-size: 14px; }',
+      '  body { font-size: 14px; }',
+      '  .email-content { padding: 12px; }',
       '  img[align="left"], img[align="right"] { float: none; display: block; margin: 12px auto; }',
       '  table { font-size: 14px; max-width: 100% !important; }',
       '  table td, table th { word-wrap: break-word; }',
       '}',
       '</style>',
       '</head>',
-      `<body>${sanitizedHtml}</body>`,
+      `<body><div class="email-content${isTableLayout ? ' email-content--table-layout' : ''}">${sanitizedHtml}</div></body>`,
       '</html>',
     ].join('');
-  }, [sanitizedHtml, isDark]);
+  }, [sanitizedHtml, isDark, isTableLayout]);
 
   const messageLabelObjects = useMemo(() => {
     if (!message?.labels) return [];
