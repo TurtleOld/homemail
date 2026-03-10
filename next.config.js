@@ -96,7 +96,22 @@ const nextConfig = {
     return [
       {
         source: '/:path*',
-        headers: securityHeaders,
+        headers: [
+          ...securityHeaders,
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
       },
     ];
   },
