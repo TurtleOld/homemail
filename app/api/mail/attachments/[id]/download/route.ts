@@ -137,8 +137,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const mime = safeMime(attachment.mime);
-    const safeAscii = sanitizeFilename(attachment.filename);
-    const encoded = encodeRfc5987(attachment.filename);
+    const sanitized = sanitizeFilename(attachment.filename);
+    // ASCII-only fallback for filename= (strip non-ASCII chars)
+    const safeAscii = sanitized.replace(/[^\x20-\x7E]/g, '').trim() || 'attachment';
+    const encoded = encodeRfc5987(sanitized);
 
     // Use both filename= (ASCII fallback) and filename*= (UTF-8, RFC 5987).
     const disposition = `attachment; filename="${safeAscii}"; filename*=UTF-8''${encoded}`;
