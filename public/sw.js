@@ -1,18 +1,7 @@
-const CACHE_NAME = 'mail-client-v1';
-const urlsToCache = [
-  '/',
-  '/mail',
-  '/settings',
-  '/icons/mail-icon.png',
-];
+const CACHE_NAME = 'mail-client-v2';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(urlsToCache);
-      })
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -25,46 +14,41 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  
-  if (url.pathname.startsWith('/api/mail/realtime') || 
+  if (event.request.method !== 'GET' ||
       url.pathname.startsWith('/api/') ||
-      event.request.method !== 'GET') {
-    return fetch(event.request);
-  }
-
-  // Never cache login-related routes (avoid stale auth redirects/login pages).
-  if (url.pathname.startsWith('/login') || url.pathname.startsWith('/api/auth/')) {
-    return fetch(event.request);
+      url.pathname.startsWith('/login') ||
+      url.pathname.match(/^\/(ru|en)\/login/)) {
+    return;
   }
 
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request).then((response) => {
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
+        // Cache successful responses for offline fallback
+        if (response && response.status === 200 && response.type === 'basic') {
           const responseToCache = response.clone();
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          return response;
-        });
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
       })
       .catch(() => {
-        if (event.request.destination === 'document') {
-          return caches.match('/');
-        }
+        return caches.match(event.request).then((cached) => {
+          if (cached) {
+            return cached;
+          }
+          // For navigation requests, try serving the cached root page
+          if (event.request.destination === 'document') {
+            return caches.match('/');
+          }
+        });
       })
   );
 });
