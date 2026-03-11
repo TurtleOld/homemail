@@ -272,9 +272,7 @@ export class StalwartJMAPProvider implements MailProvider {
         }
       }
 
-      if (options.q && !filter.text) {
-        filter.text = options.q;
-      }
+      const isSimpleTextSearch = options.q && !options.messageFilter && !options.filter;
 
       if (options.filter === 'unread') {
         filter.isUnread = true;
@@ -286,24 +284,46 @@ export class StalwartJMAPProvider implements MailProvider {
 
       const mailboxIdToQuery = filter.inMailbox || folderId;
       const limit = options.limit || 50;
-      
-      const cleanFilter: any = {
-        inMailbox: mailboxIdToQuery,
-      };
-      if (filter.text) cleanFilter.text = filter.text;
-      if (filter.hasAttachment !== undefined) cleanFilter.hasAttachment = filter.hasAttachment;
-      if (filter.isUnread !== undefined) cleanFilter.isUnread = filter.isUnread;
-      if (filter.isFlagged !== undefined) cleanFilter.isFlagged = filter.isFlagged;
-      if (filter.from) cleanFilter.from = filter.from;
-      if (filter.to) cleanFilter.to = filter.to;
-      if (filter.cc) cleanFilter.cc = filter.cc;
-      if (filter.bcc) cleanFilter.bcc = filter.bcc;
-      if (filter.subject) cleanFilter.subject = filter.subject;
-      if (filter.after) cleanFilter.after = filter.after;
-      if (filter.before) cleanFilter.before = filter.before;
-      if (filter.minSize !== undefined) cleanFilter.minSize = filter.minSize;
-      if (filter.maxSize !== undefined) cleanFilter.maxSize = filter.maxSize;
-      if (filter.header && filter.header.length > 0) cleanFilter.header = filter.header;
+
+      let cleanFilter: any;
+
+      if (isSimpleTextSearch) {
+        // Simple text search: use JMAP FilterOperator to search across all fields
+        const q = options.q!;
+        cleanFilter = {
+          operator: 'AND',
+          conditions: [
+            { inMailbox: mailboxIdToQuery },
+            {
+              operator: 'OR',
+              conditions: [
+                { from: q },
+                { to: q },
+                { subject: q },
+                { body: q },
+              ],
+            },
+          ],
+        };
+      } else {
+        cleanFilter = {
+          inMailbox: mailboxIdToQuery,
+        };
+        if (filter.text) cleanFilter.text = filter.text;
+        if (filter.hasAttachment !== undefined) cleanFilter.hasAttachment = filter.hasAttachment;
+        if (filter.isUnread !== undefined) cleanFilter.isUnread = filter.isUnread;
+        if (filter.isFlagged !== undefined) cleanFilter.isFlagged = filter.isFlagged;
+        if (filter.from) cleanFilter.from = filter.from;
+        if (filter.to) cleanFilter.to = filter.to;
+        if (filter.cc) cleanFilter.cc = filter.cc;
+        if (filter.bcc) cleanFilter.bcc = filter.bcc;
+        if (filter.subject) cleanFilter.subject = filter.subject;
+        if (filter.after) cleanFilter.after = filter.after;
+        if (filter.before) cleanFilter.before = filter.before;
+        if (filter.minSize !== undefined) cleanFilter.minSize = filter.minSize;
+        if (filter.maxSize !== undefined) cleanFilter.maxSize = filter.maxSize;
+        if (filter.header && filter.header.length > 0) cleanFilter.header = filter.header;
+      }
       
       console.error('[StalwartProvider] getMessages called:', {
         accountId,

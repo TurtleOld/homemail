@@ -50,13 +50,8 @@ export async function GET(request: NextRequest) {
             quickFilter: parsed.quickFilter,
           };
         }
-      } else if (params.q) {
-        const parsed = FilterQueryParser.parse(params.q);
-        messageFilter = {
-          filterGroup: parsed.filterGroup,
-          quickFilter: parsed.quickFilter,
-        };
       }
+      // params.q is passed directly to the provider for simple text search
 
 
       const provider = process.env.MAIL_PROVIDER === 'stalwart'

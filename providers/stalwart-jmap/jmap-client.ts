@@ -834,6 +834,7 @@ export class JMAPClient {
       filter?: {
         inMailbox?: string;
         text?: string;
+        body?: string;
         hasAttachment?: boolean;
         isUnread?: boolean;
         isFlagged?: boolean;
@@ -847,6 +848,8 @@ export class JMAPClient {
         before?: string;
         minSize?: number;
         maxSize?: number;
+        operator?: 'AND' | 'OR' | 'NOT';
+        conditions?: any[];
       };
       sort?: Array<{ property: string; isAscending?: boolean }>;
     }

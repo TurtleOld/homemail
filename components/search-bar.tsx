@@ -67,10 +67,13 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
   const matchedFilter = savedFilters.find((f) => f.query === value);
 
   useEffect(() => {
-    if (value) {
-      const parsed = FilterQueryParser.parse(value);
-      if (onFilterChange) {
+    if (value && onFilterChange) {
+      const hasStructuredSyntax = /(?:^|\s)(?:from|to|cc|bcc|subject|body|date|folder|tag|tags|size|attachment|attachments|filename|after|before|is|has|message-id|messageid|id):/i.test(value);
+      if (hasStructuredSyntax) {
+        const parsed = FilterQueryParser.parse(value);
         onFilterChange(parsed.quickFilter, parsed.filterGroup);
+      } else {
+        onFilterChange(undefined, undefined);
       }
     }
   }, [value, onFilterChange]);

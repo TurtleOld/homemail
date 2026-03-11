@@ -820,9 +820,17 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 searchQuery={searchQuery}
                 onSearchChange={(query) => {
                   setSearchQuery(query);
-                  const parsed = FilterQueryParser.parse(query);
-                  setQuickFilter(parsed.quickFilter);
-                  setFilterGroup(parsed.filterGroup);
+                  // Only parse structured queries (with field prefixes like from:, subject:, is:, etc.)
+                  // Plain text queries are sent as `q` parameter for simple search
+                  const hasStructuredSyntax = /(?:^|\s)(?:from|to|cc|bcc|subject|body|date|folder|tag|tags|size|attachment|attachments|filename|after|before|is|has|message-id|messageid|id):/i.test(query);
+                  if (hasStructuredSyntax) {
+                    const parsed = FilterQueryParser.parse(query);
+                    setQuickFilter(parsed.quickFilter);
+                    setFilterGroup(parsed.filterGroup);
+                  } else {
+                    setQuickFilter(undefined);
+                    setFilterGroup(undefined);
+                  }
                 }}
                 onFilterChange={(quickFilter, filterGroup) => {
                   setQuickFilter(quickFilter);
