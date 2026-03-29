@@ -323,7 +323,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
     return;
   }
 
-  let isFirstPoll = true;
+  const pushReadyAt = Date.now() + 20_000;
 
   const provider = process.env.MAIL_PROVIDER === 'stalwart'
     ? getMailProviderForAccount(accountId)
@@ -355,8 +355,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
       return;
     }
 
-    if (isFirstPoll) {
-      isFirstPoll = false;
+    if (Date.now() < pushReadyAt) {
       return;
     }
 
