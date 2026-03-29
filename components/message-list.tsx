@@ -619,6 +619,7 @@ export function MessageList({
                     isSelected={isSelected}
                     isFocused={isFocused}
                     selectedIds={selectedIds}
+                    isSelectionMode={selectedIds.size > 0}
                     onSelect={onSelect}
                     onMessageClick={onMessageClick}
                     onMessageDoubleClick={onMessageDoubleClick}
