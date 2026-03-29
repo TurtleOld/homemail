@@ -323,6 +323,8 @@ async function startWatchingAccount(accountId: string): Promise<void> {
     return;
   }
 
+  const watcherStartedAt = Date.now();
+
   const provider = process.env.MAIL_PROVIDER === 'stalwart'
     ? getMailProviderForAccount(accountId)
     : getMailProvider();
@@ -381,10 +383,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
         }
         await processNewMessage(message, accountId, folderId, provider);
 
-        const messageDate = message.date instanceof Date ? message.date : new Date(message.date);
-        const ageMs = Date.now() - messageDate.getTime();
-        console.log(`[auto-sort-daemon] Message ${messageId} age: ${Math.round(ageMs / 1000)}s`);
-        if (ageMs < 15 * 60 * 1000) {
+        if (Date.now() - watcherStartedAt > 30_000) {
           await sendPushNotification({
             recipientEmail: accountEmail,
             subject: message.subject,
