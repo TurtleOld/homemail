@@ -380,11 +380,16 @@ async function startWatchingAccount(accountId: string): Promise<void> {
           return;
         }
         await processNewMessage(message, accountId, folderId, provider);
-        await sendPushNotification({
-          recipientEmail: accountEmail,
-          subject: message.subject,
-          fromName: message.from.name || message.from.email,
-        });
+
+        const messageDate = message.date instanceof Date ? message.date : new Date(message.date);
+        const ageMs = Date.now() - messageDate.getTime();
+        if (ageMs < 5 * 60 * 1000) {
+          await sendPushNotification({
+            recipientEmail: accountEmail,
+            subject: message.subject,
+            fromName: message.from.name || message.from.email,
+          });
+        }
       } catch (e) {
         console.error('[auto-sort-daemon] Failed to process new message:', {
           accountId,
