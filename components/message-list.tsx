@@ -70,6 +70,7 @@ export const MessageItem = memo(function MessageItem({
   isSelected,
   isFocused,
   selectedIds,
+  isSelectionMode,
   onSelect,
   onMessageClick,
   onMessageDoubleClick,
@@ -84,6 +85,7 @@ export const MessageItem = memo(function MessageItem({
   isSelected: boolean;
   isFocused: boolean;
   selectedIds: Set<string>;
+  isSelectionMode: boolean;
   onSelect: (id: string, multi: boolean) => void;
   onMessageClick: (message: MessageListItem) => void;
   onMessageDoubleClick?: (message: MessageListItem) => void;
@@ -179,11 +181,11 @@ export const MessageItem = memo(function MessageItem({
         message.flags.unread ? 'h-8 bg-[hsl(var(--unread))]' : 'h-0'
       )} />
 
-      {/* Checkbox — hover reveal */}
+      {/* Checkbox — hover reveal, always visible in selection mode */}
       <div className={cn(
         'flex-shrink-0 flex items-center justify-center mt-0.5',
         'transition-opacity duration-150',
-        isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        isSelected || isSelectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
       )}>
         <input
           type="checkbox"
@@ -202,7 +204,7 @@ export const MessageItem = memo(function MessageItem({
       <div className={cn(
         'absolute flex-shrink-0 flex items-center justify-center',
         'transition-opacity duration-150',
-        isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0',
+        isSelected || isSelectionMode ? 'opacity-0' : 'opacity-100 group-hover:opacity-0',
         density === 'compact' ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-xs',
         avatarColor,
         'rounded-full text-white font-semibold select-none',
@@ -490,6 +492,7 @@ export function MessageList({
           isSelected={isSelected}
           isFocused={isFocused}
           selectedIds={selectedIds}
+          isSelectionMode={selectedIds.size > 0}
           onSelect={onSelect}
           onMessageClick={onMessageClick}
           onMessageDoubleClick={onMessageDoubleClick}
