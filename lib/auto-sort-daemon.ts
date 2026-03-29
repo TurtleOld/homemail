@@ -340,6 +340,14 @@ async function startWatchingAccount(accountId: string): Promise<void> {
     console.error('[auto-sort-daemon] Failed to load folders for account:', accountId, e);
   }
 
+  let accountEmail = accountId;
+  try {
+    const account = await provider.getAccount(accountId);
+    if (account?.email) accountEmail = account.email;
+  } catch (e) {
+    console.error('[auto-sort-daemon] Failed to load account email for:', accountId, e);
+  }
+
   const unsubscribe = provider.subscribeToUpdates(accountId, async (event) => {
     if (event.type !== 'message.new') {
       return;
@@ -373,7 +381,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
         }
         await processNewMessage(message, accountId, folderId, provider);
         await sendPushNotification({
-          recipientEmail: accountId,
+          recipientEmail: accountEmail,
           subject: message.subject,
           fromName: message.from.name || message.from.email,
         });
