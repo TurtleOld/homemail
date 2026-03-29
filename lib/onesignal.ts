@@ -18,7 +18,8 @@ export async function sendPushNotification({
 
   const body = {
     app_id: appId,
-    filters: [{ field: 'external_user_id', relation: '=', value: recipientEmail }],
+    include_aliases: { external_id: [recipientEmail] },
+    target_channel: 'push',
     headings: { en: fromName || 'New message' },
     contents: { en: subject || '(No subject)' },
   };
