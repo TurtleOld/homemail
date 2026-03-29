@@ -181,6 +181,7 @@ export const ThreadItem = memo(function ThreadItem({
               isSelected={selectedIds.has(message.id)}
               isFocused={false}
               selectedIds={selectedIds}
+              isSelectionMode={selectedIds.size > 0}
               onSelect={onSelect}
               onMessageClick={onMessageClick}
               onMessageDoubleClick={onMessageDoubleClick}
