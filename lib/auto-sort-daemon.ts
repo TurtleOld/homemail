@@ -323,7 +323,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
     return;
   }
 
-  const watcherStartedAt = Date.now();
+  let isFirstPoll = true;
 
   const provider = process.env.MAIL_PROVIDER === 'stalwart'
     ? getMailProviderForAccount(accountId)
@@ -355,6 +355,11 @@ async function startWatchingAccount(accountId: string): Promise<void> {
       return;
     }
 
+    if (isFirstPoll) {
+      isFirstPoll = false;
+      return;
+    }
+
     const messageId = event.data?.messageId || event.data?.id;
     const folderId = event.data?.folderId || event.data?.mailboxId || 'inbox';
 
@@ -383,13 +388,11 @@ async function startWatchingAccount(accountId: string): Promise<void> {
         }
         await processNewMessage(message, accountId, folderId, provider);
 
-        if (Date.now() - watcherStartedAt > 30_000) {
-          await sendPushNotification({
-            recipientEmail: accountEmail,
-            subject: message.subject,
-            fromName: message.from.name || message.from.email,
-          });
-        }
+        await sendPushNotification({
+          recipientEmail: accountEmail,
+          subject: message.subject,
+          fromName: message.from.name || message.from.email,
+        });
       } catch (e) {
         console.error('[auto-sort-daemon] Failed to process new message:', {
           accountId,
