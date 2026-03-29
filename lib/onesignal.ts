@@ -32,8 +32,9 @@ export async function sendPushNotification({
     body: JSON.stringify(body),
   });
 
+  const responseText = await response.text();
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`OneSignal error ${response.status}: ${text}`);
+    throw new Error(`OneSignal error ${response.status}: ${responseText}`);
   }
+  console.log('[OneSignal] Push sent:', responseText);
 }

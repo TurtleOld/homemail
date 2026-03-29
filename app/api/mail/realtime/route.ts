@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { processNewMessage } from '@/lib/process-new-message';
-import { sendPushNotification } from '@/lib/onesignal';
 import { logger } from '@/lib/logger';
 
 // ─── Connection limits ────────────────────────────────────────────────────────
@@ -108,11 +107,6 @@ export async function GET(request: NextRequest) {
                 const message = await provider.getMessage(session.accountId, messageId);
                 if (message) {
                   await processNewMessage(message, session.accountId, folderId, provider);
-                  await sendPushNotification({
-                    recipientEmail: session.email,
-                    subject: message.subject,
-                    fromName: message.from.name || message.from.email,
-                  });
                 }
               } catch (error) {
                 logger.error('[SSE] Error processing new message', {

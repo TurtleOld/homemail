@@ -1,5 +1,6 @@
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { processNewMessage } from '@/lib/process-new-message';
+import { sendPushNotification } from '@/lib/onesignal';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
 import { getPendingJobs, markJobProcessing, markJobCompleted, markJobFailed, cleanupOldJobs } from '@/lib/filter-job-queue';
 import { readFile } from 'fs/promises';
@@ -371,6 +372,11 @@ async function startWatchingAccount(accountId: string): Promise<void> {
           return;
         }
         await processNewMessage(message, accountId, folderId, provider);
+        await sendPushNotification({
+          recipientEmail: accountId,
+          subject: message.subject,
+          fromName: message.from.name || message.from.email,
+        });
       } catch (e) {
         console.error('[auto-sort-daemon] Failed to process new message:', {
           accountId,
