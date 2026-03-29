@@ -383,7 +383,8 @@ async function startWatchingAccount(accountId: string): Promise<void> {
 
         const messageDate = message.date instanceof Date ? message.date : new Date(message.date);
         const ageMs = Date.now() - messageDate.getTime();
-        if (ageMs < 5 * 60 * 1000) {
+        console.log(`[auto-sort-daemon] Message ${messageId} age: ${Math.round(ageMs / 1000)}s`);
+        if (ageMs < 15 * 60 * 1000) {
           await sendPushNotification({
             recipientEmail: accountEmail,
             subject: message.subject,
