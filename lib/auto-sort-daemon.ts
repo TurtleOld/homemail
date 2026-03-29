@@ -323,14 +323,13 @@ async function startWatchingAccount(accountId: string): Promise<void> {
     return;
   }
 
-  const pushReadyAt = Date.now() + 20_000;
+  const pushAfterMs = Date.now() - 30_000;
 
   const provider = process.env.MAIL_PROVIDER === 'stalwart'
     ? getMailProviderForAccount(accountId)
     : getMailProvider();
 
-  // Build a mailboxId -> role map so we can exclude sent/trash/drafts even if provider emits events
-  // for multiple folders.
+
   let folderRoleById = new Map<string, string>();
   let folderNameById = new Map<string, string>();
   try {
@@ -355,9 +354,6 @@ async function startWatchingAccount(accountId: string): Promise<void> {
       return;
     }
 
-    if (Date.now() < pushReadyAt) {
-      return;
-    }
 
     const messageId = event.data?.messageId || event.data?.id;
     const folderId = event.data?.folderId || event.data?.mailboxId || 'inbox';
@@ -387,11 +383,13 @@ async function startWatchingAccount(accountId: string): Promise<void> {
         }
         await processNewMessage(message, accountId, folderId, provider);
 
-        await sendPushNotification({
-          recipientEmail: accountEmail,
-          subject: message.subject,
-          fromName: message.from.name || message.from.email,
-        });
+        if (new Date(message.date).getTime() >= pushAfterMs) {
+          await sendPushNotification({
+            recipientEmail: accountEmail,
+            subject: message.subject,
+            fromName: message.from.name || message.from.email,
+          });
+        }
       } catch (e) {
         console.error('[auto-sort-daemon] Failed to process new message:', {
           accountId,
