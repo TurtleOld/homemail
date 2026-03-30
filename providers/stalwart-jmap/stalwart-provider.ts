@@ -1681,7 +1681,7 @@ export class StalwartJMAPProvider implements MailProvider {
     needsFullRefresh: boolean;
   }> {
     const STATE_KEY = `jmapState:${accountId}`;
-    const STATE_TTL_MS = 24 * 60 * 60 * 1000;
+    const STATE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
     const client = await this.getClient(accountId);
     const session = await client.getSession();
@@ -1759,6 +1759,11 @@ export class StalwartJMAPProvider implements MailProvider {
     let intervalId: NodeJS.Timeout | null = null;
     let isActive = true;
     let isPollRunning = false;
+    // After a state seed (first poll or stale state), the next Email/changes
+    // returns ALL messages since the seed — these are not genuinely new.
+    // Skip emitting message.new for that first batch to avoid spamming
+    // old messages through the push notification pipeline.
+    let skipNextCreated = false;
 
     const poll = async () => {
       if (!isActive || isPollRunning) return;
@@ -1773,6 +1778,9 @@ export class StalwartJMAPProvider implements MailProvider {
             callback({ type: 'mailbox.counts', data: {} });
           }
           callback({ type: 'message.updated', data: {} });
+          // After a seed/full-refresh, the next poll's "created" list is a
+          // replay of existing messages, not genuinely new mail.
+          skipNextCreated = true;
           return;
         }
 
@@ -1781,21 +1789,31 @@ export class StalwartJMAPProvider implements MailProvider {
         }
 
         if (result.created.length > 0) {
-          try {
-            const client = await this.getClient(accountId);
-            const session = await client.getSession();
-            const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-            const newEmails = await client.getEmails(result.created, {
-              accountId: actualAccountId,
-              properties: ['id', 'mailboxIds'],
-            });
-            for (const email of newEmails) {
-              const mailboxId = Object.keys((email as any).mailboxIds || {})[0] || '';
-              callback({ type: 'message.new', data: { messageId: email.id, id: email.id, folderId: mailboxId, mailboxId } });
-            }
-          } catch {
+          if (skipNextCreated) {
+            console.log(`[stalwart-provider] Skipping ${result.created.length} created messages from post-seed sync`);
+            skipNextCreated = false;
+            // Still notify about updated UI state, just don't emit individual message.new
             callback({ type: 'message.updated', data: {} });
+          } else {
+            try {
+              const client = await this.getClient(accountId);
+              const session = await client.getSession();
+              const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+              const newEmails = await client.getEmails(result.created, {
+                accountId: actualAccountId,
+                properties: ['id', 'mailboxIds'],
+              });
+              for (const email of newEmails) {
+                const mailboxId = Object.keys((email as any).mailboxIds || {})[0] || '';
+                callback({ type: 'message.new', data: { messageId: email.id, id: email.id, folderId: mailboxId, mailboxId } });
+              }
+            } catch {
+              callback({ type: 'message.updated', data: {} });
+            }
           }
+        } else {
+          // No created messages — clear the skip flag
+          skipNextCreated = false;
         }
 
         if (result.updated.length > 0 || result.destroyed.length > 0) {
