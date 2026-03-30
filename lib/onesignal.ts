@@ -7,6 +7,13 @@ type OneSignalNotificationResponse = {
   errors?: unknown;
 };
 
+function hasOneSignalErrors(errors: unknown): boolean {
+  if (errors == null) return false;
+  if (Array.isArray(errors)) return errors.length > 0;
+  if (typeof errors === 'object') return Object.keys(errors as Record<string, unknown>).length > 0;
+  return true;
+}
+
 function parseRecipientAliases(recipientEmail: string): string[] {
   const parts = String(recipientEmail)
     .split(',')
@@ -67,7 +74,7 @@ export async function sendPushNotification({
 
   // OneSignal can return 200 OK with an `errors` field (e.g. invalid aliases).
   // Treat this as a failure so callers can decide whether to retry.
-  if (parsed && parsed.errors) {
+  if (parsed && hasOneSignalErrors(parsed.errors)) {
     throw new Error(`OneSignal error (200): ${responseText}`);
   }
 

@@ -12,13 +12,9 @@ import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort
 type Unsubscribe = () => void;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __autoSortDaemonStarted: boolean | undefined;
-  // eslint-disable-next-line no-var
   var __autoSortDaemonUnsubscribes: Map<string, Unsubscribe> | undefined;
-  // eslint-disable-next-line no-var
   var __autoSortDaemonQueues: Map<string, Array<() => Promise<void>>> | undefined;
-  // eslint-disable-next-line no-var
   var __autoSortDaemonProcessing: Map<string, boolean> | undefined;
 }
 
@@ -30,12 +26,24 @@ function isRateLimitError(error: unknown): boolean {
 const EXCLUDED_FOLDER_ROLES = new Set(['sent', 'trash', 'drafts']);
 const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
 
-const PUSH_SENT_KEY = 'pushSentMessages';
+// v2: previous implementation could mark messages as "sent" before the actual
+// HTTP call succeeded, which could permanently suppress notifications.
+// Use a new key to avoid legacy false-positives.
+const PUSH_SENT_KEY = 'pushSentMessages_v2';
 const PUSH_SENT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const PUSH_SENT_MAX = 20_000;
 const PUSH_SENT_CACHE_TTL_MS = 30_000;
+const PUSH_INFLIGHT_KEY = 'pushInFlightMessages_v2';
+const PUSH_INFLIGHT_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
 let pushSentCache:
+  | {
+    loadedAt: number;
+    map: Record<string, number>;
+  }
+  | null = null;
+
+let pushInFlightCache:
   | {
     loadedAt: number;
     map: Record<string, number>;
@@ -52,6 +60,16 @@ async function loadPushSentMap(): Promise<Record<string, number>> {
   return map;
 }
 
+async function loadPushInFlightMap(): Promise<Record<string, number>> {
+  const now = Date.now();
+  if (pushInFlightCache && now - pushInFlightCache.loadedAt < PUSH_SENT_CACHE_TTL_MS) {
+    return pushInFlightCache.map;
+  }
+  const map = await readStorage<Record<string, number>>(PUSH_INFLIGHT_KEY, {});
+  pushInFlightCache = { loadedAt: now, map };
+  return map;
+}
+
 function cleanupPushSentMap(map: Record<string, number>): Record<string, number> {
   const now = Date.now();
   const cutoff = now - PUSH_SENT_TTL_MS;
@@ -64,17 +82,69 @@ function cleanupPushSentMap(map: Record<string, number>): Record<string, number>
   return cleaned;
 }
 
-async function reservePushOnce(key: string): Promise<boolean> {
-  const map = await loadPushSentMap();
-  const ts = map[key];
-  if (typeof ts === 'number' && Date.now() - ts < PUSH_SENT_TTL_MS) {
+function cleanupInFlightMap(map: Record<string, number>): Record<string, number> {
+  const now = Date.now();
+  const cutoff = now - PUSH_INFLIGHT_TTL_MS;
+  const entries = Object.entries(map)
+    .filter(([, ts]) => typeof ts === 'number' && ts > cutoff)
+    .sort((a, b) => b[1] - a[1]);
+  const cleaned: Record<string, number> = {};
+  for (const [k, ts] of entries) cleaned[k] = ts;
+  return cleaned;
+}
+
+async function acquirePushLock(key: string): Promise<boolean> {
+  // 1) If already sent → never send again.
+  const sent = await loadPushSentMap();
+  const sentTs = sent[key];
+  if (typeof sentTs === 'number' && Date.now() - sentTs < PUSH_SENT_TTL_MS) {
     return false;
   }
-  map[key] = Date.now();
-  const cleaned = cleanupPushSentMap(map);
+
+  // 2) If someone is sending right now → skip.
+  const inFlight = await loadPushInFlightMap();
+  const lockTs = inFlight[key];
+  if (typeof lockTs === 'number' && Date.now() - lockTs < PUSH_INFLIGHT_TTL_MS) {
+    return false;
+  }
+
+  // 3) Claim lock (best-effort).
+  inFlight[key] = Date.now();
+  const cleaned = cleanupInFlightMap(inFlight);
+  await writeStorage(PUSH_INFLIGHT_KEY, cleaned);
+  pushInFlightCache = { loadedAt: Date.now(), map: cleaned };
+  return true;
+}
+
+async function markPushSent(key: string): Promise<void> {
+  const sent = await loadPushSentMap();
+  sent[key] = Date.now();
+  const cleaned = cleanupPushSentMap(sent);
   await writeStorage(PUSH_SENT_KEY, cleaned);
   pushSentCache = { loadedAt: Date.now(), map: cleaned };
-  return true;
+
+  // Release lock if present.
+  const inFlight = await loadPushInFlightMap();
+  if (key in inFlight) {
+    delete inFlight[key];
+    const cleanedInFlight = cleanupInFlightMap(inFlight);
+    await writeStorage(PUSH_INFLIGHT_KEY, cleanedInFlight);
+    pushInFlightCache = { loadedAt: Date.now(), map: cleanedInFlight };
+  }
+}
+
+async function releasePushLock(key: string): Promise<void> {
+  const inFlight = await loadPushInFlightMap();
+  if (!(key in inFlight)) return;
+  delete inFlight[key];
+  const cleaned = cleanupInFlightMap(inFlight);
+  await writeStorage(PUSH_INFLIGHT_KEY, cleaned);
+  pushInFlightCache = { loadedAt: Date.now(), map: cleaned };
+}
+
+// Backwards-compatible name (used below): kept as wrapper.
+async function reservePushOnce(key: string): Promise<boolean> {
+  return acquirePushLock(key);
 }
 
 function isDeletedFolderName(name: string | undefined): boolean {
@@ -114,7 +184,6 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
 
     const folders = await provider.getFolders(accountId);
 
-    // Determine destination folder if this is a move action
     const moveToFolderAction = rule.actions.find((a) => a.type === 'moveToFolder');
     let destinationFolderId: string | null = null;
 
@@ -129,7 +198,6 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
       }
     }
 
-    // Separate move action from other actions to enable batching
     const hasOnlyMoveAction = rule.actions.length === 1 && moveToFolderAction != null;
     const nonMoveActions = rule.actions.filter((a) => a.type !== 'moveToFolder');
 
@@ -140,7 +208,6 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
       if (isDeletedFolderName(f.name)) {
         return false;
       }
-      // Skip destination folder for move-only rules (nothing to do for messages already there)
       if (hasOnlyMoveAction && destinationFolderId && f.id === destinationFolderId) {
         return false;
       }
@@ -157,7 +224,6 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
       try {
         console.log(`[auto-sort-daemon] Job ${jobId}: Processing folder ${folder.name}`);
 
-        // Paginate through all messages in the folder using cursor-based pagination
         let cursor: string | undefined;
         let hasMore = true;
 
@@ -175,7 +241,6 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
           hasMore = !!result.nextCursor;
           cursor = result.nextCursor;
 
-          // Collect matching message IDs for batch operations
           const matchedIds: string[] = [];
 
           for (const message of messages) {
@@ -199,7 +264,6 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
 
           console.log(`[auto-sort-daemon] Job ${jobId}: ${matchedIds.length} messages matched in folder ${folder.name}`);
 
-          // Batch move: send up to BATCH_MOVE_SIZE IDs per JMAP call
           if (destinationFolderId) {
             for (let i = 0; i < matchedIds.length; i += BATCH_MOVE_SIZE) {
               const batch = matchedIds.slice(i, i + BATCH_MOVE_SIZE);
@@ -215,7 +279,6 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
                 if (isRateLimitError(error)) {
                   await new Promise((resolve) => setTimeout(resolve, 3000));
                 }
-                // Fallback: move one by one
                 for (const id of batch) {
                   try {
                     await provider.bulkUpdateMessages(accountId, {
@@ -230,7 +293,6 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
                   await new Promise((resolve) => setTimeout(resolve, 100));
                 }
               }
-              // Small delay between batches
               if (i + BATCH_MOVE_SIZE < matchedIds.length) {
                 await new Promise((resolve) => setTimeout(resolve, 300));
               }
@@ -371,7 +433,10 @@ async function startWatchingAccount(accountId: string): Promise<void> {
     return;
   }
 
-  const pushAfterMs = Date.now() - 30_000;
+  // On startup/restart we don't want to spam very old messages, but the previous
+  // 30s window could suppress legitimate pushes when indexing/subscriptions lag.
+  // With persistent dedupe in place, a wider window is safe.
+  const pushAfterMs = Date.now() - 10 * 60_000;
 
   const provider = process.env.MAIL_PROVIDER === 'stalwart'
     ? getMailProviderForAccount(accountId)
@@ -435,11 +500,17 @@ async function startWatchingAccount(accountId: string): Promise<void> {
           const pushKey = `${accountId}:${message.id}`;
           const reserved = await reservePushOnce(pushKey);
           if (reserved) {
-            await sendPushNotification({
-              recipientEmail: accountEmail,
-              subject: message.subject,
-              fromName: message.from.name || message.from.email,
-            });
+            try {
+              await sendPushNotification({
+                recipientEmail: accountEmail,
+                subject: message.subject,
+                fromName: message.from.name || message.from.email,
+              });
+              await markPushSent(pushKey);
+            } catch (pushError) {
+              await releasePushLock(pushKey);
+              throw pushError;
+            }
           }
         }
       } catch (e) {
