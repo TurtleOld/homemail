@@ -3,6 +3,7 @@ import { processNewMessage } from '@/lib/process-new-message';
 import { sendPushNotification } from '@/lib/onesignal';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
 import { getPendingJobs, markJobProcessing, markJobCompleted, markJobFailed, cleanupOldJobs } from '@/lib/filter-job-queue';
+import { readStorage, writeStorage } from '@/lib/storage';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { AutoSortRule } from '@/lib/types';
@@ -28,6 +29,53 @@ function isRateLimitError(error: unknown): boolean {
 
 const EXCLUDED_FOLDER_ROLES = new Set(['sent', 'trash', 'drafts']);
 const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
+
+const PUSH_SENT_KEY = 'pushSentMessages';
+const PUSH_SENT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const PUSH_SENT_MAX = 20_000;
+const PUSH_SENT_CACHE_TTL_MS = 30_000;
+
+let pushSentCache:
+  | {
+    loadedAt: number;
+    map: Record<string, number>;
+  }
+  | null = null;
+
+async function loadPushSentMap(): Promise<Record<string, number>> {
+  const now = Date.now();
+  if (pushSentCache && now - pushSentCache.loadedAt < PUSH_SENT_CACHE_TTL_MS) {
+    return pushSentCache.map;
+  }
+  const map = await readStorage<Record<string, number>>(PUSH_SENT_KEY, {});
+  pushSentCache = { loadedAt: now, map };
+  return map;
+}
+
+function cleanupPushSentMap(map: Record<string, number>): Record<string, number> {
+  const now = Date.now();
+  const cutoff = now - PUSH_SENT_TTL_MS;
+  const entries = Object.entries(map)
+    .filter(([, ts]) => typeof ts === 'number' && ts > cutoff)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, PUSH_SENT_MAX);
+  const cleaned: Record<string, number> = {};
+  for (const [k, ts] of entries) cleaned[k] = ts;
+  return cleaned;
+}
+
+async function reservePushOnce(key: string): Promise<boolean> {
+  const map = await loadPushSentMap();
+  const ts = map[key];
+  if (typeof ts === 'number' && Date.now() - ts < PUSH_SENT_TTL_MS) {
+    return false;
+  }
+  map[key] = Date.now();
+  const cleaned = cleanupPushSentMap(map);
+  await writeStorage(PUSH_SENT_KEY, cleaned);
+  pushSentCache = { loadedAt: Date.now(), map: cleaned };
+  return true;
+}
 
 function isDeletedFolderName(name: string | undefined): boolean {
   if (!name) return false;
@@ -384,11 +432,15 @@ async function startWatchingAccount(accountId: string): Promise<void> {
         await processNewMessage(message, accountId, folderId, provider);
 
         if (new Date(message.date).getTime() >= pushAfterMs) {
-          await sendPushNotification({
-            recipientEmail: accountEmail,
-            subject: message.subject,
-            fromName: message.from.name || message.from.email,
-          });
+          const pushKey = `${accountId}:${message.id}`;
+          const reserved = await reservePushOnce(pushKey);
+          if (reserved) {
+            await sendPushNotification({
+              recipientEmail: accountEmail,
+              subject: message.subject,
+              fromName: message.from.name || message.from.email,
+            });
+          }
         }
       } catch (e) {
         console.error('[auto-sort-daemon] Failed to process new message:', {
