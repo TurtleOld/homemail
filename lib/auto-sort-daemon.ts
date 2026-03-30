@@ -457,10 +457,12 @@ async function startWatchingAccount(accountId: string): Promise<void> {
   let accountEmail = accountId;
   try {
     const account = await provider.getAccount(accountId);
+    console.log('[auto-sort-daemon] Account resolved:', { accountId, accountName: account?.email, displayName: account?.displayName });
     if (account?.email) accountEmail = account.email;
   } catch (e) {
     console.error('[auto-sort-daemon] Failed to load account email for:', accountId, e);
   }
+  console.log('[auto-sort-daemon] Using accountEmail for push:', accountEmail);
 
   const unsubscribe = provider.subscribeToUpdates(accountId, async (event) => {
     if (event.type !== 'message.new') {
@@ -496,18 +498,30 @@ async function startWatchingAccount(accountId: string): Promise<void> {
         }
         await processNewMessage(message, accountId, folderId, provider);
 
-        if (new Date(message.date).getTime() >= pushAfterMs) {
+        const messageDate = new Date(message.date).getTime();
+        console.log('[auto-sort-daemon] Push check:', {
+          messageId: message.id,
+          messageDate: new Date(messageDate).toISOString(),
+          pushAfterMs: new Date(pushAfterMs).toISOString(),
+          passesDateGate: messageDate >= pushAfterMs,
+        });
+
+        if (messageDate >= pushAfterMs) {
           const pushKey = `${accountId}:${message.id}`;
           const reserved = await reservePushOnce(pushKey);
+          console.log('[auto-sort-daemon] Push lock:', { pushKey, reserved });
           if (reserved) {
             try {
+              console.log('[auto-sort-daemon] Sending push to:', accountEmail, 'subject:', message.subject);
               await sendPushNotification({
                 recipientEmail: accountEmail,
                 subject: message.subject,
                 fromName: message.from.name || message.from.email,
               });
               await markPushSent(pushKey);
+              console.log('[auto-sort-daemon] Push sent successfully for:', message.id);
             } catch (pushError) {
+              console.error('[auto-sort-daemon] Push send FAILED:', pushError);
               await releasePushLock(pushKey);
               throw pushError;
             }
