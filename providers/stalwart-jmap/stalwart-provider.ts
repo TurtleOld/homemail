@@ -1673,12 +1673,14 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   }
 
-  async syncMessages(accountId: string): Promise<{
+  async syncMessages(accountId: string, inMemoryState?: { mailboxState: string; emailObjectState: string }): Promise<{
     created: string[];
     updated: string[];
     destroyed: string[];
     mailboxCountsChanged: boolean;
     needsFullRefresh: boolean;
+    newMailboxState: string;
+    newEmailObjectState: string;
   }> {
     const STATE_KEY = `jmapState:${accountId}`;
     const STATE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -1687,10 +1689,16 @@ export class StalwartJMAPProvider implements MailProvider {
     const session = await client.getSession();
     const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
-    const stored = await readStorage<JMAPStateSnapshot | null>(STATE_KEY, null);
+    // Use in-memory state if provided, otherwise read from disk
+    let stored: JMAPStateSnapshot | null;
+    if (inMemoryState) {
+      stored = { ...inMemoryState, savedAt: Date.now() };
+    } else {
+      stored = await readStorage<JMAPStateSnapshot | null>(STATE_KEY, null);
+    }
 
     // Stale or missing state → seed and request full refresh
-    if (!stored || Date.now() - stored.savedAt > STATE_TTL_MS) {
+    if (!stored || (!inMemoryState && Date.now() - stored.savedAt > STATE_TTL_MS)) {
       const { state: mailboxState } = await client.getMailboxesWithState(actualAccountId);
       const seedResp = await client.request([
         ['Email/get', { accountId: actualAccountId, ids: [] }, '0'],
@@ -1700,7 +1708,7 @@ export class StalwartJMAPProvider implements MailProvider {
         : '';
       await writeStorage<JMAPStateSnapshot>(STATE_KEY, { mailboxState, emailObjectState, savedAt: Date.now() });
       console.log('[stalwart-provider] syncMessages: seeded state', { mailboxState, emailObjectState });
-      return { created: [], updated: [], destroyed: [], mailboxCountsChanged: true, needsFullRefresh: true };
+      return { created: [], updated: [], destroyed: [], mailboxCountsChanged: true, needsFullRefresh: true, newMailboxState: mailboxState, newEmailObjectState: emailObjectState };
     }
 
     let newMailboxState = stored.mailboxState;
@@ -1723,17 +1731,12 @@ export class StalwartJMAPProvider implements MailProvider {
     }
 
     // Email/changes
-    console.log('[stalwart-provider] syncMessages: Email/changes sinceState:', stored.emailObjectState, 'from file savedAt:', new Date(stored.savedAt).toISOString());
     const emailChanges = await client.getEmailChanges(stored.emailObjectState, actualAccountId);
-    if (!('cannotCalculateChanges' in emailChanges)) {
-      console.log('[stalwart-provider] syncMessages: Email/changes result newState:', emailChanges.newState, 'created:', emailChanges.created.length, 'hasMore:', emailChanges.hasMoreChanges);
-    }
     let created: string[] = [];
     let updated: string[] = [];
     let destroyed: string[] = [];
 
     if ('cannotCalculateChanges' in emailChanges) {
-      console.log('[stalwart-provider] syncMessages: cannotCalculateChanges for Email, re-seeding');
       needsFullRefresh = true;
       const seedResp = await client.request([
         ['Email/get', { accountId: actualAccountId, ids: [] }, '0'],
@@ -1749,23 +1752,14 @@ export class StalwartJMAPProvider implements MailProvider {
       if (emailChanges.hasMoreChanges) needsFullRefresh = true;
     }
 
-    const newSnapshot: JMAPStateSnapshot = {
+    // Persist to disk for restart recovery
+    await writeStorage<JMAPStateSnapshot>(STATE_KEY, {
       mailboxState: newMailboxState,
       emailObjectState: newEmailObjectState,
       savedAt: Date.now(),
-    };
-    try {
-      await writeStorage<JMAPStateSnapshot>(STATE_KEY, newSnapshot);
-      // Verify the write
-      const verify = await readStorage<JMAPStateSnapshot | null>(STATE_KEY, null);
-      if (verify?.emailObjectState !== newEmailObjectState) {
-        console.error('[stalwart-provider] syncMessages: STATE WRITE VERIFICATION FAILED!', { wrote: newEmailObjectState, readBack: verify?.emailObjectState });
-      }
-    } catch (writeErr) {
-      console.error('[stalwart-provider] syncMessages: FAILED to save state:', writeErr);
-    }
+    });
 
-    return { created, updated, destroyed, mailboxCountsChanged, needsFullRefresh };
+    return { created, updated, destroyed, mailboxCountsChanged, needsFullRefresh, newMailboxState, newEmailObjectState };
   }
 
   subscribeToUpdates(
@@ -1775,16 +1769,18 @@ export class StalwartJMAPProvider implements MailProvider {
     let intervalId: NodeJS.Timeout | null = null;
     let isActive = true;
     let isPollRunning = false;
+    // Keep JMAP state in memory for this subscriber — no cross-process race.
+    let memState: { mailboxState: string; emailObjectState: string } | undefined;
 
     const poll = async () => {
       if (!isActive || isPollRunning) return;
       isPollRunning = true;
 
       try {
-        const result = await this.syncMessages(accountId);
-        if (result.created.length > 0 || result.updated.length > 0 || result.destroyed.length > 0 || result.needsFullRefresh) {
-          console.log('[stalwart-provider] poll result:', { created: result.created.length, updated: result.updated.length, destroyed: result.destroyed.length, needsFullRefresh: result.needsFullRefresh });
-        }
+        const result = await this.syncMessages(accountId, memState);
+
+        // Update in-memory state for next poll
+        memState = { mailboxState: result.newMailboxState, emailObjectState: result.newEmailObjectState };
 
         if (result.needsFullRefresh) {
           if (result.mailboxCountsChanged) {
