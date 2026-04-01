@@ -1752,12 +1752,17 @@ export class StalwartJMAPProvider implements MailProvider {
       if (emailChanges.hasMoreChanges) needsFullRefresh = true;
     }
 
-    // Persist to disk for restart recovery
-    await writeStorage<JMAPStateSnapshot>(STATE_KEY, {
-      mailboxState: newMailboxState,
-      emailObjectState: newEmailObjectState,
-      savedAt: Date.now(),
-    });
+    // Persist to disk only when state actually changed (restart recovery).
+    // When using in-memory state, only write if emailObjectState advanced
+    // to avoid cross-process race on the same file.
+    const stateChanged = newEmailObjectState !== stored.emailObjectState || newMailboxState !== stored.mailboxState;
+    if (stateChanged) {
+      await writeStorage<JMAPStateSnapshot>(STATE_KEY, {
+        mailboxState: newMailboxState,
+        emailObjectState: newEmailObjectState,
+        savedAt: Date.now(),
+      });
+    }
 
     return { created, updated, destroyed, mailboxCountsChanged, needsFullRefresh, newMailboxState, newEmailObjectState };
   }
