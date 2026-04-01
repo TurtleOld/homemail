@@ -433,10 +433,14 @@ async function startWatchingAccount(accountId: string): Promise<void> {
     return;
   }
 
+  // Only send push notifications for messages received after daemon startup.
+  // On restart, syncMessages catches up on all changes since last state —
+  // these are old messages that shouldn't trigger push.
+  const daemonStartedAt = Date.now();
+
   const provider = process.env.MAIL_PROVIDER === 'stalwart'
     ? getMailProviderForAccount(accountId)
     : getMailProvider();
-
 
   let folderRoleById = new Map<string, string>();
   let folderNameById = new Map<string, string>();
@@ -491,6 +495,12 @@ async function startWatchingAccount(accountId: string): Promise<void> {
           return;
         }
         await processNewMessage(message, accountId, folderId, provider);
+
+        // Skip push for messages received before daemon startup (catch-up after restart).
+        const messageTs = new Date(message.date).getTime();
+        if (messageTs < daemonStartedAt) {
+          return;
+        }
 
         const pushKey = `${accountId}:${message.id}`;
         const reserved = await reservePushOnce(pushKey);
@@ -560,8 +570,6 @@ async function startAutoSortDaemon(): Promise<void> {
         console.log('[auto-sort-daemon] No accounts found to watch');
         return;
       }
-
-      console.log(`[auto-sort-daemon] Found ${accountIds.size} account(s) to watch`);
 
       for (const accountId of accountIds) {
         try {

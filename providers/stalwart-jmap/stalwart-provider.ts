@@ -1759,10 +1759,6 @@ export class StalwartJMAPProvider implements MailProvider {
     let intervalId: NodeJS.Timeout | null = null;
     let isActive = true;
     let isPollRunning = false;
-    // The first poll after startup always catches up on accumulated changes
-    // (seed or delta). These are not genuinely new messages — skip emitting
-    // message.new for them to avoid a push notification storm.
-    let isFirstPoll = true;
 
     const poll = async () => {
       if (!isActive || isPollRunning) return;
@@ -1776,7 +1772,6 @@ export class StalwartJMAPProvider implements MailProvider {
             callback({ type: 'mailbox.counts', data: {} });
           }
           callback({ type: 'message.updated', data: {} });
-          isFirstPoll = false;
           return;
         }
 
@@ -1785,25 +1780,20 @@ export class StalwartJMAPProvider implements MailProvider {
         }
 
         if (result.created.length > 0) {
-          if (isFirstPoll) {
-            console.log(`[stalwart-provider] First poll: skipping ${result.created.length} created messages (catch-up)`);
-            callback({ type: 'message.updated', data: {} });
-          } else {
-            try {
-              const client = await this.getClient(accountId);
-              const session = await client.getSession();
-              const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-              const newEmails = await client.getEmails(result.created, {
-                accountId: actualAccountId,
-                properties: ['id', 'mailboxIds'],
-              });
-              for (const email of newEmails) {
-                const mailboxId = Object.keys((email as any).mailboxIds || {})[0] || '';
-                callback({ type: 'message.new', data: { messageId: email.id, id: email.id, folderId: mailboxId, mailboxId } });
-              }
-            } catch {
-              callback({ type: 'message.updated', data: {} });
+          try {
+            const client = await this.getClient(accountId);
+            const session = await client.getSession();
+            const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+            const newEmails = await client.getEmails(result.created, {
+              accountId: actualAccountId,
+              properties: ['id', 'mailboxIds'],
+            });
+            for (const email of newEmails) {
+              const mailboxId = Object.keys((email as any).mailboxIds || {})[0] || '';
+              callback({ type: 'message.new', data: { messageId: email.id, id: email.id, folderId: mailboxId, mailboxId } });
             }
+          } catch {
+            callback({ type: 'message.updated', data: {} });
           }
         }
 
@@ -1813,7 +1803,6 @@ export class StalwartJMAPProvider implements MailProvider {
       } catch (error) {
         console.error('[stalwart-provider] Error in subscribeToUpdates poll:', error);
       } finally {
-        isFirstPoll = false;
         isPollRunning = false;
       }
     };
