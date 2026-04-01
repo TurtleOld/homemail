@@ -51,7 +51,7 @@ export class OAuthTokenStore {
         const now = Date.now();
 
         for (const [accountId, token] of Object.entries(tokens)) {
-          if (!token.expiresAt || token.expiresAt > now) {
+          if (!token.expiresAt || token.expiresAt > now || token.refreshToken) {
             tokensCache.set(accountId, token);
           }
         }
