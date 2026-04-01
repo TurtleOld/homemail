@@ -1746,11 +1746,21 @@ export class StalwartJMAPProvider implements MailProvider {
       if (emailChanges.hasMoreChanges) needsFullRefresh = true;
     }
 
-    await writeStorage<JMAPStateSnapshot>(STATE_KEY, {
+    const newSnapshot: JMAPStateSnapshot = {
       mailboxState: newMailboxState,
       emailObjectState: newEmailObjectState,
       savedAt: Date.now(),
-    });
+    };
+    try {
+      await writeStorage<JMAPStateSnapshot>(STATE_KEY, newSnapshot);
+      // Verify the write
+      const verify = await readStorage<JMAPStateSnapshot | null>(STATE_KEY, null);
+      if (verify?.emailObjectState !== newEmailObjectState) {
+        console.error('[stalwart-provider] syncMessages: STATE WRITE VERIFICATION FAILED!', { wrote: newEmailObjectState, readBack: verify?.emailObjectState });
+      }
+    } catch (writeErr) {
+      console.error('[stalwart-provider] syncMessages: FAILED to save state:', writeErr);
+    }
 
     return { created, updated, destroyed, mailboxCountsChanged, needsFullRefresh };
   }
