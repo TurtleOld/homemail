@@ -1723,8 +1723,11 @@ export class StalwartJMAPProvider implements MailProvider {
     }
 
     // Email/changes
-    console.log('[stalwart-provider] syncMessages: calling Email/changes with sinceState:', stored.emailObjectState);
+    console.log('[stalwart-provider] syncMessages: Email/changes sinceState:', stored.emailObjectState, 'from file savedAt:', new Date(stored.savedAt).toISOString());
     const emailChanges = await client.getEmailChanges(stored.emailObjectState, actualAccountId);
+    if (!('cannotCalculateChanges' in emailChanges)) {
+      console.log('[stalwart-provider] syncMessages: Email/changes result newState:', emailChanges.newState, 'created:', emailChanges.created.length, 'hasMore:', emailChanges.hasMoreChanges);
+    }
     let created: string[] = [];
     let updated: string[] = [];
     let destroyed: string[] = [];
