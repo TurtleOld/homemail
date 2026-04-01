@@ -3,6 +3,8 @@ services:
     image: ghcr.io/turtleold/homemail:latest
     container_name: homemail-webclient
     restart: unless-stopped
+    depends_on:
+      - stalwart
     command: npm start
     environment:
       - NODE_ENV=production
@@ -44,12 +46,6 @@ services:
       - ./config/stalwart/config.toml:/opt/stalwart-mail/etc/config.toml:ro
     networks:
       - homemail-network
-    healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:8080/.well-known/jmap || exit 1']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
   nginx:
     image: nginx:stable-alpine
