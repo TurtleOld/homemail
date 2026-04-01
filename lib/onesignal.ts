@@ -7,6 +7,19 @@ type OneSignalNotificationResponse = {
   errors?: unknown;
 };
 
+type OneSignalSubscription = {
+  id: string;
+  type: string;
+  token: string;
+  enabled: boolean;
+  notification_types: number;
+};
+
+type OneSignalUserResponse = {
+  identity?: { external_id?: string };
+  subscriptions?: OneSignalSubscription[];
+};
+
 function hasOneSignalErrors(errors: unknown): boolean {
   if (errors == null) return false;
   if (Array.isArray(errors)) return errors.length > 0;
@@ -14,12 +27,32 @@ function hasOneSignalErrors(errors: unknown): boolean {
   return true;
 }
 
-function parseRecipientAliases(recipientEmail: string): string[] {
-  const parts = String(recipientEmail)
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return Array.from(new Set(parts));
+/**
+ * Resolve an external_id (email) to active push subscription IDs.
+ * OneSignal alias targeting can be unreliable, so we look up the user
+ * and send directly to their enabled subscriptions.
+ */
+async function resolveSubscriptionIds(
+  externalId: string,
+  appId: string,
+  apiKey: string,
+): Promise<string[]> {
+  const url = `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(externalId)}`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Key ${apiKey}` },
+  });
+
+  if (!response.ok) {
+    console.warn(`[OneSignal] User lookup failed (${response.status}) for:`, externalId);
+    return [];
+  }
+
+  const data = (await response.json()) as OneSignalUserResponse;
+  const subscriptions = data.subscriptions || [];
+
+  return subscriptions
+    .filter((s) => s.enabled && s.token && s.type === 'AndroidPush')
+    .map((s) => s.id);
 }
 
 export async function sendPushNotification({
@@ -38,15 +71,21 @@ export async function sendPushNotification({
     return;
   }
 
-  const externalIds = parseRecipientAliases(recipientEmail);
-  if (externalIds.length === 0) {
+  const email = recipientEmail.trim();
+  if (!email) {
+    return;
+  }
+
+  // Resolve email → active subscription IDs (more reliable than alias targeting)
+  const subscriptionIds = await resolveSubscriptionIds(email, appId, apiKey);
+  if (subscriptionIds.length === 0) {
+    console.warn('[OneSignal] No active subscriptions for:', email);
     return;
   }
 
   const body = {
     app_id: appId,
-    include_aliases: { external_id: externalIds },
-    target_channel: 'push',
+    include_subscription_ids: subscriptionIds,
     headings: { en: fromName || 'New message' },
     contents: { en: subject || '(No subject)' },
   };
@@ -72,8 +111,6 @@ export async function sendPushNotification({
     throw new Error(`OneSignal error ${response.status}: ${responseText}`);
   }
 
-  // OneSignal can return 200 OK with an `errors` field (e.g. invalid aliases).
-  // Treat this as a failure so callers can decide whether to retry.
   if (parsed && hasOneSignalErrors(parsed.errors)) {
     throw new Error(`OneSignal error (200): ${responseText}`);
   }
