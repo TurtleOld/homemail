@@ -1699,6 +1699,7 @@ export class StalwartJMAPProvider implements MailProvider {
         ? ((seedResp.methodResponses[0][1] as any).state ?? '')
         : '';
       await writeStorage<JMAPStateSnapshot>(STATE_KEY, { mailboxState, emailObjectState, savedAt: Date.now() });
+      console.log('[stalwart-provider] syncMessages: seeded state', { mailboxState, emailObjectState });
       return { created: [], updated: [], destroyed: [], mailboxCountsChanged: true, needsFullRefresh: true };
     }
 
@@ -1722,12 +1723,14 @@ export class StalwartJMAPProvider implements MailProvider {
     }
 
     // Email/changes
+    console.log('[stalwart-provider] syncMessages: calling Email/changes with sinceState:', stored.emailObjectState);
     const emailChanges = await client.getEmailChanges(stored.emailObjectState, actualAccountId);
     let created: string[] = [];
     let updated: string[] = [];
     let destroyed: string[] = [];
 
     if ('cannotCalculateChanges' in emailChanges) {
+      console.log('[stalwart-provider] syncMessages: cannotCalculateChanges for Email, re-seeding');
       needsFullRefresh = true;
       const seedResp = await client.request([
         ['Email/get', { accountId: actualAccountId, ids: [] }, '0'],
@@ -1766,6 +1769,9 @@ export class StalwartJMAPProvider implements MailProvider {
 
       try {
         const result = await this.syncMessages(accountId);
+        if (result.created.length > 0 || result.updated.length > 0 || result.destroyed.length > 0 || result.needsFullRefresh) {
+          console.log('[stalwart-provider] poll result:', { created: result.created.length, updated: result.updated.length, destroyed: result.destroyed.length, needsFullRefresh: result.needsFullRefresh });
+        }
 
         if (result.needsFullRefresh) {
           if (result.mailboxCountsChanged) {
