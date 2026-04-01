@@ -1759,11 +1759,10 @@ export class StalwartJMAPProvider implements MailProvider {
     let intervalId: NodeJS.Timeout | null = null;
     let isActive = true;
     let isPollRunning = false;
-    // After a state seed (first poll or stale state), the next Email/changes
-    // returns ALL messages since the seed — these are not genuinely new.
-    // Skip emitting message.new for that first batch to avoid spamming
-    // old messages through the push notification pipeline.
-    let skipNextCreated = false;
+    // The first poll after startup always catches up on accumulated changes
+    // (seed or delta). These are not genuinely new messages — skip emitting
+    // message.new for them to avoid a push notification storm.
+    let isFirstPoll = true;
 
     const poll = async () => {
       if (!isActive || isPollRunning) return;
@@ -1773,14 +1772,11 @@ export class StalwartJMAPProvider implements MailProvider {
         const result = await this.syncMessages(accountId);
 
         if (result.needsFullRefresh) {
-          // Full reload — let clients refetch everything
           if (result.mailboxCountsChanged) {
             callback({ type: 'mailbox.counts', data: {} });
           }
           callback({ type: 'message.updated', data: {} });
-          // After a seed/full-refresh, the next poll's "created" list is a
-          // replay of existing messages, not genuinely new mail.
-          skipNextCreated = true;
+          isFirstPoll = false;
           return;
         }
 
@@ -1789,10 +1785,8 @@ export class StalwartJMAPProvider implements MailProvider {
         }
 
         if (result.created.length > 0) {
-          if (skipNextCreated) {
-            console.log(`[stalwart-provider] Skipping ${result.created.length} created messages from post-seed sync`);
-            skipNextCreated = false;
-            // Still notify about updated UI state, just don't emit individual message.new
+          if (isFirstPoll) {
+            console.log(`[stalwart-provider] First poll: skipping ${result.created.length} created messages (catch-up)`);
             callback({ type: 'message.updated', data: {} });
           } else {
             try {
@@ -1811,9 +1805,6 @@ export class StalwartJMAPProvider implements MailProvider {
               callback({ type: 'message.updated', data: {} });
             }
           }
-        } else {
-          // No created messages — clear the skip flag
-          skipNextCreated = false;
         }
 
         if (result.updated.length > 0 || result.destroyed.length > 0) {
@@ -1822,12 +1813,12 @@ export class StalwartJMAPProvider implements MailProvider {
       } catch (error) {
         console.error('[stalwart-provider] Error in subscribeToUpdates poll:', error);
       } finally {
+        isFirstPoll = false;
         isPollRunning = false;
       }
     };
 
     intervalId = setInterval(poll, 15000);
-    // First poll seeds state (needsFullRefresh=true on first run → safe)
     poll();
 
     return () => {
