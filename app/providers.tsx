@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/toast';
 import { PerformanceReporter } from '@/components/performance-reporter';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
+import { getMailDesignVariant } from '@/lib/mail-design';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -23,9 +24,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    const root = document.documentElement;
+
+    root.dataset.mailDesign = getMailDesignVariant(process.env.NEXT_PUBLIC_MAIL_DESIGN);
+
     const applyTheme = async () => {
       if (pathname === '/login' || pathname.startsWith('/login')) {
-        document.documentElement.classList.remove('dark');
+        root.classList.remove('dark');
         return;
       }
 
@@ -34,8 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         if (res.ok) {
           const settings = await res.json();
           const theme = settings.theme || 'light';
-          const root = document.documentElement;
-          
+
           if (theme === 'dark') {
             root.classList.add('dark');
           } else {
@@ -82,10 +86,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
             }
           }
         } else {
-          document.documentElement.classList.remove('dark');
+          root.classList.remove('dark');
         }
       } catch (error) {
-        document.documentElement.classList.remove('dark');
+        root.classList.remove('dark');
       }
     };
 

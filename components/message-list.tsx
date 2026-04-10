@@ -35,8 +35,14 @@ interface MessageListProps {
 }
 
 const AVATAR_COLORS = [
-  'bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-orange-500',
-  'bg-rose-500', 'bg-cyan-500', 'bg-amber-500', 'bg-teal-500',
+  'bg-blue-500',
+  'bg-violet-500',
+  'bg-emerald-500',
+  'bg-orange-500',
+  'bg-rose-500',
+  'bg-cyan-500',
+  'bg-amber-500',
+  'bg-teal-500',
 ];
 
 function getAvatarColor(email: string): string {
@@ -128,14 +134,19 @@ export const MessageItem = memo(function MessageItem({
       data-testid="message-item"
       draggable={!!onDragStart}
       role="article"
-      aria-label={t('messageAriaLabel', { sender: message.from.name || message.from.email, subject: message.subject || tCommon('noSubject') })}
-      aria-selected={isSelected}
+      aria-label={t('messageAriaLabel', {
+        sender: message.from.name || message.from.email,
+        subject: message.subject || tCommon('noSubject'),
+      })}
       tabIndex={0}
       onDragStart={(e) => {
         if (onDragStart) {
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', message.id);
-          e.dataTransfer.setData('application/json', JSON.stringify({ type: 'message', id: message.id }));
+          e.dataTransfer.setData(
+            'application/json',
+            JSON.stringify({ type: 'message', id: message.id })
+          );
           onDragStart(message.id);
           e.currentTarget.style.opacity = '0.5';
         }
@@ -147,11 +158,12 @@ export const MessageItem = memo(function MessageItem({
         }
       }}
       className={cn(
-        'group relative flex cursor-pointer items-start border-b transition-all duration-150 hover:bg-muted/50 active:bg-muted/70 touch-manipulation',
+        'group relative mx-2 my-1 flex cursor-pointer items-start rounded-2xl border border-transparent transition-all duration-150 hover:mail-hover-surface hover:border-border/80 hover:shadow-[0_10px_22px_-20px_hsl(var(--shadow-soft)/0.45)] active:scale-[0.998] touch-manipulation',
         densityClasses[density],
         'max-md:p-4 max-md:gap-3',
-        isSelected && 'bg-primary/5',
-        isFocused && 'ring-2 ring-primary ring-inset',
+        message.flags.unread && 'mail-unread-surface',
+        isSelected && 'mail-selected-surface mail-border-strong shadow-sm',
+        isFocused && 'ring-2 ring-primary/35 ring-inset',
         onDragStart && 'cursor-grab active:cursor-grabbing'
       )}
       onClick={(e) => {
@@ -176,17 +188,21 @@ export const MessageItem = memo(function MessageItem({
       }}
     >
       {/* Unread dot — left edge */}
-      <div className={cn(
-        'absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full transition-all duration-150',
-        message.flags.unread ? 'h-8 bg-[hsl(var(--unread))]' : 'h-0'
-      )} />
+      <div
+        className={cn(
+          'absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full transition-all duration-150',
+          message.flags.unread ? 'h-8 bg-[hsl(var(--unread))]' : 'h-0'
+        )}
+      />
 
       {/* Checkbox — hover reveal, always visible in selection mode */}
-      <div className={cn(
-        'flex-shrink-0 flex items-center justify-center mt-0.5',
-        'transition-opacity duration-150',
-        isSelected || isSelectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-      )}>
+      <div
+        className={cn(
+          'flex-shrink-0 flex items-center justify-center mt-0.5',
+          'transition-opacity duration-150',
+          isSelected || isSelectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        )}
+      >
         <input
           type="checkbox"
           checked={isSelected}
@@ -201,15 +217,18 @@ export const MessageItem = memo(function MessageItem({
       </div>
 
       {/* Avatar — shown when checkbox hidden */}
-      <div className={cn(
-        'absolute flex-shrink-0 flex items-center justify-center',
-        'transition-opacity duration-150',
-        isSelected || isSelectionMode ? 'opacity-0' : 'opacity-100 group-hover:opacity-0',
-        density === 'compact' ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-xs',
-        avatarColor,
-        'rounded-full text-white font-semibold select-none',
-        density === 'compact' ? 'top-2' : 'top-3'
-      )} style={{ left: density === 'compact' ? '8px' : '12px' }}>
+      <div
+        className={cn(
+          'absolute flex-shrink-0 flex items-center justify-center',
+          'transition-opacity duration-150',
+          isSelected || isSelectionMode ? 'opacity-0' : 'opacity-100 group-hover:opacity-0',
+          density === 'compact' ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-xs',
+          avatarColor,
+          'rounded-full text-white font-semibold select-none',
+          density === 'compact' ? 'top-2' : 'top-3'
+        )}
+        style={{ left: density === 'compact' ? '8px' : '12px' }}
+      >
         {initials}
       </div>
 
@@ -220,10 +239,14 @@ export const MessageItem = memo(function MessageItem({
         <div className="flex items-start gap-2 max-md:gap-1">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className={cn(
-                'truncate max-md:text-sm',
-                message.flags.unread ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground'
-              )}>
+              <span
+                className={cn(
+                  'truncate max-md:text-sm',
+                  message.flags.unread
+                    ? 'font-semibold text-foreground'
+                    : 'font-normal text-slate-600'
+                )}
+              >
                 {message.from.name || message.from.email}
               </span>
               {message.flags.hasAttachments && (
@@ -236,16 +259,33 @@ export const MessageItem = memo(function MessageItem({
                 <Star className="h-3 w-3 flex-shrink-0 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" />
               )}
             </div>
-            <div className={cn('flex items-center gap-2 max-md:gap-1', textSizeClasses[density], 'max-md:text-xs')}>
-              <span className={cn('truncate', message.flags.unread ? 'font-medium text-foreground' : 'text-muted-foreground')}>
+            <div
+              className={cn(
+                'flex items-center gap-2 max-md:gap-1',
+                textSizeClasses[density],
+                'max-md:text-xs'
+              )}
+            >
+              <span
+                className={cn(
+                  'truncate',
+                  message.flags.unread ? 'font-medium text-foreground' : 'text-slate-600'
+                )}
+              >
                 {message.subject || tCommon('noSubject')}
               </span>
-              <span className={cn('text-muted-foreground flex-shrink-0 tabular-nums', density === 'compact' ? 'text-[10px]' : 'text-xs', 'max-md:text-[10px]')}>
+              <span
+                className={cn(
+                  'flex-shrink-0 tabular-nums text-slate-500',
+                  density === 'compact' ? 'text-[10px]' : 'text-xs',
+                  'max-md:text-[10px]'
+                )}
+              >
                 {formatDate(message.date, localeSettings)}
               </span>
             </div>
             {density !== 'compact' && message.snippet && (
-              <div className="truncate text-muted-foreground text-xs max-md:text-[10px]">
+              <div className="truncate text-xs text-slate-500 max-md:text-[10px]">
                 {message.snippet}
               </div>
             )}
@@ -254,7 +294,7 @@ export const MessageItem = memo(function MessageItem({
                 {messageLabels.slice(0, 3).map((label) => (
                   <span
                     key={label.id}
-                    className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium max-md:text-[8px]"
+                    className="inline-flex items-center rounded-lg px-1.5 py-0.5 text-[10px] font-medium max-md:text-[8px]"
                     style={{
                       backgroundColor: `${label.color || '#3b82f6'}15`,
                       color: label.color || '#3b82f6',
@@ -274,35 +314,64 @@ export const MessageItem = memo(function MessageItem({
           </div>
 
           {/* Hover action buttons */}
-          <div className={cn(
-            'flex-shrink-0 flex items-center gap-0.5',
-            'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
-            'max-md:hidden'
-          )}>
+          <div
+            className={cn(
+              'flex-shrink-0 flex items-center gap-0.5 rounded-xl border border-transparent bg-white/70 px-1 py-0.5 shadow-sm backdrop-blur-sm',
+              'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
+              'max-md:hidden'
+            )}
+          >
             {onStar && (
               <button
-                onClick={(e) => { e.stopPropagation(); onStar(message.id, !message.flags.starred); }}
-                className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                title={message.flags.starred ? tViewer('removeFromFavorites') : tViewer('addToFavorites')}
-                aria-label={message.flags.starred ? tViewer('removeFromFavorites') : tViewer('addToFavorites')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStar(message.id, !message.flags.starred);
+                }}
+                className="rounded-md p-1.5 transition-colors hover:bg-slate-100"
+                title={
+                  message.flags.starred ? tViewer('removeFromFavorites') : tViewer('addToFavorites')
+                }
+                aria-label={
+                  message.flags.starred ? tViewer('removeFromFavorites') : tViewer('addToFavorites')
+                }
               >
-                <Star className={cn('h-3.5 w-3.5', message.flags.starred ? 'fill-[hsl(var(--starred))] text-[hsl(var(--starred))]' : 'text-muted-foreground')} />
+                <Star
+                  className={cn(
+                    'h-3.5 w-3.5',
+                    message.flags.starred
+                      ? 'fill-[hsl(var(--starred))] text-[hsl(var(--starred))]'
+                      : 'text-muted-foreground'
+                  )}
+                />
               </button>
             )}
             {onToggleImportant && (
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleImportant(message.id, !message.flags.important); }}
-                className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleImportant(message.id, !message.flags.important);
+                }}
+                className="rounded-md p-1.5 transition-colors hover:bg-slate-100"
                 title={message.flags.important ? t('removeImportance') : t('markImportant')}
                 aria-label={message.flags.important ? t('removeImportance') : t('markImportant')}
               >
-                <AlertCircle className={cn('h-3.5 w-3.5', message.flags.important ? 'fill-orange-500 text-orange-500' : 'text-muted-foreground')} />
+                <AlertCircle
+                  className={cn(
+                    'h-3.5 w-3.5',
+                    message.flags.important
+                      ? 'fill-orange-500 text-orange-500'
+                      : 'text-muted-foreground'
+                  )}
+                />
               </button>
             )}
             {onDelete && (
               <button
-                onClick={(e) => { e.stopPropagation(); onDelete(message.id); }}
-                className="p-1.5 rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(message.id);
+                }}
+                className="rounded-md p-1.5 transition-colors hover:bg-destructive/10 hover:text-destructive"
                 title={tCommon('delete')}
                 aria-label={tCommon('delete')}
               >
@@ -397,7 +466,10 @@ export function MessageList({
     }
 
     if (groupBy === 'date') {
-      const groups: Array<{ date: string; messages: Array<{ message: MessageListItem; index: number }> }> = [];
+      const groups: Array<{
+        date: string;
+        messages: Array<{ message: MessageListItem; index: number }>;
+      }> = [];
       const dateMap = new Map<string, Array<{ message: MessageListItem; index: number }>>();
 
       messages.forEach((msg, idx) => {
@@ -463,7 +535,7 @@ export function MessageList({
     }
 
     return messages.map((msg, idx) => ({ message: msg, index: idx, groupHeader: null }));
-  }, [messages, groupBy]);
+  }, [messages, groupBy, tList]);
 
   const renderMessage = useCallback(
     (index: number) => {
@@ -472,7 +544,10 @@ export function MessageList({
 
       if (item.groupHeader) {
         return (
-          <div key={`group-${item.groupHeader}`} className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm border-b px-3 py-2 text-sm font-semibold text-muted-foreground">
+          <div
+            key={`group-${item.groupHeader}`}
+            className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm border-b px-3 py-2 text-sm font-semibold text-muted-foreground"
+          >
             {item.groupHeader}
           </div>
         );
@@ -504,7 +579,19 @@ export function MessageList({
         />
       );
     },
-    [groupedMessages, selectedIds, focusedIndex, onSelect, onMessageClick, onDragStart, onToggleImportant, onStar, onDelete, density]
+    [
+      groupedMessages,
+      selectedIds,
+      focusedIndex,
+      onSelect,
+      onMessageClick,
+      onMessageDoubleClick,
+      onDragStart,
+      onToggleImportant,
+      onStar,
+      onDelete,
+      density,
+    ]
   );
 
   const toggleThreadExpand = useCallback((threadId: string) => {
@@ -520,8 +607,16 @@ export function MessageList({
   }, []);
 
   return (
-    <div className="flex h-full w-full flex-col border-r bg-background max-md:border-r-0" role="region" aria-label={t('regionLabel')}>
-      <div className="border-b bg-muted/50 p-2 max-md:p-1.5 sticky top-0 z-10" role="toolbar" aria-label={t('toolbarLabel')}>
+    <div
+      className="mail-panel-surface flex h-full w-full flex-col border-r border-white/70 max-md:border-r-0"
+      role="region"
+      aria-label={t('regionLabel')}
+    >
+      <div
+        className="mail-panel-muted sticky top-0 z-10 border-b border-white/80 p-2.5 max-md:p-1.5"
+        role="toolbar"
+        aria-label={t('toolbarLabel')}
+      >
         <div className="flex items-center gap-2 max-md:gap-1">
           <input
             type="checkbox"
@@ -531,11 +626,19 @@ export function MessageList({
             aria-label={t('selectAll')}
             aria-controls="message-list"
           />
-          <span className="text-sm max-md:text-xs text-muted-foreground" aria-live="polite" aria-atomic="true">
-            {selectedIds.size > 0 ? t('selectedCount', { count: selectedIds.size }) : t('totalCount', { count: messages.length })}
+          <span
+            className="text-sm text-slate-600 max-md:text-xs"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {selectedIds.size > 0
+              ? t('selectedCount', { count: selectedIds.size })
+              : t('totalCount', { count: messages.length })}
           </span>
           {isFetchingMore && (
-            <span className="ml-auto text-xs max-md:text-[10px] text-muted-foreground">{t('loadingMore')}</span>
+            <span className="ml-auto text-xs text-slate-500 max-md:text-[10px]">
+              {t('loadingMore')}
+            </span>
           )}
         </div>
       </div>
@@ -543,7 +646,10 @@ export function MessageList({
         {isLoading ? (
           <div className="flex flex-col h-full p-3 gap-3">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-start gap-3 border-b pb-3">
+              <div
+                key={i}
+                className="flex items-start gap-3 rounded-2xl border border-border/70 bg-background/70 p-3"
+              >
                 <Skeleton className="h-5 w-5 rounded mt-1" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-3/4" />
@@ -554,7 +660,7 @@ export function MessageList({
             ))}
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-muted-foreground">
+          <div className="flex h-full items-center justify-center text-slate-500">
             <div className="text-center">
               <Mail className="mx-auto h-12 w-12 mb-4 opacity-50" />
               <p>{isSearching ? t('noResults') : t('empty')}</p>
@@ -588,57 +694,56 @@ export function MessageList({
               </div>
             )}
           </div>
+        ) : process.env.NODE_ENV === 'test' ? (
+          <div>{groupedMessages.map((_, index) => renderMessage(index))}</div>
         ) : (
-          (process.env.NODE_ENV === 'test' ? (
-            <div>
-              {groupedMessages.map((_, index) => renderMessage(index))}
-            </div>
-          ) : (
-            <Virtuoso
-              data={groupedMessages}
-              totalCount={groupedMessages.length}
-              itemContent={(index) => {
-                const item = groupedMessages[index];
-                if (!item) return null;
-                if (item.groupHeader) {
-                  return (
-                    <div key={`group-${item.groupHeader}-${index}`} className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm border-b px-3 py-2 text-sm font-semibold text-muted-foreground">
-                      {item.groupHeader}
-                    </div>
-                  );
-                }
-                const message = item.message;
-                if (!message) return null;
-                const isSelected = selectedIds.has(message.id);
-                const isFocused = focusedIndex === item.index;
+          <Virtuoso
+            data={groupedMessages}
+            totalCount={groupedMessages.length}
+            itemContent={(index) => {
+              const item = groupedMessages[index];
+              if (!item) return null;
+              if (item.groupHeader) {
                 return (
-                  <MessageItem
-                    key={message.id}
-                    message={message}
-                    index={item.index}
-                    isSelected={isSelected}
-                    isFocused={isFocused}
-                    selectedIds={selectedIds}
-                    isSelectionMode={selectedIds.size > 0}
-                    onSelect={onSelect}
-                    onMessageClick={onMessageClick}
-                    onMessageDoubleClick={onMessageDoubleClick}
-                    onDragStart={onDragStart}
-                    onToggleImportant={onToggleImportant}
-                    onStar={onStar}
-                    onDelete={onDelete}
-                    density={density}
-                  />
+                  <div
+                    key={`group-${item.groupHeader}-${index}`}
+                    className="sticky top-0 z-10 border-b border-white/80 bg-[hsl(var(--surface-panel-muted)/0.92)] px-4 py-2 text-sm font-semibold text-slate-500 backdrop-blur-sm"
+                  >
+                    {item.groupHeader}
+                  </div>
                 );
-              }}
-              endReached={() => {
-                if (hasMore && onLoadMore) {
-                  onLoadMore();
-                }
-              }}
-              style={{ height: '100%' }}
-            />
-          ))
+              }
+              const message = item.message;
+              if (!message) return null;
+              const isSelected = selectedIds.has(message.id);
+              const isFocused = focusedIndex === item.index;
+              return (
+                <MessageItem
+                  key={message.id}
+                  message={message}
+                  index={item.index}
+                  isSelected={isSelected}
+                  isFocused={isFocused}
+                  selectedIds={selectedIds}
+                  isSelectionMode={selectedIds.size > 0}
+                  onSelect={onSelect}
+                  onMessageClick={onMessageClick}
+                  onMessageDoubleClick={onMessageDoubleClick}
+                  onDragStart={onDragStart}
+                  onToggleImportant={onToggleImportant}
+                  onStar={onStar}
+                  onDelete={onDelete}
+                  density={density}
+                />
+              );
+            }}
+            endReached={() => {
+              if (hasMore && onLoadMore) {
+                onLoadMore();
+              }
+            }}
+            style={{ height: '100%' }}
+          />
         )}
       </div>
     </div>

@@ -10,9 +10,33 @@ import { Sidebar } from '@/components/sidebar';
 import { MessageList } from '@/components/message-list';
 import { MessageViewer } from '@/components/message-viewer';
 import { QuickFilters } from '@/components/quick-filters';
-import type { Folder, Account, MessageListItem, MessageDetail, Draft, QuickFilterType, FilterGroup } from '@/lib/types';
+import type {
+  Folder,
+  Account,
+  MessageListItem,
+  MessageDetail,
+  Draft,
+  QuickFilterType,
+  FilterGroup,
+} from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Trash2, Star, Mail, FileText, X, Menu, ArrowLeft, Folder as FolderIcon, Inbox, Send, AlertTriangle, AlertCircle, Archive, MessageSquare, FileDown } from 'lucide-react';
+import {
+  Trash2,
+  Star,
+  Mail,
+  FileText,
+  X,
+  Menu,
+  ArrowLeft,
+  Folder as FolderIcon,
+  Inbox,
+  Send,
+  AlertTriangle,
+  AlertCircle,
+  Archive,
+  MessageSquare,
+  FileDown,
+} from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,10 +83,10 @@ interface UserSettings {
   };
 }
 
-const Compose = dynamic(
-  () => import('@/components/compose').then((mod) => mod.Compose),
-  { ssr: false, loading: () => null }
-);
+const Compose = dynamic(() => import('@/components/compose').then((mod) => mod.Compose), {
+  ssr: false,
+  loading: () => null,
+});
 
 export default function MailLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -74,7 +98,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [composeOpen, setComposeOpen] = useState(false);
-  const [replyTo, setReplyTo] = useState<{ subject: string; from: { email: string; name?: string }; body: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<{
+    subject: string;
+    from: { email: string; name?: string };
+    body: string;
+  } | null>(null);
   const [forwardFrom, setForwardFrom] = useState<{ subject: string; body: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilterType | undefined>();
@@ -141,7 +169,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   });
 
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default' && settings?.notifications?.browser) {
+    if (
+      'Notification' in window &&
+      Notification.permission === 'default' &&
+      settings?.notifications?.browser
+    ) {
       Notification.requestPermission();
     }
   }, [settings?.notifications?.browser]);
@@ -265,11 +297,13 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   });
 
   const uiSettings = useMemo(() => {
-    return settings?.ui || {
-      sortBy: 'date' as const,
-      sortOrder: 'desc' as const,
-      groupBy: 'none' as const,
-    };
+    return (
+      settings?.ui || {
+        sortBy: 'date' as const,
+        sortOrder: 'desc' as const,
+        groupBy: 'none' as const,
+      }
+    );
   }, [settings?.ui?.sortBy, settings?.ui?.sortOrder, settings?.ui?.groupBy]);
 
   const messages = useMemo(() => {
@@ -290,7 +324,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           break;
         }
         case 'from':
-          comparison = (a.from.name || a.from.email).localeCompare(b.from.name || b.from.email, locale);
+          comparison = (a.from.name || a.from.email).localeCompare(
+            b.from.name || b.from.email,
+            locale
+          );
           break;
         case 'subject':
           comparison = (a.subject || '').localeCompare(b.subject || '', locale);
@@ -305,7 +342,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     return allMessages;
   }, [messagesData, quickFilter, uiSettings, locale]);
 
-  const { data: selectedMessage, isLoading: isMessageLoading, error: messageError } = useQuery<MessageDetail>({
+  const {
+    data: selectedMessage,
+    isLoading: isMessageLoading,
+    error: messageError,
+  } = useQuery<MessageDetail>({
     queryKey: ['message', selectedMessageId],
     queryFn: async () => {
       if (!selectedMessageId) return null;
@@ -377,7 +418,12 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         const browserNotifications = currentSettings?.notifications?.browser !== false;
         const onlyImportant = currentSettings?.notifications?.onlyImportant === true;
 
-        if (notificationsEnabled && browserNotifications && 'Notification' in window && Notification.permission === 'granted') {
+        if (
+          notificationsEnabled &&
+          browserNotifications &&
+          'Notification' in window &&
+          Notification.permission === 'granted'
+        ) {
           try {
             const data = JSON.parse(event.data);
             const messageId = data.messageId || data.id;
@@ -448,10 +494,15 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     (messageId: string, updater: (message: MessageListItem) => MessageListItem) => {
       queryClient.setQueriesData({ queryKey: ['messages'] }, (oldData) => {
         if (!oldData || typeof oldData !== 'object') return oldData;
-        const data = oldData as { pages: { messages: MessageListItem[]; nextCursor?: string }[]; pageParams: unknown[] };
+        const data = oldData as {
+          pages: { messages: MessageListItem[]; nextCursor?: string }[];
+          pageParams: unknown[];
+        };
         const pages = data.pages.map((page) => ({
           ...page,
-          messages: page.messages.map((message) => (message.id === messageId ? updater(message) : message)),
+          messages: page.messages.map((message) =>
+            message.id === messageId ? updater(message) : message
+          ),
         }));
         return { ...data, pages };
       });
@@ -616,16 +667,19 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     setActiveDraftId(null);
   }, []);
 
-  const handleRestoreDraft = useCallback((draftId: string) => {
-    const draft = minimizedDrafts.find((d) => d.id === draftId);
-    if (draft) {
-      setLoadedDraft(null);
-      setActiveDraftId(draftId);
-      setReplyTo(null);
-      setForwardFrom(null);
-      setComposeOpen(true);
-    }
-  }, [minimizedDrafts]);
+  const handleRestoreDraft = useCallback(
+    (draftId: string) => {
+      const draft = minimizedDrafts.find((d) => d.id === draftId);
+      if (draft) {
+        setLoadedDraft(null);
+        setActiveDraftId(draftId);
+        setReplyTo(null);
+        setForwardFrom(null);
+        setComposeOpen(true);
+      }
+    },
+    [minimizedDrafts]
+  );
 
   const handleCloseDraft = useCallback((draftId: string) => {
     setMinimizedDrafts((prev) => prev.filter((d) => d.id !== draftId));
@@ -639,42 +693,54 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     setLoadedDraft(null);
   }, []);
 
-  const handleMessageDoubleClick = useCallback(async (message: MessageListItem) => {
-    const selectedFolder = folders.find((f) => f.id === selectedFolderId);
-    const isDraft = selectedFolder?.role === 'drafts';
+  const handleMessageDoubleClick = useCallback(
+    async (message: MessageListItem) => {
+      const selectedFolder = folders.find((f) => f.id === selectedFolderId);
+      const isDraft = selectedFolder?.role === 'drafts';
 
-    if (isDraft) {
-      try {
-        const res = await fetch(`/api/mail/messages/${message.id}`);
-        if (!res.ok) {
-          toast.error(t('draftLoadError'));
-          return;
+      if (isDraft) {
+        try {
+          const res = await fetch(`/api/mail/messages/${message.id}`);
+          if (!res.ok) {
+            toast.error(t('draftLoadError'));
+            return;
+          }
+          const messageDetail: MessageDetail = await res.json();
+          const draft: Draft = {
+            id: messageDetail.id,
+            to: messageDetail.to.map((to) => to.email),
+            cc: messageDetail.cc?.map((c) => c.email),
+            bcc: messageDetail.bcc?.map((b) => b.email),
+            subject: messageDetail.subject,
+            html: messageDetail.body.html || messageDetail.body.text?.replace(/\n/g, '<br>') || '',
+          };
+          setLoadedDraft(draft);
+          setActiveDraftId(draft.id ?? null);
+          setReplyTo(null);
+          setForwardFrom(null);
+          setComposeOpen(true);
+        } catch (error) {
+          toast.error(t('draftLoadErrorTitle'));
         }
-        const messageDetail: MessageDetail = await res.json();
-        const draft: Draft = {
-          id: messageDetail.id,
-          to: messageDetail.to.map((to) => to.email),
-          cc: messageDetail.cc?.map((c) => c.email),
-          bcc: messageDetail.bcc?.map((b) => b.email),
-          subject: messageDetail.subject,
-          html: messageDetail.body.html || messageDetail.body.text?.replace(/\n/g, '<br>') || '',
-        };
-        setLoadedDraft(draft);
-        setActiveDraftId(draft.id ?? null);
-        setReplyTo(null);
-        setForwardFrom(null);
-        setComposeOpen(true);
-      } catch (error) {
-        toast.error(t('draftLoadErrorTitle'));
+      } else {
+        setSelectedMessageId(message.id);
+        setSelectedIds(new Set([message.id]));
       }
-    } else {
-      setSelectedMessageId(message.id);
-      setSelectedIds(new Set([message.id]));
-    }
-  }, [selectedFolderId, folders, t]);
+    },
+    [selectedFolderId, folders, t]
+  );
 
   const activeDraft = activeDraftId ? minimizedDrafts.find((d) => d.id === activeDraftId) : null;
-  const composeDraft = loadedDraft || (activeDraft ? { id: activeDraft.id, to: activeDraft.to ? [activeDraft.to] : [], subject: activeDraft.subject, html: activeDraft.html } : undefined);
+  const composeDraft =
+    loadedDraft ||
+    (activeDraft
+      ? {
+          id: activeDraft.id,
+          to: activeDraft.to ? [activeDraft.to] : [],
+          subject: activeDraft.subject,
+          html: activeDraft.html,
+        }
+      : undefined);
 
   const handleFolderSelect = (id: string) => {
     setSelectedFolderId(id);
@@ -698,42 +764,62 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     custom: <FileText className="h-4 w-4" />,
   };
 
-  useHotkeys('ctrl+k, cmd+k', (e) => {
-    e.preventDefault();
-    if (!composeOpen) {
-      setReplyTo(null);
-      setForwardFrom(null);
-      setLoadedDraft(null);
-      setActiveDraftId(null);
-      setComposeOpen(true);
-    }
-  }, { enabled: !isMobile });
-
-  useHotkeys('ctrl+/', (e) => {
-    e.preventDefault();
-    toast.info(t('hotkeysHint'));
-  }, { enabled: !isMobile });
-
-  useHotkeys('delete, backspace', (e) => {
-    if (selectedIds.size > 0 && !composeOpen) {
+  useHotkeys(
+    'ctrl+k, cmd+k',
+    (e) => {
       e.preventDefault();
-      handleBulkAction('delete');
-    }
-  }, { enabled: !isMobile && selectedIds.size > 0 });
+      if (!composeOpen) {
+        setReplyTo(null);
+        setForwardFrom(null);
+        setLoadedDraft(null);
+        setActiveDraftId(null);
+        setComposeOpen(true);
+      }
+    },
+    { enabled: !isMobile }
+  );
 
-  useHotkeys('r', (e) => {
-    if (selectedMessage && !composeOpen) {
+  useHotkeys(
+    'ctrl+/',
+    (e) => {
       e.preventDefault();
-      handleReply();
-    }
-  }, { enabled: !isMobile && !!selectedMessage });
+      toast.info(t('hotkeysHint'));
+    },
+    { enabled: !isMobile }
+  );
 
-  useHotkeys('f', (e) => {
-    if (selectedMessage && !composeOpen) {
-      e.preventDefault();
-      handleForward();
-    }
-  }, { enabled: !isMobile && !!selectedMessage });
+  useHotkeys(
+    'delete, backspace',
+    (e) => {
+      if (selectedIds.size > 0 && !composeOpen) {
+        e.preventDefault();
+        handleBulkAction('delete');
+      }
+    },
+    { enabled: !isMobile && selectedIds.size > 0 }
+  );
+
+  useHotkeys(
+    'r',
+    (e) => {
+      if (selectedMessage && !composeOpen) {
+        e.preventDefault();
+        handleReply();
+      }
+    },
+    { enabled: !isMobile && !!selectedMessage }
+  );
+
+  useHotkeys(
+    'f',
+    (e) => {
+      if (selectedMessage && !composeOpen) {
+        e.preventDefault();
+        handleForward();
+      }
+    },
+    { enabled: !isMobile && !!selectedMessage }
+  );
 
   const swipeHandlers = useSwipeable({
     onSwipedRight: () => {
@@ -758,9 +844,14 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   });
 
   return (
-    <div id="main-content" className="flex h-screen flex-col" role="main" aria-label={t('appLabel')}>
+    <div
+      id="main-content"
+      className="mail-app-shell flex h-screen flex-col"
+      role="main"
+      aria-label={t('appLabel')}
+    >
       {isMobile && (
-        <div className="flex items-center gap-2 border-b bg-muted/50 p-3 md:hidden">
+        <div className="mail-panel-muted flex items-center gap-2 border-b border-white/80 p-3 md:hidden">
           <Button
             variant="ghost"
             size="icon"
@@ -791,7 +882,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           </Button>
         </div>
       )}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="relative flex flex-1 overflow-hidden gap-3 p-3 max-md:gap-0 max-md:p-0">
         {(!isMobile || sidebarOpen) && (
           <>
             {isMobile && sidebarOpen && (
@@ -800,10 +891,12 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 onClick={() => setSidebarOpen(false)}
               />
             )}
-            <div className={`
-              ${isMobile ? 'fixed inset-y-0 left-0 z-50 w-64 bg-background shadow-lg' : 'relative'}
+            <div
+              className={`
+              ${isMobile ? 'fixed inset-y-0 left-0 z-50 w-64 bg-background shadow-lg' : 'relative overflow-hidden rounded-[28px] shadow-[0_20px_60px_-34px_hsl(var(--shadow-soft)/0.32)]'}
               ${isMobile && !sidebarOpen ? 'hidden' : ''}
-            `}>
+            `}
+            >
               <Sidebar
                 folders={folders}
                 account={account || null}
@@ -822,7 +915,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   setSearchQuery(query);
                   // Only parse structured queries (with field prefixes like from:, subject:, is:, etc.)
                   // Plain text queries are sent as `q` parameter for simple search
-                  const hasStructuredSyntax = /(?:^|\s)(?:from|to|cc|bcc|subject|body|date|folder|tag|tags|size|attachment|attachments|filename|after|before|is|has|message-id|messageid|id):/i.test(query);
+                  const hasStructuredSyntax =
+                    /(?:^|\s)(?:from|to|cc|bcc|subject|body|date|folder|tag|tags|size|attachment|attachments|filename|after|before|is|has|message-id|messageid|id):/i.test(
+                      query
+                    );
                   if (hasStructuredSyntax) {
                     const parsed = FilterQueryParser.parse(query);
                     setQuickFilter(parsed.quickFilter);
@@ -850,12 +946,12 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         )}
         {isMobile && selectedMessageId ? null : (
           <div
-            className={`relative flex flex-col flex-shrink-0 ${isMobile ? 'w-full' : ''}`}
+            className={`relative flex flex-col flex-shrink-0 ${isMobile ? 'w-full' : 'overflow-hidden rounded-[28px] shadow-[0_20px_60px_-34px_hsl(var(--shadow-soft)/0.28)]'}`}
             style={!isMobile ? { width: `${messageListWidth}px` } : {}}
             suppressHydrationWarning
             {...(isMobile ? swipeHandlers : {})}
           >
-            <div className="border-b bg-muted/50 p-2 max-md:p-1.5 flex-shrink-0 transition-colors duration-200">
+            <div className="mail-panel-muted border-b border-white/80 p-2.5 max-md:p-1.5 flex-shrink-0 transition-colors duration-200">
               <div className="flex items-center gap-2 max-md:gap-1">
                 <QuickFilters
                   activeFilter={quickFilter}
@@ -959,7 +1055,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     const csrfToken = csrfMatch ? decodeURIComponent(csrfMatch[1]!) : '';
                     await fetch('/api/mail/messages/bulk', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}) },
+                      headers: {
+                        'Content-Type': 'application/json',
+                        ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+                      },
                       body: JSON.stringify({ ids: [messageId], action: 'delete' }),
                     });
                     updateMessageInList(messageId, () => null as never);
@@ -976,23 +1075,23 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         )}
         {!isMobile && (
           <div
-            className="group relative w-1 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-primary/30 transition-colors"
+            className="group relative hidden w-2 flex-shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/10 lg:block"
             onMouseDown={handleMouseDown}
           >
-            <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-border group-hover:bg-primary" />
+            <div className="absolute inset-y-6 left-1/2 w-px -translate-x-1/2 rounded-full bg-border group-hover:bg-primary" />
           </div>
         )}
         {isMobile && !selectedMessageId ? null : (
           <div
             className={`
               flex-1 min-w-0
-              ${isMobile ? 'fixed inset-0 z-40 bg-background' : ''}
+              ${isMobile ? 'fixed inset-0 z-40 bg-background' : 'overflow-hidden rounded-[28px] shadow-[0_20px_60px_-34px_hsl(var(--shadow-soft)/0.28)]'}
               ${isMobile && !selectedMessageId ? 'hidden' : ''}
             `}
             {...(isMobile && selectedMessageId ? swipeHandlers : {})}
           >
             {isMobile && (
-              <div className="flex items-center gap-2 border-b bg-muted/50 p-3 flex-shrink-0">
+              <div className="mail-panel-muted flex items-center gap-2 border-b border-white/80 p-3 flex-shrink-0">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1011,6 +1110,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               </div>
             )}
             <MessageViewer
+              key={selectedMessageId || 'empty-viewer'}
               message={selectedMessage || null}
               onReply={handleReply}
               onReplyAll={handleReplyAll}
@@ -1067,9 +1167,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         )}
       </div>
       {selectedIds.size > 0 && (
-        <div className="border-t bg-muted/50 p-3 max-md:p-3 max-md:sticky max-md:bottom-0 max-md:z-50 max-md:shadow-lg">
+        <div className="mail-panel-muted border-t border-white/80 p-3 max-md:p-3 max-md:sticky max-md:bottom-0 max-md:z-50 max-md:shadow-lg">
           <div className="flex items-center gap-2 max-md:gap-2 max-md:flex-wrap max-md:justify-center">
-            <span className="text-sm max-md:text-sm max-md:font-medium">{t('selected', { count: selectedIds.size })}</span>
+            <span className="text-sm max-md:text-sm max-md:font-medium">
+              {t('selected', { count: selectedIds.size })}
+            </span>
             {(() => {
               const currentFolder = folders.find((f) => f.id === selectedFolderId);
               const isSpamFolder = currentFolder?.role === 'spam' || selectedFolderId === 'c';
@@ -1090,15 +1192,33 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               }
               return null;
             })()}
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('markRead')} className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation" aria-label={t('markReadAria')}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBulkAction('markRead')}
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label={t('markReadAria')}
+            >
               <Mail className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">{t('markRead')}</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('markUnread')} className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation" aria-label={t('markUnreadAria')}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBulkAction('markUnread')}
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label={t('markUnreadAria')}
+            >
               <Mail className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">{t('markUnread')}</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('star')} className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation" aria-label={t('starAria')}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBulkAction('star')}
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label={t('starAria')}
+            >
               <Star className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">{t('star')}</span>
             </Button>
@@ -1107,7 +1227,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               size="sm"
               onClick={() => {
                 const selectedMessages = messages.filter((m) => selectedIds.has(m.id));
-                const allImportant = selectedMessages.length > 0 && selectedMessages.every((m) => m.flags.important);
+                const allImportant =
+                  selectedMessages.length > 0 && selectedMessages.every((m) => m.flags.important);
                 handleBulkAction(allImportant ? 'unmarkImportant' : 'markImportant');
               }}
               className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
@@ -1116,7 +1237,13 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               <AlertCircle className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">{t('important')}</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={handleBulkExport} className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation" aria-label={t('exportAria')}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkExport}
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label={t('exportAria')}
+            >
               <FileDown className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">{t('export')}</span>
             </Button>
@@ -1125,7 +1252,13 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               const isInbox = currentFolder?.role === 'inbox';
               if (isInbox) {
                 return (
-                  <Button variant="outline" size="sm" onClick={() => handleBulkAction('archive')} className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation" aria-label={t('archiveAria')}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkAction('archive')}
+                    className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                    aria-label={t('archiveAria')}
+                  >
                     <Archive className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
                     <span className="max-md:hidden">{t('archive')}</span>
                   </Button>
@@ -1135,7 +1268,12 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             })()}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation" aria-label={t('moveAria')}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                  aria-label={t('moveAria')}
+                >
                   <FolderIcon className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
                   <span className="max-md:hidden">{t('move')}</span>
                 </Button>
@@ -1157,7 +1295,13 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="outline" size="sm" onClick={() => handleBulkAction('delete')} className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation" aria-label={t('deleteAria')}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBulkAction('delete')}
+              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              aria-label={t('deleteAria')}
+            >
               <Trash2 className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
               <span className="max-md:hidden">{t('delete')}</span>
             </Button>
@@ -1178,7 +1322,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           {minimizedDrafts.map((draft) => (
             <div
               key={draft.id}
-              className="flex items-center gap-2 bg-background border rounded-t-lg shadow-lg px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
+              className="flex cursor-pointer items-center gap-2 rounded-t-2xl border border-white/80 bg-background/95 px-3 py-2 shadow-lg transition-colors hover:mail-hover-surface"
               onClick={() => handleRestoreDraft(draft.id)}
             >
               <FileText className="h-4 w-4 text-muted-foreground" />

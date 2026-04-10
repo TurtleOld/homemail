@@ -11,7 +11,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Inbox, Send, FileText, Trash2, AlertTriangle, Settings, LogOut, Plus, ChevronLeft, ChevronRight, X, User, UserPlus, Check, RefreshCw } from 'lucide-react';
+import {
+  Inbox,
+  Send,
+  FileText,
+  Trash2,
+  AlertTriangle,
+  Settings,
+  LogOut,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  User,
+  UserPlus,
+  Check,
+  RefreshCw,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -27,7 +43,10 @@ interface SidebarProps {
   onCompose: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onFilterChange?: (quickFilter?: import('@/lib/types').QuickFilterType, filterGroup?: import('@/lib/types').FilterGroup) => void;
+  onFilterChange?: (
+    quickFilter?: import('@/lib/types').QuickFilterType,
+    filterGroup?: import('@/lib/types').FilterGroup
+  ) => void;
   isMobile?: boolean;
   onClose?: () => void;
   onDropMessage?: (messageId: string, folderId: string) => void;
@@ -93,7 +112,9 @@ export function Sidebar({
     refetchInterval: 30000,
   });
 
-  const { data: accountsData } = useQuery<{ accounts: Array<{ id: string; email: string; displayName?: string; isActive?: boolean }> }>({
+  const { data: accountsData } = useQuery<{
+    accounts: Array<{ id: string; email: string; displayName?: string; isActive?: boolean }>;
+  }>({
     queryKey: ['user-accounts'],
     queryFn: async () => {
       const res = await fetch('/api/accounts');
@@ -172,9 +193,7 @@ export function Sidebar({
     if (!serverStatus) {
       return [];
     }
-    return [
-      { label: 'IMAP/JMAP', status: serverStatus.imapJmap },
-    ];
+    return [{ label: 'IMAP/JMAP', status: serverStatus.imapJmap }];
   }, [serverStatus]);
 
   const getStatusStyle = (status: ServiceStatus) => {
@@ -199,7 +218,6 @@ export function Sidebar({
     router.push(`/${locale}/settings`);
   };
 
-
   const organizedFolders = useMemo(() => {
     const folderMap = new Map<string, Folder & { children: Folder[] }>();
     const rootFolders: (Folder & { children: Folder[] })[] = [];
@@ -221,80 +239,92 @@ export function Sidebar({
     return rootFolders;
   }, [folders]);
 
-  const renderFolderItem = useCallback((folder: Folder & { children?: Folder[] }, level = 0) => {
-    return (
-      <div key={folder.id}>
-        <button
-          onClick={() => onFolderSelect(folder.id)}
-          onDragOver={(e) => {
-            if (onDropMessage) {
-              e.preventDefault();
-              e.stopPropagation();
-              setDraggedOverFolderId(folder.id);
-            }
-          }}
-          onDragLeave={() => {
-            if (onDropMessage) {
-              setDraggedOverFolderId(null);
-            }
-          }}
-          onDrop={(e) => {
-            if (onDropMessage) {
-              e.preventDefault();
-              e.stopPropagation();
-              setDraggedOverFolderId(null);
-              try {
-                const data = e.dataTransfer.getData('application/json');
-                if (data) {
-                  const parsed = JSON.parse(data);
-                  if (parsed.type === 'message' && parsed.id) {
-                    onDropMessage(parsed.id, folder.id);
-                  }
-                } else {
-                  const messageId = e.dataTransfer.getData('text/plain');
-                  if (messageId) {
-                    onDropMessage(messageId, folder.id);
-                  }
-                }
-              } catch (error) {
-                console.error('Error handling drop:', error);
+  const renderFolderItem = useCallback(
+    (folder: Folder & { children?: Folder[] }, level = 0) => {
+      return (
+        <div key={folder.id}>
+          <button
+            onClick={() => onFolderSelect(folder.id)}
+            onDragOver={(e) => {
+              if (onDropMessage) {
+                e.preventDefault();
+                e.stopPropagation();
+                setDraggedOverFolderId(folder.id);
               }
-            }
-          }}
-          className={cn(
-            'group flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-all duration-150 hover:bg-muted active:bg-muted/70 max-md:min-h-[44px] touch-manipulation',
-            selectedFolderId === folder.id && 'bg-primary/8 font-medium border-l-2 border-primary rounded-l-none',
-            draggedOverFolderId === folder.id && 'bg-primary/20 ring-2 ring-primary ring-offset-1',
-            level > 0 && 'ml-4'
+            }}
+            onDragLeave={() => {
+              if (onDropMessage) {
+                setDraggedOverFolderId(null);
+              }
+            }}
+            onDrop={(e) => {
+              if (onDropMessage) {
+                e.preventDefault();
+                e.stopPropagation();
+                setDraggedOverFolderId(null);
+                try {
+                  const data = e.dataTransfer.getData('application/json');
+                  if (data) {
+                    const parsed = JSON.parse(data);
+                    if (parsed.type === 'message' && parsed.id) {
+                      onDropMessage(parsed.id, folder.id);
+                    }
+                  } else {
+                    const messageId = e.dataTransfer.getData('text/plain');
+                    if (messageId) {
+                      onDropMessage(messageId, folder.id);
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error handling drop:', error);
+                }
+              }
+            }}
+            className={cn(
+              'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 transition-all duration-150 hover:mail-hover-surface hover:text-foreground active:scale-[0.995] max-md:min-h-[44px] touch-manipulation',
+              selectedFolderId === folder.id &&
+                'mail-selected-surface mail-border-strong border font-medium text-foreground shadow-sm',
+              draggedOverFolderId === folder.id &&
+                'bg-primary/12 ring-2 ring-primary/30 ring-offset-1',
+              level > 0 && 'ml-4'
+            )}
+          >
+            {folderIcons[folder.role] || folderIcons.custom}
+            <span className="flex-1 truncate">{folder.name}</span>
+            {folder.unreadCount > 0 && (
+              <span
+                className={cn(
+                  'flex items-center justify-center rounded-full px-2 min-w-[24px] h-5 text-[11px] font-semibold tabular-nums whitespace-nowrap',
+                  selectedFolderId === folder.id
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-background/90 text-muted-foreground border border-border/80'
+                )}
+              >
+                {folder.unreadCount > 999 ? '999+' : folder.unreadCount}
+              </span>
+            )}
+          </button>
+          {folder.children && folder.children.length > 0 && (
+            <div className="ml-4">
+              {folder.children.map((child) => renderFolderItem(child, level + 1))}
+            </div>
           )}
-        >
-          {folderIcons[folder.role] || folderIcons.custom}
-          <span className="flex-1 truncate">{folder.name}</span>
-          {folder.unreadCount > 0 && (
-            <span className={cn(
-              'flex items-center justify-center rounded-full px-2 min-w-[24px] h-5 text-[11px] font-semibold tabular-nums whitespace-nowrap',
-              selectedFolderId === folder.id
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground'
-            )}>
-              {folder.unreadCount > 999 ? '999+' : folder.unreadCount}
-            </span>
-          )}
-        </button>
-        {folder.children && folder.children.length > 0 && (
-          <div className="ml-4">
-            {folder.children.map((child) => renderFolderItem(child, level + 1))}
-          </div>
-        )}
-      </div>
-    );
-  }, [selectedFolderId, draggedOverFolderId, onFolderSelect, onDropMessage]);
+        </div>
+      );
+    },
+    [selectedFolderId, draggedOverFolderId, onFolderSelect, onDropMessage]
+  );
 
   if (isCollapsed && !isMobile) {
     return (
-      <div className="flex h-full w-16 flex-col border-r bg-muted/30">
-        <div className="border-b p-2">
-          <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(false)} title={t('openMenu')}>
+      <div className="mail-sidebar-surface flex h-full w-16 flex-col border-r border-white/60">
+        <div className="border-b border-white/70 p-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsCollapsed(false)}
+            title={t('openMenu')}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -306,9 +336,11 @@ export function Sidebar({
                   <button
                     onClick={() => onFolderSelect(f.id)}
                     className={cn(
-                      'flex w-full items-center justify-center rounded-md p-2 text-sm transition-colors hover:bg-muted',
-                      selectedFolderId === f.id && 'bg-muted font-medium',
-                      draggedOverFolderId === f.id && 'bg-primary/20 ring-2 ring-primary ring-offset-1 scale-105'
+                      'flex w-full items-center justify-center rounded-xl p-2 text-sm text-slate-600 transition-colors hover:mail-hover-surface hover:text-foreground',
+                      selectedFolderId === f.id &&
+                        'mail-selected-surface mail-border-strong border font-medium text-foreground',
+                      draggedOverFolderId === f.id &&
+                        'bg-primary/12 ring-2 ring-primary/30 ring-offset-1 scale-105'
                     )}
                     title={f.name}
                   >
@@ -325,8 +357,14 @@ export function Sidebar({
             })}
           </nav>
         </div>
-        <div className="border-t p-2">
-          <Button variant="ghost" size="icon" className="w-full" onClick={handleSettings} title={t('settingsLabel')}>
+        <div className="border-t border-white/70 p-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-full"
+            onClick={handleSettings}
+            title={t('settingsLabel')}
+          >
             <Settings className="h-4 w-4" />
           </Button>
         </div>
@@ -335,12 +373,14 @@ export function Sidebar({
   }
 
   return (
-    <div className={`
-      flex h-full flex-col border-r bg-muted/30
+    <div
+      className={`
+      mail-sidebar-surface flex h-full flex-col border-r border-white/60
       ${isMobile ? 'w-full' : 'w-64'}
-    `}>
+    `}
+    >
       {isMobile && (
-        <div className="border-b p-3 flex items-center justify-between">
+        <div className="border-b border-white/70 p-3 flex items-center justify-between">
           <h1 className="text-lg font-bold">{t('menuHeading')}</h1>
           <Button
             variant="ghost"
@@ -353,12 +393,16 @@ export function Sidebar({
           </Button>
         </div>
       )}
-      <div className="border-b p-4">
+      <div className="border-b border-white/70 p-4">
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0">
             {!isMobile && (
-              <div className="flex items-center gap-2">
-                <img src="/icons/mail-icon.png" alt={t('appHeading')} className="h-5 w-5 flex-shrink-0" />
+              <div className="flex items-center gap-2 text-slate-900">
+                <img
+                  src="/icons/mail-icon.png"
+                  alt={t('appHeading')}
+                  className="h-5 w-5 flex-shrink-0"
+                />
                 <h1 className="text-lg font-bold">{t('appHeading')}</h1>
                 {isStatusLoading && (
                   <span className="text-xs text-muted-foreground">{t('statusLoading')}</span>
@@ -366,7 +410,7 @@ export function Sidebar({
               </div>
             )}
             {statusItems.length > 0 && (
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                 {statusItems.map((item) => (
                   <div key={item.label} className="flex items-center gap-1">
                     <span className={`h-2 w-2 rounded-full ${getStatusStyle(item.status)}`} />
@@ -379,13 +423,19 @@ export function Sidebar({
             )}
           </div>
           {!isMobile && (
-            <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(true)} title={t('closeMenu')}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-xl text-slate-600 hover:mail-hover-surface hover:text-foreground"
+              onClick={() => setIsCollapsed(true)}
+              title={t('closeMenu')}
+            >
               <ChevronLeft className="h-4 w-4" />
             </Button>
           )}
         </div>
         <Button
-          className="w-full max-md:min-h-[44px] touch-manipulation font-semibold shadow-sm"
+          className="w-full rounded-2xl max-md:min-h-[44px] touch-manipulation font-semibold shadow-[0_14px_26px_-18px_hsl(var(--primary)/0.9)]"
           onClick={onCompose}
           aria-label={t('compose')}
         >
@@ -402,13 +452,15 @@ export function Sidebar({
         </div>
       </div>
       <div className="flex-1 overflow-auto">
-        <div className="flex items-center justify-between px-3 py-2 border-b">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">{t('foldersSection')}</span>
+        <div className="flex items-center justify-between border-b border-white/70 px-3 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            {t('foldersSection')}
+          </span>
           {onRefreshFolders && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0"
+              className="h-7 w-7 rounded-xl p-0 text-slate-500 hover:mail-hover-surface hover:text-foreground"
               onClick={async () => {
                 setIsRefreshing(true);
                 try {
@@ -427,27 +479,29 @@ export function Sidebar({
             </Button>
           )}
         </div>
-        <nav className="p-2">
+        <nav className="space-y-1 p-2">
           {organizedFolders.map((folder) => renderFolderItem(folder))}
         </nav>
       </div>
-      <div className="border-t p-2">
+      <div className="border-t border-white/70 p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="w-full justify-start gap-2 max-md:min-h-[44px] touch-manipulation"
+              className="w-full justify-start gap-3 rounded-2xl px-3 py-2.5 max-md:min-h-[44px] touch-manipulation hover:mail-hover-surface"
               aria-label={t('settingsLabel')}
             >
               {account ? (
-                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground shadow-sm">
                   {(account.displayName || account.email || '?')[0].toUpperCase()}
                 </div>
               ) : (
                 <Settings className="h-4 w-4 flex-shrink-0" />
               )}
-              <span className="flex-1 truncate text-left text-xs text-muted-foreground">{account?.email || t('settingsLabel')}</span>
-              <Settings className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+              <span className="flex-1 truncate text-left text-xs text-slate-600">
+                {account?.email || t('settingsLabel')}
+              </span>
+              <Settings className="h-3.5 w-3.5 flex-shrink-0 text-slate-500" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
@@ -455,7 +509,9 @@ export function Sidebar({
             <DropdownMenuSeparator />
             {accountsData && accountsData.accounts.length > 0 && (
               <>
-                <DropdownMenuLabel className="text-xs text-muted-foreground">{t('accountsSection')}</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  {t('accountsSection')}
+                </DropdownMenuLabel>
                 {accountsData.accounts.map((acc) => (
                   <DropdownMenuItem
                     key={acc.id}
@@ -481,7 +537,9 @@ export function Sidebar({
             {accountsData && accountsData.accounts.length > 1 && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-xs text-muted-foreground">{t('manageSection')}</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  {t('manageSection')}
+                </DropdownMenuLabel>
                 {accountsData.accounts
                   .filter((acc) => acc.id !== account?.id)
                   .map((acc) => (
