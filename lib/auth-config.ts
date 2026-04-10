@@ -1,15 +1,13 @@
-/**
- * Centralized auth configuration.
- *
- * OAuth-only mode - all authentication is handled via OAuth.
- */
-export function getAuthMode(): 'oauth' {
-  return 'oauth';
+export type AuthMode = 'basic' | 'oauth';
+
+function normalizeAuthMode(rawMode: string | undefined): AuthMode {
+  return rawMode?.trim().toLowerCase() === 'basic' ? 'basic' : 'oauth';
 }
 
-/**
- * Password login is disabled - OAuth only.
- */
+export function getAuthMode(): AuthMode {
+  return normalizeAuthMode(process.env.STALWART_AUTH_MODE);
+}
+
 export function isPasswordLoginEnabled(): boolean {
-  return false;
+  return getAuthMode() === 'basic';
 }

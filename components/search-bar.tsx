@@ -42,7 +42,13 @@ interface SearchBarProps {
   className?: string;
 }
 
-export function SearchBar({ value, onChange, onFilterChange, placeholder = 'Поиск...', className }: SearchBarProps) {
+export function SearchBar({
+  value,
+  onChange,
+  onFilterChange,
+  placeholder = 'Поиск...',
+  className,
+}: SearchBarProps) {
   const [showHelp, setShowHelp] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState('');
@@ -56,7 +62,8 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
   });
 
   const saveMutation = useMutation({
-    mutationFn: () => saveSearchQuery(saveName || `Поиск ${new Date().toLocaleDateString()}`, value),
+    mutationFn: () =>
+      saveSearchQuery(saveName || `Поиск ${new Date().toLocaleDateString()}`, value),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['saved-filters'] });
       setShowSaveDialog(false);
@@ -68,7 +75,10 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
 
   useEffect(() => {
     if (value && onFilterChange) {
-      const hasStructuredSyntax = /(?:^|\s)(?:from|to|cc|bcc|subject|body|date|folder|tag|tags|size|attachment|attachments|filename|after|before|is|has|message-id|messageid|id):/i.test(value);
+      const hasStructuredSyntax =
+        /(?:^|\s)(?:from|to|cc|bcc|subject|body|date|folder|tag|tags|size|attachment|attachments|filename|after|before|is|has|message-id|messageid|id):/i.test(
+          value
+        );
       if (hasStructuredSyntax) {
         const parsed = FilterQueryParser.parse(value);
         onFilterChange(parsed.quickFilter, parsed.filterGroup);
@@ -92,14 +102,14 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
   return (
     <div className={`relative ${className}`}>
       <div className="relative flex items-center">
-        <Search className="absolute left-3 h-4 w-4 max-md:h-3 max-md:w-3 max-md:left-2 text-muted-foreground" />
+        <Search className="absolute left-3 h-4 w-4 text-slate-400 max-md:left-2 max-md:h-3 max-md:w-3" />
         <Input
           ref={inputRef}
           type="text"
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}
-          className="pl-10 pr-20 max-md:pl-8 max-md:pr-16 max-md:text-sm"
+          className="h-11 rounded-2xl border-white/80 bg-white/80 pl-10 pr-24 text-slate-700 shadow-[0_14px_32px_-24px_hsl(var(--shadow-soft)/0.3)] placeholder:text-slate-400 focus-visible:ring-primary/30 focus-visible:ring-offset-0 max-md:pl-8 max-md:pr-16 max-md:text-sm"
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               handleClear();
@@ -113,7 +123,7 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowSaveDialog(true)}
-                className="absolute right-20 max-md:right-16 h-6 w-6 max-md:h-5 max-md:w-5 p-0"
+                className="absolute right-20 h-7 w-7 rounded-xl p-0 text-slate-500 hover:mail-hover-surface hover:text-foreground max-md:right-16 max-md:h-5 max-md:w-5"
                 title="Сохранить поиск"
               >
                 <Bookmark className="h-4 w-4 max-md:h-3 max-md:w-3" />
@@ -123,7 +133,7 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
               variant="ghost"
               size="sm"
               onClick={handleClear}
-              className="absolute right-10 max-md:right-8 h-6 w-6 max-md:h-5 max-md:w-5 p-0"
+              className="absolute right-10 h-7 w-7 rounded-xl p-0 text-slate-500 hover:mail-hover-surface hover:text-foreground max-md:right-8 max-md:h-5 max-md:w-5"
             >
               <X className="h-4 w-4 max-md:h-3 max-md:w-3" />
             </Button>
@@ -134,16 +144,19 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
             <Button
               variant="ghost"
               size="sm"
-              className="absolute right-2 max-md:right-1 h-6 w-6 max-md:h-5 max-md:w-5 p-0"
+              className="absolute right-2 h-7 w-7 rounded-xl p-0 text-slate-500 hover:mail-hover-surface hover:text-foreground max-md:right-1 max-md:h-5 max-md:w-5"
               title="Сохраненные поиски и справка"
             >
               <HelpCircle className="h-4 w-4 max-md:h-3 max-md:w-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuContent
+            align="end"
+            className="w-64 rounded-2xl border-white/80 bg-white/95 p-1 shadow-[0_24px_48px_-24px_hsl(var(--shadow-soft)/0.35)]"
+          >
             {savedFilters.length > 0 && (
               <>
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Сохраненные поиски
                 </div>
                 {savedFilters.map((filter) => (
@@ -153,16 +166,19 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
                       onChange(filter.query);
                       setShowHelp(false);
                     }}
-                    className="cursor-pointer"
+                    className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
                   >
                     <BookmarkCheck className="h-4 w-4 mr-2" />
                     <span className="truncate">{filter.name}</span>
                   </DropdownMenuItem>
                 ))}
-                <div className="border-t my-1" />
+                <div className="my-1 border-t border-border/70" />
               </>
             )}
-            <DropdownMenuItem onClick={() => setShowHelp(!showHelp)}>
+            <DropdownMenuItem
+              onClick={() => setShowHelp(!showHelp)}
+              className="rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+            >
               <HelpCircle className="h-4 w-4 mr-2" />
               Справка по поиску
             </DropdownMenuItem>
@@ -170,50 +186,81 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
         </DropdownMenu>
       </div>
       {showHelp && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-background border rounded-lg shadow-lg p-4 max-md:p-2 max-md:text-xs">
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-3xl border border-white/80 bg-white/95 p-4 shadow-[0_28px_56px_-28px_hsl(var(--shadow-soft)/0.38)] backdrop-blur-sm max-md:p-2 max-md:text-xs">
           <h3 className="font-semibold mb-2 max-md:text-sm">Справка по поиску</h3>
-          <div className="text-sm max-md:text-xs space-y-2">
+          <div className="space-y-3 text-sm text-slate-600 max-md:text-xs">
             <div>
               <strong>Быстрые фильтры:</strong>
               <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
-                <li><code>is:unread</code> - непрочитанные</li>
-                <li><code>is:read</code> - прочитанные</li>
-                <li><code>has:attachment</code> - с вложениями</li>
-                <li><code>is:starred</code> - помеченные</li>
-                <li><code>is:draft</code> - черновики</li>
+                <li>
+                  <code>is:unread</code> - непрочитанные
+                </li>
+                <li>
+                  <code>is:read</code> - прочитанные
+                </li>
+                <li>
+                  <code>has:attachment</code> - с вложениями
+                </li>
+                <li>
+                  <code>is:starred</code> - помеченные
+                </li>
+                <li>
+                  <code>is:draft</code> - черновики
+                </li>
               </ul>
             </div>
             <div>
               <strong>Поля:</strong>
               <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
-                <li><code>from:email@example.com</code> - от кого</li>
-                <li><code>subject:"текст"</code> - тема</li>
-                <li><code>after:2026-01-01</code> - после даты</li>
-                <li><code>before:2026-12-31</code> - до даты</li>
-                <li><code>filename:"document.pdf"</code> - поиск по имени файла вложения</li>
-                <li><code>attachment:"текст"</code> - поиск по содержимому вложений</li>
+                <li>
+                  <code>from:email@example.com</code> - от кого
+                </li>
+                <li>
+                  <code>subject:&quot;текст&quot;</code> - тема
+                </li>
+                <li>
+                  <code>after:2026-01-01</code> - после даты
+                </li>
+                <li>
+                  <code>before:2026-12-31</code> - до даты
+                </li>
+                <li>
+                  <code>filename:&quot;document.pdf&quot;</code> - поиск по имени файла вложения
+                </li>
+                <li>
+                  <code>attachment:&quot;текст&quot;</code> - поиск по содержимому вложений
+                </li>
               </ul>
             </div>
             <div>
               <strong>Примеры:</strong>
               <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
-                <li><code>from:amazon subject:"order"</code></li>
-                <li><code>has:attachment after:2026-01-01</code></li>
-                <li><code>filename:"invoice"</code> - письма с файлами, содержащими "invoice"</li>
-                <li><code>-folder:spam</code> - исключить папку</li>
+                <li>
+                  <code>from:amazon subject:&quot;order&quot;</code>
+                </li>
+                <li>
+                  <code>has:attachment after:2026-01-01</code>
+                </li>
+                <li>
+                  <code>filename:&quot;invoice&quot;</code> - письма с файлами, содержащими
+                  &quot;invoice&quot;
+                </li>
+                <li>
+                  <code>-folder:spam</code> - исключить папку
+                </li>
               </ul>
             </div>
           </div>
         </div>
       )}
       {showSaveDialog && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-background border rounded-lg shadow-lg p-4">
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-3xl border border-white/80 bg-white/95 p-4 shadow-[0_28px_56px_-28px_hsl(var(--shadow-soft)/0.38)] backdrop-blur-sm">
           <h3 className="font-semibold mb-2">Сохранить поисковый запрос</h3>
           <Input
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
             placeholder="Название поиска"
-            className="mb-2"
+            className="mb-2 rounded-2xl border-border/80 bg-white/80"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && saveName.trim()) {
                 saveMutation.mutate();
@@ -228,12 +275,14 @@ export function SearchBar({ value, onChange, onFilterChange, placeholder = 'По
               size="sm"
               onClick={() => saveMutation.mutate()}
               disabled={!saveName.trim() || saveMutation.isPending}
+              className="rounded-xl"
             >
               Сохранить
             </Button>
             <Button
               variant="outline"
               size="sm"
+              className="rounded-xl"
               onClick={() => {
                 setShowSaveDialog(false);
                 setSaveName('');

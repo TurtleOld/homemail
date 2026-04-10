@@ -35,13 +35,25 @@ export interface SecurityEvent {
   requestId?: string;
 }
 
-const LOG_DIR = process.env.SECURITY_LOG_DIR || path.join(process.env.DATA_DIR || 'data', 'security-logs');
+const LOG_DIR =
+  process.env.SECURITY_LOG_DIR || path.join(process.env.DATA_DIR || 'data', 'security-logs');
 const MAX_LOG_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_LOG_FILES = 10;
 const ROTATION_INTERVAL = 24 * 60 * 60 * 1000;
 
 let currentLogFile: string | null = null;
 let lastRotationTime = Date.now();
+let fileLoggingDisabled = false;
+
+function emitToConsole(event: SecurityEvent): void {
+  if (event.severity === 'critical' || event.severity === 'high') {
+    logger.error(`[SecurityEvent] ${event.type}:`, event);
+  } else if (event.severity === 'medium') {
+    logger.warn(`[SecurityEvent] ${event.type}:`, event);
+  } else {
+    logger.info(`[SecurityEvent] ${event.type}:`, event);
+  }
+}
 
 async function ensureLogDir(): Promise<void> {
   try {
@@ -74,9 +86,11 @@ async function rotateLogs(): Promise<void> {
     logFiles.sort((a, b) => {
       const statA = fs.stat(a.path);
       const statB = fs.stat(b.path);
-      return statB.then((s) => s.mtime.getTime()).then((tB) =>
-        statA.then((s) => s.mtime.getTime()).then((tA) => tB - tA)
-      ) as unknown as number;
+      return statB
+        .then((s) => s.mtime.getTime())
+        .then((tB) =>
+          statA.then((s) => s.mtime.getTime()).then((tA) => tB - tA)
+        ) as unknown as number;
     });
 
     if (logFiles.length > MAX_LOG_FILES) {
@@ -112,6 +126,11 @@ async function rotateLogs(): Promise<void> {
 
 async function writeLogEntry(event: SecurityEvent): Promise<void> {
   try {
+    if (fileLoggingDisabled) {
+      emitToConsole(event);
+      return;
+    }
+
     await ensureLogDir();
     await rotateLogs();
 
@@ -120,14 +139,21 @@ async function writeLogEntry(event: SecurityEvent): Promise<void> {
 
     await fs.appendFile(logFile, logLine, 'utf-8');
 
-    if (event.severity === 'critical' || event.severity === 'high') {
-      logger.error(`[SecurityEvent] ${event.type}:`, event);
-    } else if (event.severity === 'medium') {
-      logger.warn(`[SecurityEvent] ${event.type}:`, event);
-    } else {
-      logger.info(`[SecurityEvent] ${event.type}:`, event);
-    }
+    emitToConsole(event);
   } catch (error) {
+    const code =
+      typeof error === 'object' && error && 'code' in error
+        ? String((error as { code?: string }).code)
+        : undefined;
+    if (code === 'EACCES' || code === 'EPERM') {
+      fileLoggingDisabled = true;
+      logger.warn(
+        '[SecurityLogger] File logging disabled due to permissions; falling back to console output'
+      );
+      emitToConsole(event);
+      return;
+    }
+
     logger.error('[SecurityLogger] Failed to write log entry:', error);
   }
 }
@@ -206,11 +232,19 @@ export class SecurityLogger {
     this.logEvent('csrf_violation', 'high', request, details);
   }
 
-  static logSuspiciousActivity(request: Request, activity: string, details: Record<string, unknown> = {}): void {
+  static logSuspiciousActivity(
+    request: Request,
+    activity: string,
+    details: Record<string, unknown> = {}
+  ): void {
     this.logEvent('suspicious_activity', 'high', request, { activity, ...details });
   }
 
-  static logUnauthorizedAccess(request: Request, resource: string, details: Record<string, unknown> = {}): void {
+  static logUnauthorizedAccess(
+    request: Request,
+    resource: string,
+    details: Record<string, unknown> = {}
+  ): void {
     this.logEvent('unauthorized_access', 'high', request, { resource, ...details });
   }
 
@@ -222,7 +256,11 @@ export class SecurityLogger {
     this.logEvent('session_invalidated', 'medium', request, { reason }, userId);
   }
 
-  static logSessionHijackAttempt(request: Request, userId: string, details: Record<string, unknown> = {}): void {
+  static logSessionHijackAttempt(
+    request: Request,
+    userId: string,
+    details: Record<string, unknown> = {}
+  ): void {
     this.logEvent('session_hijack_attempt', 'critical', request, details, userId);
   }
 
@@ -234,11 +272,19 @@ export class SecurityLogger {
     this.logEvent('file_access_denied', 'medium', request, { filePath, reason });
   }
 
-  static logSsrfAttempt(request: Request, url: string, details: Record<string, unknown> = {}): void {
+  static logSsrfAttempt(
+    request: Request,
+    url: string,
+    details: Record<string, unknown> = {}
+  ): void {
     this.logEvent('ssrf_attempt', 'critical', request, { url, ...details });
   }
 
-  static logPathTraversalAttempt(request: Request, path: string, details: Record<string, unknown> = {}): void {
+  static logPathTraversalAttempt(
+    request: Request,
+    path: string,
+    details: Record<string, unknown> = {}
+  ): void {
     this.logEvent('path_traversal_attempt', 'high', request, { path, ...details });
   }
 
@@ -250,7 +296,7 @@ export class SecurityLogger {
     try {
       await ensureLogDir();
       const logFile = getLogFileName();
-      
+
       try {
         const content = await fs.readFile(logFile, 'utf-8');
         const lines = content.trim().split('\n').filter(Boolean);

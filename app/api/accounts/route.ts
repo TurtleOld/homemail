@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getUserAccounts, addUserAccount, removeUserAccount, setActiveAccount, type UserAccount } from '@/lib/storage';
+import {
+  getUserAccounts,
+  addUserAccount,
+  removeUserAccount,
+  setActiveAccount,
+  deleteCredentials,
+  type UserAccount,
+} from '@/lib/storage';
 import { getMailProvider, getMailProviderForAccount, ensureAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
@@ -14,7 +21,7 @@ export async function GET() {
 
     const userId = session.email;
     const accounts = await getUserAccounts(userId);
-    
+
     return NextResponse.json({ accounts });
   } catch (error) {
     logger.error('Failed to get accounts:', error);
@@ -39,10 +46,11 @@ export async function POST(request: NextRequest) {
 
     const accountId = email;
     await ensureAccount(accountId, email, password);
-    const provider = process.env.MAIL_PROVIDER === 'stalwart' 
-      ? getMailProviderForAccount(accountId)
-      : getMailProvider();
-    
+    const provider =
+      process.env.MAIL_PROVIDER === 'stalwart'
+        ? getMailProviderForAccount(accountId)
+        : getMailProvider();
+
     try {
       const account = await provider.getAccount(accountId);
       if (!account) {
@@ -94,6 +102,7 @@ export async function DELETE(request: NextRequest) {
 
     const userId = session.email;
     await removeUserAccount(userId, accountId);
+    await deleteCredentials(accountId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

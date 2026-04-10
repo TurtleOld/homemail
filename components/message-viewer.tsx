@@ -526,22 +526,31 @@ export function MessageViewer({
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={handleToggleImportant} className="cursor-pointer">
+              <DropdownMenuContent
+                align="end"
+                className="w-56 rounded-2xl border-white/80 bg-white/95 p-1 shadow-[0_24px_48px_-24px_hsl(var(--shadow-soft)/0.35)]"
+              >
+                <DropdownMenuItem
+                  onClick={handleToggleImportant}
+                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                >
                   <AlertCircle
                     className={`mr-2 h-4 w-4 ${message.flags?.important ? 'fill-orange-500 text-orange-500' : ''}`}
                   />
                   {message.flags?.important ? t('removeImportance') : t('markImportant')}
                 </DropdownMenuItem>
                 {message.flags?.unread && (
-                  <DropdownMenuItem onClick={handleMarkRead} className="cursor-pointer">
+                  <DropdownMenuItem
+                    onClick={handleMarkRead}
+                    className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                  >
                     <Mail className="mr-2 h-4 w-4" />
                     {t('markRead')}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
                   onClick={() => setShowTranslator(!showTranslator)}
-                  className="cursor-pointer"
+                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
                 >
                   <Languages className="mr-2 h-4 w-4" />
                   {t('translate')}
@@ -551,15 +560,18 @@ export function MessageViewer({
                   <DropdownMenuTrigger asChild>
                     <DropdownMenuItem
                       onSelect={(e) => e.preventDefault()}
-                      className="cursor-pointer"
+                      className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
                     >
                       <Tag className="mr-2 h-4 w-4" />
                       {t('labels')}
                     </DropdownMenuItem>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent side="left" className="w-48">
+                  <DropdownMenuContent
+                    side="left"
+                    className="w-48 rounded-2xl border-white/80 bg-white/95 p-1 shadow-[0_24px_48px_-24px_hsl(var(--shadow-soft)/0.35)]"
+                  >
                     {labels.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground">{t('noLabels')}</div>
+                      <div className="p-3 text-sm text-slate-500">{t('noLabels')}</div>
                     ) : (
                       labels.map((label) => {
                         const isSelected = message?.labels?.includes(label.id) || false;
@@ -567,7 +579,7 @@ export function MessageViewer({
                           <DropdownMenuItem
                             key={label.id}
                             onClick={() => handleToggleLabel(label.id)}
-                            className="flex items-center gap-2 cursor-pointer"
+                            className="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
                           >
                             <div
                               className="w-3 h-3 rounded-full flex-shrink-0"
@@ -612,7 +624,7 @@ export function MessageViewer({
                           toast.error(t('decryptError'));
                         }
                       }}
-                      className="cursor-pointer"
+                      className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
                     >
                       <Lock className="mr-2 h-4 w-4" />
                       {t('decrypt')}
@@ -623,7 +635,7 @@ export function MessageViewer({
                     if (!message) return;
                     window.open(`/api/mail/messages/${message.id}/export?format=eml`, '_blank');
                   }}
-                  className="cursor-pointer"
+                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
                 >
                   <Download className="mr-2 h-4 w-4" />
                   {t('exportEml')}
@@ -633,12 +645,15 @@ export function MessageViewer({
                     if (!message) return;
                     window.open(`/api/mail/messages/${message.id}/export?format=pdf`, '_blank');
                   }}
-                  className="cursor-pointer"
+                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
                 >
                   <FileDown className="mr-2 h-4 w-4" />
                   {t('exportPdf')}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handlePrint} className="cursor-pointer">
+                <DropdownMenuItem
+                  onClick={handlePrint}
+                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                >
                   <Printer className="mr-2 h-4 w-4" />
                   {t('print')}
                 </DropdownMenuItem>
@@ -766,12 +781,12 @@ export function MessageViewer({
 
       {/* Sticky bottom toolbar — primary actions */}
       <div className="mail-panel-muted flex-shrink-0 border-t border-white/80 px-4 py-3 max-md:px-3 max-md:pb-safe-bottom">
-        <div className="flex items-center gap-2 max-md:gap-1.5">
+        <div className="flex items-center gap-2 max-md:gap-1.5 max-md:justify-between">
           <Button
             variant="ghost"
             size="sm"
             onClick={onReply}
-            className="gap-1.5 font-medium max-md:min-h-[44px] touch-manipulation"
+            className="gap-1.5 rounded-2xl bg-white/75 px-4 font-medium text-slate-700 shadow-sm hover:mail-hover-surface max-md:min-h-[44px] max-md:flex-1 touch-manipulation"
             aria-label={t('reply')}
           >
             <Reply className="h-4 w-4" />
@@ -781,7 +796,7 @@ export function MessageViewer({
             variant="ghost"
             size="sm"
             onClick={onReplyAll}
-            className="gap-1.5 font-medium max-md:min-h-[44px] touch-manipulation"
+            className="gap-1.5 rounded-2xl bg-white/75 px-4 font-medium text-slate-700 shadow-sm hover:mail-hover-surface max-md:min-h-[44px] max-md:flex-1 touch-manipulation"
             aria-label={t('replyAll')}
           >
             <ReplyAll className="h-4 w-4" />
@@ -791,7 +806,7 @@ export function MessageViewer({
             variant="ghost"
             size="sm"
             onClick={onForward}
-            className="gap-1.5 font-medium max-md:min-h-[44px] touch-manipulation"
+            className="gap-1.5 rounded-2xl bg-white/75 px-4 font-medium text-slate-700 shadow-sm hover:mail-hover-surface max-md:min-h-[44px] max-md:flex-1 touch-manipulation"
             aria-label={t('forward')}
           >
             <Forward className="h-4 w-4" />

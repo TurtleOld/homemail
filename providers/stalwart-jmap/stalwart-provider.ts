@@ -10,7 +10,9 @@ import type {
 import { JMAPClient } from './jmap-client';
 import { convertFilterToJMAP } from '@/lib/filter-to-jmap';
 import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { getCredentials, readStorage, writeStorage } from '@/lib/storage';
+import { getAuthMode } from '@/lib/auth-config';
+import { getStalwartBaseUrlCandidates } from '@/lib/stalwart-base-url';
 
 interface JMAPStateSnapshot {
   mailboxState: string;
@@ -36,7 +38,11 @@ interface StalwartConfig {
 }
 
 const baseUrl = process.env.STALWART_BASE_URL || 'http://stalwart:8080';
-const isInternalBaseUrl = baseUrl.includes('stalwart') || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1') || /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
+const isInternalBaseUrl =
+  baseUrl.includes('stalwart') ||
+  baseUrl.includes('localhost') ||
+  baseUrl.includes('127.0.0.1') ||
+  /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
 
 let oauthDiscoveryUrl = process.env.OAUTH_DISCOVERY_URL;
 let isPublicDiscoveryUrl = false;
@@ -44,28 +50,42 @@ let isPublicDiscoveryUrl = false;
 if (oauthDiscoveryUrl) {
   try {
     const url = new URL(oauthDiscoveryUrl);
-    isPublicDiscoveryUrl = url.protocol === 'https:' && !url.hostname.includes('localhost') && !url.hostname.includes('127.0.0.1') && !/^\d+\.\d+\.\d+\.\d+$/.test(url.hostname);
-  } catch {
-  }
+    isPublicDiscoveryUrl =
+      url.protocol === 'https:' &&
+      !url.hostname.includes('localhost') &&
+      !url.hostname.includes('127.0.0.1') &&
+      !/^\d+\.\d+\.\d+\.\d+$/.test(url.hostname);
+  } catch {}
 }
 
 if (!oauthDiscoveryUrl || oauthDiscoveryUrl.includes('example.com')) {
   if (isInternalBaseUrl) {
     oauthDiscoveryUrl = baseUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
-    console.log(`[StalwartProvider] Using internal discovery URL from STALWART_BASE_URL: ${oauthDiscoveryUrl}`);
+    console.log(
+      `[StalwartProvider] Using internal discovery URL from STALWART_BASE_URL: ${oauthDiscoveryUrl}`
+    );
   } else {
     const publicUrl = process.env.STALWART_PUBLIC_URL;
     if (publicUrl) {
       oauthDiscoveryUrl = publicUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
-      console.log(`[StalwartProvider] OAuth discovery URL determined from STALWART_PUBLIC_URL: ${oauthDiscoveryUrl}`);
+      console.log(
+        `[StalwartProvider] OAuth discovery URL determined from STALWART_PUBLIC_URL: ${oauthDiscoveryUrl}`
+      );
     } else {
-      console.error(`[StalwartProvider] OAuth discovery URL not configured. OAUTH_DISCOVERY_URL: ${process.env.OAUTH_DISCOVERY_URL || 'not set'}, STALWART_PUBLIC_URL: ${process.env.STALWART_PUBLIC_URL || 'not set'}, STALWART_BASE_URL: ${baseUrl}`);
+      console.error(
+        `[StalwartProvider] OAuth discovery URL not configured. OAUTH_DISCOVERY_URL: ${process.env.OAUTH_DISCOVERY_URL || 'not set'}, STALWART_PUBLIC_URL: ${process.env.STALWART_PUBLIC_URL || 'not set'}, STALWART_BASE_URL: ${baseUrl}`
+      );
     }
   }
 } else if (isPublicDiscoveryUrl && isInternalBaseUrl) {
-  const internalDiscoveryUrl = baseUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
-  console.log(`[StalwartProvider] OAUTH_DISCOVERY_URL is public (${process.env.OAUTH_DISCOVERY_URL}), but STALWART_BASE_URL is internal. Using internal URL for request: ${internalDiscoveryUrl}`);
-  console.log(`[StalwartProvider] Public URL will be used for normalizing endpoints in discovery response`);
+  const internalDiscoveryUrl =
+    baseUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
+  console.log(
+    `[StalwartProvider] OAUTH_DISCOVERY_URL is public (${process.env.OAUTH_DISCOVERY_URL}), but STALWART_BASE_URL is internal. Using internal URL for request: ${internalDiscoveryUrl}`
+  );
+  console.log(
+    `[StalwartProvider] Public URL will be used for normalizing endpoints in discovery response`
+  );
   oauthDiscoveryUrl = internalDiscoveryUrl;
 } else {
   console.log(`[StalwartProvider] Using explicit OAUTH_DISCOVERY_URL: ${oauthDiscoveryUrl}`);
@@ -80,61 +100,105 @@ const config: StalwartConfig = {
   oauthClientId: process.env.OAUTH_CLIENT_ID || '',
 };
 
-if (config.baseUrl.includes('://') && !config.baseUrl.includes('localhost') && !config.baseUrl.includes('127.0.0.1')) {
+if (
+  config.baseUrl.includes('://') &&
+  !config.baseUrl.includes('localhost') &&
+  !config.baseUrl.includes('127.0.0.1')
+) {
   try {
     const url = new URL(config.baseUrl);
     if (url.hostname.includes('.')) {
-      console.warn(`[StalwartProvider] ⚠ WARNING: STALWART_BASE_URL contains domain name (${url.hostname}) instead of container name!`);
-      console.warn(`[StalwartProvider] ⚠ Domain names resolve to external IPs and won't work for Docker container communication.`);
-      console.warn(`[StalwartProvider] ⚠ Please use container name (e.g., 'stalwart' or 'homemail-stalwart') instead: STALWART_BASE_URL=http://stalwart:8080`);
+      console.warn(
+        `[StalwartProvider] ⚠ WARNING: STALWART_BASE_URL contains domain name (${url.hostname}) instead of container name!`
+      );
+      console.warn(
+        `[StalwartProvider] ⚠ Domain names resolve to external IPs and won't work for Docker container communication.`
+      );
+      console.warn(
+        `[StalwartProvider] ⚠ Please use container name (e.g., 'stalwart' or 'homemail-stalwart') instead: STALWART_BASE_URL=http://stalwart:8080`
+      );
     }
-  } catch {
-  }
+  } catch {}
 }
-
-// Credentials system removed - OAuth only
 
 function checkAttachmentType(bodyStructure: any, mimeTypes: string[]): boolean {
   if (!bodyStructure) return false;
-  
+
   const checkPart = (part: any): boolean => {
     if (!part) return false;
-    
+
     if (part.disposition === 'attachment' || (part.disposition === 'inline' && part.name)) {
       const partType = (part.type || '').toLowerCase();
       if (mimeTypes.some((mime) => partType.startsWith(mime.toLowerCase()))) {
         return true;
       }
     }
-    
+
     if (part.subParts && Array.isArray(part.subParts)) {
       for (const subPart of part.subParts) {
         if (checkPart(subPart)) return true;
       }
     }
-    
+
     if (part.parts && Array.isArray(part.parts)) {
       for (const subPart of part.parts) {
         if (checkPart(subPart)) return true;
       }
     }
-    
+
     return false;
   };
-  
+
   return checkPart(bodyStructure);
 }
 
 export class StalwartJMAPProvider implements MailProvider {
   private async getClient(accountId: string): Promise<JMAPClient> {
+    if (getAuthMode() === 'basic') {
+      const credentials = await getCredentials(accountId);
+
+      if (!credentials) {
+        throw new Error('Basic credentials required. Please sign in again.');
+      }
+
+      let lastError: unknown = null;
+
+      for (const baseUrl of getStalwartBaseUrlCandidates()) {
+        try {
+          const client = new JMAPClient(
+            baseUrl,
+            credentials.email,
+            credentials.password,
+            accountId,
+            'basic'
+          );
+          await client.getSession();
+          return client;
+        } catch (candidateError) {
+          lastError = candidateError;
+        }
+      }
+
+      throw lastError instanceof Error
+        ? lastError
+        : new Error('Unable to connect to Stalwart using any configured base URL');
+    }
+
     if (!config.oauthDiscoveryUrl || !config.oauthClientId) {
-      throw new Error('OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required');
+      throw new Error(
+        'OAuth configuration missing: OAUTH_DISCOVERY_URL and OAUTH_CLIENT_ID are required'
+      );
     }
 
     const oauthClient = new OAuthJMAPClient({
       discoveryUrl: config.oauthDiscoveryUrl,
       clientId: config.oauthClientId,
-      scopes: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'urn:ietf:params:jmap:sieve', 'offline_access'],
+      scopes: [
+        'urn:ietf:params:jmap:core',
+        'urn:ietf:params:jmap:mail',
+        'urn:ietf:params:jmap:sieve',
+        'offline_access',
+      ],
       baseUrl: config.baseUrl,
       accountId: accountId,
     });
@@ -147,7 +211,10 @@ export class StalwartJMAPProvider implements MailProvider {
     return await oauthClient.getJMAPClient();
   }
 
-  async syncAliases(accountId: string, aliases: Array<{ email: string; name?: string }>): Promise<void> {
+  async syncAliases(
+    accountId: string,
+    aliases: Array<{ email: string; name?: string }>
+  ): Promise<void> {
     const client = await this.getClient(accountId);
     await client.setIdentities(aliases, accountId);
   }
@@ -190,11 +257,14 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       const mailboxes = await client.getMailboxes(actualAccountId);
 
       if (!mailboxes || mailboxes.length === 0) {
-        console.warn(`[StalwartProvider] No mailboxes found for accountId: ${accountId}, actualAccountId: ${actualAccountId}`);
+        console.warn(
+          `[StalwartProvider] No mailboxes found for accountId: ${accountId}, actualAccountId: ${actualAccountId}`
+        );
         return [];
       }
 
@@ -217,8 +287,14 @@ export class StalwartJMAPProvider implements MailProvider {
       });
     } catch (error) {
       const stalwartUrl = config.baseUrl;
-      if (error instanceof Error && (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed'))) {
-        console.error(`[StalwartProvider] Connection error in getFolders for accountId ${accountId}. Cannot connect to Stalwart at ${stalwartUrl}:`, error);
+      if (
+        error instanceof Error &&
+        (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed'))
+      ) {
+        console.error(
+          `[StalwartProvider] Connection error in getFolders for accountId ${accountId}. Cannot connect to Stalwart at ${stalwartUrl}:`,
+          error
+        );
       } else {
         console.error(`[StalwartProvider] Error in getFolders for accountId ${accountId}:`, error);
       }
@@ -240,7 +316,8 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
       let position = 0;
       let queryState: string | undefined;
@@ -296,12 +373,7 @@ export class StalwartJMAPProvider implements MailProvider {
             { inMailbox: mailboxIdToQuery },
             {
               operator: 'OR',
-              conditions: [
-                { from: q },
-                { to: q },
-                { subject: q },
-                { body: q },
-              ],
+              conditions: [{ from: q }, { to: q }, { subject: q }, { body: q }],
             },
           ],
         };
@@ -324,7 +396,7 @@ export class StalwartJMAPProvider implements MailProvider {
         if (filter.maxSize !== undefined) cleanFilter.maxSize = filter.maxSize;
         if (filter.header && filter.header.length > 0) cleanFilter.header = filter.header;
       }
-      
+
       console.error('[StalwartProvider] getMessages called:', {
         accountId,
         folderId,
@@ -339,7 +411,7 @@ export class StalwartJMAPProvider implements MailProvider {
         originalFilter: JSON.stringify(filter, null, 2),
         cleanFilter: JSON.stringify(cleanFilter, null, 2),
       });
-      
+
       const queryResult = await client.queryEmails(mailboxIdToQuery, {
         accountId: actualAccountId,
         position,
@@ -347,9 +419,9 @@ export class StalwartJMAPProvider implements MailProvider {
         filter: cleanFilter,
         sort: [{ property: 'receivedAt', isAscending: false }],
       });
-      
-      console.error('[StalwartProvider] Query result:', { 
-        idsCount: queryResult.ids.length, 
+
+      console.error('[StalwartProvider] Query result:', {
+        idsCount: queryResult.ids.length,
         total: queryResult.total,
         position: queryResult.position,
         firstFewIds: queryResult.ids.slice(0, 5),
@@ -358,14 +430,16 @@ export class StalwartJMAPProvider implements MailProvider {
       let emailIds = queryResult.ids.slice(0, limit);
       let hasMore = queryResult.ids.length > limit;
 
-      const parsedMessageFilter = typeof options.messageFilter === 'string' 
-        ? JSON.parse(options.messageFilter) 
-        : options.messageFilter;
-      
-      const hasQuickFilter = cleanFilter.hasAttachment !== undefined || 
-                            cleanFilter.isUnread !== undefined || 
-                            cleanFilter.isFlagged !== undefined ||
-                            (parsedMessageFilter && parsedMessageFilter.quickFilter);
+      const parsedMessageFilter =
+        typeof options.messageFilter === 'string'
+          ? JSON.parse(options.messageFilter)
+          : options.messageFilter;
+
+      const hasQuickFilter =
+        cleanFilter.hasAttachment !== undefined ||
+        cleanFilter.isUnread !== undefined ||
+        cleanFilter.isFlagged !== undefined ||
+        (parsedMessageFilter && parsedMessageFilter.quickFilter);
 
       console.error('[StalwartProvider] Checking fallback:', {
         emailIdsCount: emailIds.length,
@@ -377,7 +451,9 @@ export class StalwartJMAPProvider implements MailProvider {
       });
 
       if (emailIds.length === 0 && hasQuickFilter) {
-        console.error('[StalwartProvider] Server-side quick filter returned 0 results, trying client-side filtering');
+        console.error(
+          '[StalwartProvider] Server-side quick filter returned 0 results, trying client-side filtering'
+        );
         const allEmailsQuery = await client.queryEmails(mailboxIdToQuery, {
           accountId: actualAccountId,
           position: 0,
@@ -387,35 +463,32 @@ export class StalwartJMAPProvider implements MailProvider {
           },
           sort: [{ property: 'receivedAt', isAscending: false }],
         });
-        
+
         const allEmailIds = allEmailsQuery.ids;
         if (allEmailIds.length > 0) {
           const quickFilterType = parsedMessageFilter?.quickFilter;
-          const needsAttachmentTypeFilter = quickFilterType === 'attachmentsImages' || 
-                                           quickFilterType === 'attachmentsDocuments' || 
-                                           quickFilterType === 'attachmentsArchives';
-          
-          const properties = [
-            'id',
-            'hasAttachment',
-            'keywords',
-          ];
-          
+          const needsAttachmentTypeFilter =
+            quickFilterType === 'attachmentsImages' ||
+            quickFilterType === 'attachmentsDocuments' ||
+            quickFilterType === 'attachmentsArchives';
+
+          const properties = ['id', 'hasAttachment', 'keywords'];
+
           if (needsAttachmentTypeFilter) {
             properties.push('bodyStructure');
           }
-          
+
           const allEmails = await client.getEmails(allEmailIds, {
             accountId: actualAccountId,
             properties: properties as any,
           });
-          
+
           let filteredEmails = allEmails;
-          
+
           if (cleanFilter.hasAttachment === true || quickFilterType === 'hasAttachments') {
             filteredEmails = filteredEmails.filter((email) => email.hasAttachment === true);
           }
-          
+
           if (quickFilterType === 'attachmentsImages') {
             filteredEmails = filteredEmails.filter((email) => {
               if (!email.hasAttachment || !email.bodyStructure) return false;
@@ -448,25 +521,25 @@ export class StalwartJMAPProvider implements MailProvider {
               return hasArchive;
             });
           }
-          
+
           if (cleanFilter.isUnread !== undefined) {
             filteredEmails = filteredEmails.filter((email) => {
               const isUnread = !email.keywords?.['$seen'];
               return cleanFilter.isUnread === true ? isUnread : !isUnread;
             });
           }
-          
+
           if (cleanFilter.isFlagged !== undefined) {
             filteredEmails = filteredEmails.filter((email) => {
               const isFlagged = email.keywords?.['$flagged'] === true;
               return cleanFilter.isFlagged === true ? isFlagged : !isFlagged;
             });
           }
-          
+
           const filteredIds = filteredEmails.map((email) => email.id);
           emailIds = filteredIds.slice(0, limit);
           hasMore = filteredIds.length > limit;
-          
+
           console.error('[StalwartProvider] Client-side filtering result:', {
             totalEmails: allEmailIds.length,
             filteredCount: filteredIds.length,
@@ -544,10 +617,19 @@ export class StalwartJMAPProvider implements MailProvider {
       return { messages, nextCursor };
     } catch (error) {
       const stalwartUrl = config.baseUrl;
-      if (error instanceof Error && (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed'))) {
-        console.error(`[StalwartProvider] Connection error in getMessages for accountId ${accountId}, folderId ${folderId}. Cannot connect to Stalwart at ${stalwartUrl}:`, error);
+      if (
+        error instanceof Error &&
+        (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed'))
+      ) {
+        console.error(
+          `[StalwartProvider] Connection error in getMessages for accountId ${accountId}, folderId ${folderId}. Cannot connect to Stalwart at ${stalwartUrl}:`,
+          error
+        );
       } else {
-        console.error(`[StalwartProvider] Error in getMessages for accountId ${accountId}, folderId ${folderId}:`, error);
+        console.error(
+          `[StalwartProvider] Error in getMessages for accountId ${accountId}, folderId ${folderId}:`,
+          error
+        );
       }
       throw error;
     }
@@ -557,8 +639,9 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-      
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+
       const emails = await client.getEmails([messageId], {
         accountId: actualAccountId,
         properties: [
@@ -630,7 +713,11 @@ export class StalwartJMAPProvider implements MailProvider {
 
         if (hasTextBodyParts || hasHtmlBodyParts) {
           for (const [partId, bodyValue] of Object.entries(email.bodyValues)) {
-            const value = bodyValue as { value: string; isEncodingProblem?: boolean; isTruncated?: boolean };
+            const value = bodyValue as {
+              value: string;
+              isEncodingProblem?: boolean;
+              isTruncated?: boolean;
+            };
             if (value.value) {
               if (hasTextBodyParts && email.textBody?.some((tb) => tb.partId === partId)) {
                 textBody = value.value;
@@ -644,11 +731,20 @@ export class StalwartJMAPProvider implements MailProvider {
 
         if (!textBody && !htmlBody) {
           for (const bodyValue of Object.values(email.bodyValues)) {
-            const value = bodyValue as { value: string; isEncodingProblem?: boolean; isTruncated?: boolean };
+            const value = bodyValue as {
+              value: string;
+              isEncodingProblem?: boolean;
+              isTruncated?: boolean;
+            };
             if (value?.value && value.value.trim().length > 0) {
               const content = value.value.trim();
-              const looksLikeHtml = content.startsWith('<') && (content.includes('<html') || content.includes('<body') || content.includes('<div') || content.includes('<p'));
-              
+              const looksLikeHtml =
+                content.startsWith('<') &&
+                (content.includes('<html') ||
+                  content.includes('<body') ||
+                  content.includes('<div') ||
+                  content.includes('<p'));
+
               if (looksLikeHtml && !htmlBody) {
                 htmlBody = value.value;
               } else if (!looksLikeHtml && !textBody) {
@@ -660,7 +756,10 @@ export class StalwartJMAPProvider implements MailProvider {
       }
 
       if ((!textBody || !htmlBody) && email.bodyStructure) {
-        const extractBodyFromStructure = (part: any, targetType: 'text' | 'html'): string | undefined => {
+        const extractBodyFromStructure = (
+          part: any,
+          targetType: 'text' | 'html'
+        ): string | undefined => {
           if (!part) return undefined;
 
           const partType = part.type || '';
@@ -695,14 +794,13 @@ export class StalwartJMAPProvider implements MailProvider {
               const downloadUrl = await client.getBlobDownloadUrl(textBlobId, actualAccountId);
               const response = await fetch(downloadUrl, {
                 headers: {
-                  'Authorization': client.getAuthHeader(),
+                  Authorization: client.getAuthHeader(),
                 },
               });
               if (response.ok) {
                 textBody = await response.text();
               }
-            } catch {
-            }
+            } catch {}
           }
         }
 
@@ -713,14 +811,13 @@ export class StalwartJMAPProvider implements MailProvider {
               const downloadUrl = await client.getBlobDownloadUrl(htmlBlobId, actualAccountId);
               const response = await fetch(downloadUrl, {
                 headers: {
-                  'Authorization': client.getAuthHeader(),
+                  Authorization: client.getAuthHeader(),
                 },
               });
               if (response.ok) {
                 htmlBody = await response.text();
               }
-            } catch {
-            }
+            } catch {}
           }
         }
       }
@@ -731,14 +828,18 @@ export class StalwartJMAPProvider implements MailProvider {
 
       const parseAuthResult = (text: string, key: string): import('@/lib/types').AuthResult => {
         const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const re = new RegExp(`(?:^|[;\\s])${escapedKey}\\s*=\\s*(pass|fail|none|neutral|softfail|temperror|permerror)`, 'gi');
+        const re = new RegExp(
+          `(?:^|[;\\s])${escapedKey}\\s*=\\s*(pass|fail|none|neutral|softfail|temperror|permerror)`,
+          'gi'
+        );
         const matches = [...text.matchAll(re)];
         if (matches.length === 0) return 'none';
         // Return worst result across all matches: fail > pass > none
         let result: import('@/lib/types').AuthResult = 'none';
         for (const m of matches) {
           const v = m[1].toLowerCase();
-          if (v === 'fail' || v === 'softfail' || v === 'permerror' || v === 'temperror') return 'fail';
+          if (v === 'fail' || v === 'softfail' || v === 'permerror' || v === 'temperror')
+            return 'fail';
           if (v === 'pass') result = 'pass';
         }
         return result;
@@ -746,11 +847,12 @@ export class StalwartJMAPProvider implements MailProvider {
 
       const authResults: import('@/lib/types').MessageAuthResults = {
         dkim: parseAuthResult(authHeader, 'dkim'),
-        spf: parseAuthResult(authHeader, 'spf') !== 'none'
-          ? parseAuthResult(authHeader, 'spf')
-          : parseAuthResult(spfHeader, 'Received-SPF') !== 'none'
-            ? parseAuthResult(spfHeader, 'Received-SPF')
-            : parseAuthResult(spfHeader, 'spf'),
+        spf:
+          parseAuthResult(authHeader, 'spf') !== 'none'
+            ? parseAuthResult(authHeader, 'spf')
+            : parseAuthResult(spfHeader, 'Received-SPF') !== 'none'
+              ? parseAuthResult(spfHeader, 'Received-SPF')
+              : parseAuthResult(spfHeader, 'spf'),
         dmarc: parseAuthResult(authHeader, 'dmarc'),
       };
 
@@ -791,8 +893,12 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-      const email = await client.getEmails([messageId], { accountId: actualAccountId, properties: ['keywords'] });
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const email = await client.getEmails([messageId], {
+        accountId: actualAccountId,
+        properties: ['keywords'],
+      });
 
       if (email.length === 0) {
         throw new Error('Message not found');
@@ -833,9 +939,19 @@ export class StalwartJMAPProvider implements MailProvider {
 
   async bulkUpdateMessages(
     accountId: string,
-      action: {
+    action: {
       ids: string[];
-      action: 'markRead' | 'markUnread' | 'move' | 'delete' | 'spam' | 'star' | 'unstar' | 'markImportant' | 'unmarkImportant' | 'archive';
+      action:
+        | 'markRead'
+        | 'markUnread'
+        | 'move'
+        | 'delete'
+        | 'spam'
+        | 'star'
+        | 'unstar'
+        | 'markImportant'
+        | 'unmarkImportant'
+        | 'archive';
       payload?: { folderId?: string };
     }
   ): Promise<void> {
@@ -843,7 +959,8 @@ export class StalwartJMAPProvider implements MailProvider {
       const client = await this.getClient(accountId);
 
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
       if (action.action === 'delete') {
         const mailboxes = await client.getMailboxes(actualAccountId);
@@ -854,7 +971,10 @@ export class StalwartJMAPProvider implements MailProvider {
           const emailsToDestroy: string[] = [];
 
           try {
-            const emails = await client.getEmails(action.ids, { accountId: actualAccountId, properties: ['mailboxIds'] });
+            const emails = await client.getEmails(action.ids, {
+              accountId: actualAccountId,
+              properties: ['mailboxIds'],
+            });
             const emailMap = new Map(emails.map((email) => [email.id, email]));
 
             for (const id of action.ids) {
@@ -884,7 +1004,10 @@ export class StalwartJMAPProvider implements MailProvider {
             }
           } catch (error) {
             const { logger } = await import('@/lib/logger');
-            logger.error(`Error in bulk delete for account ${accountId}:`, error instanceof Error ? error.message : error);
+            logger.error(
+              `Error in bulk delete for account ${accountId}:`,
+              error instanceof Error ? error.message : error
+            );
             throw error;
           }
         } else {
@@ -899,7 +1022,10 @@ export class StalwartJMAPProvider implements MailProvider {
 
         if (spamMailbox) {
           try {
-            const emails = await client.getEmails(action.ids, { accountId: actualAccountId, properties: ['mailboxIds'] });
+            const emails = await client.getEmails(action.ids, {
+              accountId: actualAccountId,
+              properties: ['mailboxIds'],
+            });
             const emailMap = new Map(emails.map((email) => [email.id, email]));
             const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
 
@@ -917,7 +1043,10 @@ export class StalwartJMAPProvider implements MailProvider {
             }
           } catch (error) {
             const { logger } = await import('@/lib/logger');
-            logger.error(`Error in bulk spam for account ${accountId}:`, error instanceof Error ? error.message : error);
+            logger.error(
+              `Error in bulk spam for account ${accountId}:`,
+              error instanceof Error ? error.message : error
+            );
             throw error;
           }
         }
@@ -931,7 +1060,10 @@ export class StalwartJMAPProvider implements MailProvider {
 
         if (archiveMailbox) {
           try {
-            const emails = await client.getEmails(action.ids, { accountId: actualAccountId, properties: ['mailboxIds'] });
+            const emails = await client.getEmails(action.ids, {
+              accountId: actualAccountId,
+              properties: ['mailboxIds'],
+            });
             const emailMap = new Map(emails.map((email) => [email.id, email]));
             const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
 
@@ -940,11 +1072,11 @@ export class StalwartJMAPProvider implements MailProvider {
               if (email) {
                 const currentMailboxIds = email.mailboxIds || {};
                 const newMailboxIds: Record<string, boolean> = { ...currentMailboxIds };
-                
+
                 if (inboxMailbox && currentMailboxIds[inboxMailbox.id]) {
                   delete newMailboxIds[inboxMailbox.id];
                 }
-                
+
                 newMailboxIds[archiveMailbox.id] = true;
                 updates[id] = { mailboxIds: newMailboxIds };
               }
@@ -955,12 +1087,18 @@ export class StalwartJMAPProvider implements MailProvider {
             }
           } catch (error) {
             const { logger } = await import('@/lib/logger');
-            logger.error(`Error in bulk archive for account ${accountId}:`, error instanceof Error ? error.message : error);
+            logger.error(
+              `Error in bulk archive for account ${accountId}:`,
+              error instanceof Error ? error.message : error
+            );
             throw error;
           }
         } else if (inboxMailbox) {
           try {
-            const emails = await client.getEmails(action.ids, { accountId: actualAccountId, properties: ['mailboxIds'] });
+            const emails = await client.getEmails(action.ids, {
+              accountId: actualAccountId,
+              properties: ['mailboxIds'],
+            });
             const emailMap = new Map(emails.map((email) => [email.id, email]));
             const updates: Record<string, { mailboxIds: Record<string, boolean> }> = {};
 
@@ -979,7 +1117,10 @@ export class StalwartJMAPProvider implements MailProvider {
             }
           } catch (error) {
             const { logger } = await import('@/lib/logger');
-            logger.error(`Error in bulk archive for account ${accountId}:`, error instanceof Error ? error.message : error);
+            logger.error(
+              `Error in bulk archive for account ${accountId}:`,
+              error instanceof Error ? error.message : error
+            );
             throw error;
           }
         }
@@ -997,7 +1138,10 @@ export class StalwartJMAPProvider implements MailProvider {
         return;
       }
 
-      const emails = await client.getEmails(action.ids, { accountId: actualAccountId, properties: ['keywords'] });
+      const emails = await client.getEmails(action.ids, {
+        accountId: actualAccountId,
+        properties: ['keywords'],
+      });
       const updates: Record<string, { keywords: Record<string, boolean> }> = {};
 
       for (let i = 0; i < action.ids.length; i++) {
@@ -1050,7 +1194,8 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
       const mailboxes = await client.getMailboxes(actualAccountId);
       const sentMailbox = mailboxes.find((mb) => mb.role === 'sent');
@@ -1070,8 +1215,9 @@ export class StalwartJMAPProvider implements MailProvider {
       const cc = message.cc?.map((email) => ({ email }));
       const bcc = message.bcc?.map((email) => ({ email }));
 
-      const emailAttachments: Array<{ blobId: string; type: string; name: string; size: number }> = [];
-      
+      const emailAttachments: Array<{ blobId: string; type: string; name: string; size: number }> =
+        [];
+
       if (message.attachments && message.attachments.length > 0) {
         for (const att of message.attachments) {
           const blobId = await client.uploadBlob(att.data, actualAccountId, att.mime);
@@ -1118,7 +1264,7 @@ export class StalwartJMAPProvider implements MailProvider {
             from,
             to,
             subject: message.subject,
-            keywords: { '$seen': true },
+            keywords: { $seen: true },
             bodyStructure: { partId: 'body', type: 'text/plain' },
             bodyValues: { body: { value: message.html } },
           }
@@ -1127,7 +1273,7 @@ export class StalwartJMAPProvider implements MailProvider {
             from,
             to,
             subject: message.subject,
-            keywords: { '$seen': true },
+            keywords: { $seen: true },
             bodyStructure: {
               type: 'multipart/alternative',
               subParts: [
@@ -1183,8 +1329,9 @@ export class StalwartJMAPProvider implements MailProvider {
       const emailId = Object.values(data.created)[0].id;
       await client.sendEmail(emailId, actualAccountId);
 
-      const targetSentMailbox = mailboxes.find((mb) => mb.id === 'e' && mb.role === 'sent') || sentMailbox;
-      
+      const targetSentMailbox =
+        mailboxes.find((mb) => mb.id === 'e' && mb.role === 'sent') || sentMailbox;
+
       const emailAfterSend = await client.getEmails([emailId], {
         accountId: actualAccountId,
         properties: ['mailboxIds', 'keywords'],
@@ -1196,18 +1343,21 @@ export class StalwartJMAPProvider implements MailProvider {
         const isRead = emailAfterSend[0].keywords?.['$seen'] === true;
 
         if (!isInSent || !isRead) {
-          const updates: Record<string, { mailboxIds: Record<string, boolean>; keywords: Record<string, boolean> }> = {};
+          const updates: Record<
+            string,
+            { mailboxIds: Record<string, boolean>; keywords: Record<string, boolean> }
+          > = {};
           const newMailboxIds: Record<string, boolean> = {};
           newMailboxIds[targetSentMailbox.id] = true;
-          
+
           const newKeywords: Record<string, boolean> = { ...(emailAfterSend[0].keywords || {}) };
           newKeywords['$seen'] = true;
-          
+
           updates[emailId] = {
             mailboxIds: newMailboxIds,
             keywords: newKeywords,
           };
-          
+
           await client.bulkSetEmails(updates, actualAccountId);
         }
       }
@@ -1235,18 +1385,22 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-      
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+
       const mailboxes = await client.getMailboxes(actualAccountId);
       const targetFolderId = message.folderId || 'inbox';
-      const targetMailbox = mailboxes.find((mb) => mb.id === targetFolderId || mb.role === targetFolderId);
-      
+      const targetMailbox = mailboxes.find(
+        (mb) => mb.id === targetFolderId || mb.role === targetFolderId
+      );
+
       if (!targetMailbox) {
         throw new Error(`Target folder ${targetFolderId} not found`);
       }
 
-      const emailAttachments: Array<{ blobId: string; type: string; name: string; size: number }> = [];
-      
+      const emailAttachments: Array<{ blobId: string; type: string; name: string; size: number }> =
+        [];
+
       if (message.attachments && message.attachments.length > 0) {
         for (const att of message.attachments) {
           const blobId = await client.uploadBlob(att.data, actualAccountId, att.mime);
@@ -1266,7 +1420,7 @@ export class StalwartJMAPProvider implements MailProvider {
         subject: message.subject,
         receivedAt: message.date.toISOString(),
         keywords: {
-          '$seen': false,
+          $seen: false,
         },
         bodyStructure: {
           partId: 'body',
@@ -1328,13 +1482,16 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
       const mailboxes = await client.getMailboxes(actualAccountId);
       const draftsMailbox = mailboxes.find((mb) => mb.role === 'drafts');
 
       if (!draftsMailbox) {
         const { logger } = await import('@/lib/logger');
-        logger.error(`[saveDraft] Drafts mailbox not found. Available mailboxes: ${mailboxes.map(mb => `${mb.name} (${mb.role || 'no role'})`).join(', ')}`);
+        logger.error(
+          `[saveDraft] Drafts mailbox not found. Available mailboxes: ${mailboxes.map((mb) => `${mb.name} (${mb.role || 'no role'})`).join(', ')}`
+        );
         throw new Error('Drafts mailbox not found');
       }
 
@@ -1346,7 +1503,8 @@ export class StalwartJMAPProvider implements MailProvider {
       const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
       const to = (draft.to || []).map((email) => ({ email }));
       const cc = draft.cc && draft.cc.length > 0 ? draft.cc.map((email) => ({ email })) : undefined;
-      const bcc = draft.bcc && draft.bcc.length > 0 ? draft.bcc.map((email) => ({ email })) : undefined;
+      const bcc =
+        draft.bcc && draft.bcc.length > 0 ? draft.bcc.map((email) => ({ email })) : undefined;
 
       const draftEmail = {
         mailboxIds: { [draftsMailbox.id]: true },
@@ -1355,7 +1513,7 @@ export class StalwartJMAPProvider implements MailProvider {
         cc,
         bcc,
         subject: draft.subject || '(без темы)',
-        keywords: { '$draft': true },
+        keywords: { $draft: true },
         bodyStructure: {
           partId: 'body',
           type: 'text/html',
@@ -1421,7 +1579,9 @@ export class StalwartJMAPProvider implements MailProvider {
       const notCreated = data.notCreated ? JSON.stringify(data.notCreated) : undefined;
       const notUpdated = data.notUpdated ? JSON.stringify(data.notUpdated) : undefined;
       if (notCreated || notUpdated) {
-        throw new Error(`Failed to get draft ID. notCreated=${notCreated || 'n/a'} notUpdated=${notUpdated || 'n/a'}`);
+        throw new Error(
+          `Failed to get draft ID. notCreated=${notCreated || 'n/a'} notUpdated=${notUpdated || 'n/a'}`
+        );
       }
 
       throw new Error('Failed to get draft ID (no created/updated returned)');
@@ -1434,19 +1594,12 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-      
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+
       const emails = await client.getEmails([draftId], {
         accountId: actualAccountId,
-        properties: [
-          'id',
-          'to',
-          'cc',
-          'bcc',
-          'subject',
-          'bodyValues',
-          'htmlBody',
-        ],
+        properties: ['id', 'to', 'cc', 'bcc', 'subject', 'bodyValues', 'htmlBody'],
       });
 
       if (emails.length === 0) {
@@ -1485,52 +1638,74 @@ export class StalwartJMAPProvider implements MailProvider {
   ): Promise<(Attachment & { data: Buffer }) | null> {
     try {
       const { logger } = await import('@/lib/logger');
-      logger.info(`[StalwartProvider] getAttachment called: accountId=${accountId}, messageId=${messageId}, attachmentId=${attachmentId}`);
+      logger.info(
+        `[StalwartProvider] getAttachment called: accountId=${accountId}, messageId=${messageId}, attachmentId=${attachmentId}`
+      );
 
       const message = await this.getMessage(accountId, messageId);
 
       if (!message) {
-        logger.error(`[StalwartProvider] Message not found: accountId=${accountId}, messageId=${messageId}`);
+        logger.error(
+          `[StalwartProvider] Message not found: accountId=${accountId}, messageId=${messageId}`
+        );
         return null;
       }
 
-      logger.info(`[StalwartProvider] Message found, attachments count: ${message.attachments.length}, attachment IDs: ${message.attachments.map(a => a.id).join(', ')}`);
+      logger.info(
+        `[StalwartProvider] Message found, attachments count: ${message.attachments.length}, attachment IDs: ${message.attachments.map((a) => a.id).join(', ')}`
+      );
 
       const attachment = message.attachments.find((att) => att.id === attachmentId);
       if (!attachment) {
-        logger.error(`[StalwartProvider] Attachment not found in message: attachmentId=${attachmentId}, available IDs: ${message.attachments.map(a => a.id).join(', ')}`);
+        logger.error(
+          `[StalwartProvider] Attachment not found in message: attachmentId=${attachmentId}, available IDs: ${message.attachments.map((a) => a.id).join(', ')}`
+        );
         return null;
       }
 
-      logger.info(`[StalwartProvider] Attachment found: filename=${attachment.filename}, mime=${attachment.mime}, size=${attachment.size}`);
+      logger.info(
+        `[StalwartProvider] Attachment found: filename=${attachment.filename}, mime=${attachment.mime}, size=${attachment.size}`
+      );
 
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
-      const downloadUrl = await client.getBlobDownloadUrl(attachmentId, actualAccountId, attachment.filename);
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const downloadUrl = await client.getBlobDownloadUrl(
+        attachmentId,
+        actualAccountId,
+        attachment.filename
+      );
 
       logger.info(`[StalwartProvider] Download URL obtained: ${downloadUrl}`);
 
       const response = await fetch(downloadUrl, {
         headers: {
-          'Authorization': client.getAuthHeader(),
+          Authorization: client.getAuthHeader(),
         },
       });
 
       if (!response.ok) {
-        logger.error(`[StalwartProvider] Failed to download attachment blob: status=${response.status}, statusText=${response.statusText}`);
+        logger.error(
+          `[StalwartProvider] Failed to download attachment blob: status=${response.status}, statusText=${response.statusText}`
+        );
         throw new Error(`Failed to download attachment: ${response.statusText}`);
       }
 
       const arrayBuffer = await response.arrayBuffer();
-      logger.info(`[StalwartProvider] Attachment downloaded successfully: size=${arrayBuffer.byteLength} bytes`);
+      logger.info(
+        `[StalwartProvider] Attachment downloaded successfully: size=${arrayBuffer.byteLength} bytes`
+      );
       return {
         ...attachment,
         data: Buffer.from(arrayBuffer),
       };
     } catch (error) {
       const { logger } = await import('@/lib/logger');
-      logger.error(`[StalwartProvider] Error in getAttachment: accountId=${accountId}, messageId=${messageId}, attachmentId=${attachmentId}`, error instanceof Error ? error.message : error);
+      logger.error(
+        `[StalwartProvider] Error in getAttachment: accountId=${accountId}, messageId=${messageId}, attachmentId=${attachmentId}`,
+        error instanceof Error ? error.message : error
+      );
       return null;
     }
   }
@@ -1539,7 +1714,8 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
       const response = await client.request([
         [
@@ -1592,11 +1768,16 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   }
 
-  async updateFolder(accountId: string, folderId: string, updates: { name?: string; parentId?: string | null }): Promise<Folder> {
+  async updateFolder(
+    accountId: string,
+    folderId: string,
+    updates: { name?: string; parentId?: string | null }
+  ): Promise<Folder> {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
       const updatesPayload: any = {};
       if (updates.name) {
@@ -1635,7 +1816,8 @@ export class StalwartJMAPProvider implements MailProvider {
     try {
       const client = await this.getClient(accountId);
       const session = await client.getSession();
-      const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+      const actualAccountId =
+        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
       const mailboxes = await client.getMailboxes(actualAccountId);
       const folder = mailboxes.find((mb) => mb.id === folderId);
@@ -1644,7 +1826,10 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error('Folder not found');
       }
 
-      if (folder.role && ['inbox', 'sent', 'drafts', 'trash', 'spam', 'junk'].includes(folder.role)) {
+      if (
+        folder.role &&
+        ['inbox', 'sent', 'drafts', 'trash', 'spam', 'junk'].includes(folder.role)
+      ) {
         throw new Error('Cannot delete system folder');
       }
 
@@ -1673,7 +1858,10 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   }
 
-  async syncMessages(accountId: string, inMemoryState?: { mailboxState: string; emailObjectState: string }): Promise<{
+  async syncMessages(
+    accountId: string,
+    inMemoryState?: { mailboxState: string; emailObjectState: string }
+  ): Promise<{
     created: string[];
     updated: string[];
     destroyed: string[];
@@ -1687,7 +1875,8 @@ export class StalwartJMAPProvider implements MailProvider {
 
     const client = await this.getClient(accountId);
     const session = await client.getSession();
-    const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+    const actualAccountId =
+      session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
     // Use in-memory state if provided, otherwise read from disk
     let stored: JMAPStateSnapshot | null;
@@ -1703,12 +1892,28 @@ export class StalwartJMAPProvider implements MailProvider {
       const seedResp = await client.request([
         ['Email/get', { accountId: actualAccountId, ids: [] }, '0'],
       ]);
-      const emailObjectState: string = seedResp.methodResponses?.[0]?.[1] != null
-        ? ((seedResp.methodResponses[0][1] as any).state ?? '')
-        : '';
-      await writeStorage<JMAPStateSnapshot>(STATE_KEY, { mailboxState, emailObjectState, savedAt: Date.now() });
-      console.log('[stalwart-provider] syncMessages: seeded state', { mailboxState, emailObjectState });
-      return { created: [], updated: [], destroyed: [], mailboxCountsChanged: true, needsFullRefresh: true, newMailboxState: mailboxState, newEmailObjectState: emailObjectState };
+      const emailObjectState: string =
+        seedResp.methodResponses?.[0]?.[1] != null
+          ? ((seedResp.methodResponses[0][1] as any).state ?? '')
+          : '';
+      await writeStorage<JMAPStateSnapshot>(STATE_KEY, {
+        mailboxState,
+        emailObjectState,
+        savedAt: Date.now(),
+      });
+      console.log('[stalwart-provider] syncMessages: seeded state', {
+        mailboxState,
+        emailObjectState,
+      });
+      return {
+        created: [],
+        updated: [],
+        destroyed: [],
+        mailboxCountsChanged: true,
+        needsFullRefresh: true,
+        newMailboxState: mailboxState,
+        newEmailObjectState: emailObjectState,
+      };
     }
 
     let newMailboxState = stored.mailboxState;
@@ -1741,9 +1946,10 @@ export class StalwartJMAPProvider implements MailProvider {
       const seedResp = await client.request([
         ['Email/get', { accountId: actualAccountId, ids: [] }, '0'],
       ]);
-      newEmailObjectState = seedResp.methodResponses?.[0]?.[1] != null
-        ? ((seedResp.methodResponses[0][1] as any).state ?? stored.emailObjectState)
-        : stored.emailObjectState;
+      newEmailObjectState =
+        seedResp.methodResponses?.[0]?.[1] != null
+          ? ((seedResp.methodResponses[0][1] as any).state ?? stored.emailObjectState)
+          : stored.emailObjectState;
     } else {
       newEmailObjectState = emailChanges.newState;
       created = emailChanges.created;
@@ -1755,7 +1961,8 @@ export class StalwartJMAPProvider implements MailProvider {
     // Persist to disk only when state actually changed (restart recovery).
     // When using in-memory state, only write if emailObjectState advanced
     // to avoid cross-process race on the same file.
-    const stateChanged = newEmailObjectState !== stored.emailObjectState || newMailboxState !== stored.mailboxState;
+    const stateChanged =
+      newEmailObjectState !== stored.emailObjectState || newMailboxState !== stored.mailboxState;
     if (stateChanged) {
       await writeStorage<JMAPStateSnapshot>(STATE_KEY, {
         mailboxState: newMailboxState,
@@ -1764,7 +1971,15 @@ export class StalwartJMAPProvider implements MailProvider {
       });
     }
 
-    return { created, updated, destroyed, mailboxCountsChanged, needsFullRefresh, newMailboxState, newEmailObjectState };
+    return {
+      created,
+      updated,
+      destroyed,
+      mailboxCountsChanged,
+      needsFullRefresh,
+      newMailboxState,
+      newEmailObjectState,
+    };
   }
 
   subscribeToUpdates(
@@ -1785,7 +2000,10 @@ export class StalwartJMAPProvider implements MailProvider {
         const result = await this.syncMessages(accountId, memState);
 
         // Update in-memory state for next poll
-        memState = { mailboxState: result.newMailboxState, emailObjectState: result.newEmailObjectState };
+        memState = {
+          mailboxState: result.newMailboxState,
+          emailObjectState: result.newEmailObjectState,
+        };
 
         if (result.needsFullRefresh) {
           if (result.mailboxCountsChanged) {
@@ -1803,14 +2021,18 @@ export class StalwartJMAPProvider implements MailProvider {
           try {
             const client = await this.getClient(accountId);
             const session = await client.getSession();
-            const actualAccountId = session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+            const actualAccountId =
+              session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
             const newEmails = await client.getEmails(result.created, {
               accountId: actualAccountId,
               properties: ['id', 'mailboxIds'],
             });
             for (const email of newEmails) {
               const mailboxId = Object.keys((email as any).mailboxIds || {})[0] || '';
-              callback({ type: 'message.new', data: { messageId: email.id, id: email.id, folderId: mailboxId, mailboxId } });
+              callback({
+                type: 'message.new',
+                data: { messageId: email.id, id: email.id, folderId: mailboxId, mailboxId },
+              });
             }
           } catch {
             callback({ type: 'message.updated', data: {} });
@@ -1870,7 +2092,10 @@ export class StalwartJMAPProvider implements MailProvider {
     return client.deleteSieveScript(id, accountId);
   }
 
-  async validateSieveScript(content: string, accountId: string): Promise<{ valid: boolean; error?: string }> {
+  async validateSieveScript(
+    content: string,
+    accountId: string
+  ): Promise<{ valid: boolean; error?: string }> {
     const client = await this.getClient(accountId);
     return client.validateSieveScript(content, accountId);
   }

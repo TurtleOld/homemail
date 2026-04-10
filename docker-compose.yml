@@ -10,6 +10,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - NEXT_PUBLIC_MAIL_DESIGN=${NEXT_PUBLIC_MAIL_DESIGN:-legacy}
       - MAIL_PROVIDER=stalwart
       - STALWART_BASE_URL=http://stalwart:8080
       - STALWART_SMTP_HOST=stalwart

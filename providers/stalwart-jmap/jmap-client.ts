@@ -49,7 +49,9 @@ interface JMAPRequest {
 }
 
 interface JMAPResponse {
-  methodResponses: Array<[string, Record<string, any> | { type: string; description?: string }, string]>;
+  methodResponses: Array<
+    [string, Record<string, any> | { type: string; description?: string }, string]
+  >;
   sessionState?: string;
 }
 
@@ -91,7 +93,10 @@ interface JMAPEmail {
   cc?: Array<{ name?: string; email: string }>;
   bcc?: Array<{ name?: string; email: string }>;
   bodyStructure?: any;
-  bodyValues?: Record<string, { value: string; isEncodingProblem?: boolean; isTruncated?: boolean }>;
+  bodyValues?: Record<
+    string,
+    { value: string; isEncodingProblem?: boolean; isTruncated?: boolean }
+  >;
   textBody?: Array<{ partId: string; type: string }>;
   htmlBody?: Array<{ partId: string; type: string }>;
 }
@@ -132,17 +137,23 @@ export class JMAPClient {
   }
 
   private isDockerInternalIp(ip: string): boolean {
-    return ip.startsWith('172.') || 
-           ip.startsWith('10.') || 
-           ip.startsWith('192.168.') ||
-           ip.startsWith('169.254.');
+    return (
+      ip.startsWith('172.') ||
+      ip.startsWith('10.') ||
+      ip.startsWith('192.168.') ||
+      ip.startsWith('169.254.')
+    );
+  }
+
+  private isLoopbackIp(ip: string): boolean {
+    return ip === '127.0.0.1' || ip === '::1';
   }
 
   private isAllowedHostIp(ip: string): boolean {
     const allowedNetworks = process.env.ALLOWED_DOCKER_NETWORKS
       ? process.env.ALLOWED_DOCKER_NETWORKS.split(',').map((n) => n.trim())
       : [];
-    
+
     if (allowedNetworks.length === 0) {
       return false;
     }
@@ -184,7 +195,8 @@ export class JMAPClient {
     try {
       const addresses = await lookup(hostname, { family: 4, all: true });
       for (const addr of addresses) {
-        if (this.isDockerInternalIp(addr.address) || this.isAllowedHostIp(addr.address)) return addr.address;
+        if (this.isDockerInternalIp(addr.address) || this.isAllowedHostIp(addr.address))
+          return addr.address;
       }
     } catch (lookupError) {
       console.error(`[JMAPClient] DNS lookup failed for ${hostname}:`, lookupError);
@@ -204,16 +216,31 @@ export class JMAPClient {
     try {
       const urlObj = new URL(url);
       const hostname = urlObj.hostname;
-      
-      if (hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
-        if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) && !this.isDockerInternalIp(hostname) && !this.isAllowedHostIp(hostname)) {
-          throw new Error(`URL contains external IP address ${hostname}. This will not work for Docker container communication. Please use container hostname, internal IP, or add IP to ALLOWED_DOCKER_NETWORKS.`);
+
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+      ) {
+        if (
+          /^\d+\.\d+\.\d+\.\d+$/.test(hostname) &&
+          !this.isDockerInternalIp(hostname) &&
+          !this.isAllowedHostIp(hostname) &&
+          !this.isLoopbackIp(hostname)
+        ) {
+          throw new Error(
+            `URL contains external IP address ${hostname}. This will not work for Docker container communication. Please use container hostname, internal IP, or add IP to ALLOWED_DOCKER_NETWORKS.`
+          );
         }
         return url;
       }
-      
-      const isContainerName = !hostname.includes('.') || hostname === 'stalwart' || hostname === 'homemail-stalwart' || hostname.startsWith('homemail-');
-      
+
+      const isContainerName =
+        !hostname.includes('.') ||
+        hostname === 'stalwart' ||
+        hostname === 'homemail-stalwart' ||
+        hostname.startsWith('homemail-');
+
       if (isContainerName) {
         const ip = await this.resolveHostnameToIp(hostname);
         if (ip && (this.isDockerInternalIp(ip) || this.isAllowedHostIp(ip))) {
@@ -222,10 +249,16 @@ export class JMAPClient {
           dnsCache.set(url, { resolved: resolvedUrl, expiresAt: Date.now() + DNS_CACHE_TTL_MS });
           return resolvedUrl;
         } else {
-          console.error(`[JMAPClient] ✗ CRITICAL: Container name ${hostname} resolved to external IP or failed`);
-          console.error(`[JMAPClient] ✗ This means Docker DNS is not working - fetch will also fail`);
+          console.error(
+            `[JMAPClient] ✗ CRITICAL: Container name ${hostname} resolved to external IP or failed`
+          );
+          console.error(
+            `[JMAPClient] ✗ This means Docker DNS is not working - fetch will also fail`
+          );
           console.error(`[JMAPClient] ✗ Solutions:`);
-          throw new Error(`Container name ${hostname} cannot be resolved to internal IP. Check Docker network configuration.`);
+          throw new Error(
+            `Container name ${hostname} cannot be resolved to internal IP. Check Docker network configuration.`
+          );
         }
       } else {
         const ip = await this.resolveHostnameToIp(hostname);
@@ -235,7 +268,9 @@ export class JMAPClient {
           dnsCache.set(url, { resolved: resolvedUrl, expiresAt: Date.now() + DNS_CACHE_TTL_MS });
           return resolvedUrl;
         } else {
-          throw new Error(`Failed to resolve ${hostname} to Docker internal or allowed host IP. DNS is resolving to external IP (${ip || 'unknown'}), which indicates Docker DNS is not working or IP is not in ALLOWED_DOCKER_NETWORKS. Please use container name (e.g., 'stalwart' or 'homemail-stalwart') in STALWART_BASE_URL instead of domain name, or add IP to ALLOWED_DOCKER_NETWORKS.`);
+          throw new Error(
+            `Failed to resolve ${hostname} to Docker internal or allowed host IP. DNS is resolving to external IP (${ip || 'unknown'}), which indicates Docker DNS is not working or IP is not in ALLOWED_DOCKER_NETWORKS. Please use container name (e.g., 'stalwart' or 'homemail-stalwart') in STALWART_BASE_URL instead of domain name, or add IP to ALLOWED_DOCKER_NETWORKS.`
+          );
         }
       }
     } catch (error) {
@@ -247,14 +282,14 @@ export class JMAPClient {
   private normalizeSessionUrls(session: JMAPSession): JMAPSession {
     const baseUrlObj = new URL(this.baseUrl);
     const baseHostname = baseUrlObj.hostname;
-    
+
     const rewrite = (raw?: string): string | undefined => {
       if (!raw) return raw;
       try {
         const u = new URL(raw);
         const urlHostname = u.hostname;
         const baseProtocol = baseUrlObj.protocol;
-        
+
         if (u.protocol !== baseProtocol) {
           u.protocol = baseProtocol;
         }
@@ -266,7 +301,7 @@ export class JMAPClient {
           u.hostname = baseHostname;
           u.port = baseUrlObj.port || u.port;
         }
-        
+
         return u.toString().replace(/\/$/, '');
       } catch {
         return raw;
@@ -292,23 +327,36 @@ export class JMAPClient {
 
     const baseUrlObj = new URL(this.baseUrl);
     const hostname = baseUrlObj.hostname;
-    
+
     console.log(`[JMAPClient] ===== DNS Resolution Debug =====`);
     console.log(`[JMAPClient] Base URL: ${this.baseUrl}`);
     console.log(`[JMAPClient] Hostname to resolve: ${hostname}`);
-    
+
     try {
       const addresses = await lookup(hostname, { family: 4, all: true });
-      const resolvedIps = addresses.map((a: { address: string; family: number }) => `${a.address} (family: ${a.family})`).join(', ');
+      const resolvedIps = addresses
+        .map((a: { address: string; family: number }) => `${a.address} (family: ${a.family})`)
+        .join(', ');
       console.log(`[JMAPClient] DNS lookup SUCCESS: ${hostname} resolved to: ${resolvedIps}`);
-      
+
       const firstAddress = addresses[0]?.address;
-      if (firstAddress && (firstAddress.startsWith('172.') || firstAddress.startsWith('10.') || firstAddress.startsWith('192.168.'))) {
+      if (
+        firstAddress &&
+        (firstAddress.startsWith('172.') ||
+          firstAddress.startsWith('10.') ||
+          firstAddress.startsWith('192.168.'))
+      ) {
         console.log(`[JMAPClient] ✓ Resolved to Docker internal IP: ${firstAddress}`);
       } else if (firstAddress) {
-        console.error(`[JMAPClient] ✗ WARNING: Resolved to external/public IP: ${firstAddress}. This indicates DNS is using external resolver instead of Docker DNS!`);
-        console.error(`[JMAPClient] ✗ Expected: Docker internal IP (172.x.x.x, 10.x.x.x, or 192.168.x.x)`);
-        console.error(`[JMAPClient] ✗ Solution: Use container IP directly or configure extra_hosts in docker-compose.yml`);
+        console.error(
+          `[JMAPClient] ✗ WARNING: Resolved to external/public IP: ${firstAddress}. This indicates DNS is using external resolver instead of Docker DNS!`
+        );
+        console.error(
+          `[JMAPClient] ✗ Expected: Docker internal IP (172.x.x.x, 10.x.x.x, or 192.168.x.x)`
+        );
+        console.error(
+          `[JMAPClient] ✗ Solution: Use container IP directly or configure extra_hosts in docker-compose.yml`
+        );
       }
     } catch (dnsError) {
       console.error(`[JMAPClient] DNS lookup FAILED for ${hostname}:`, dnsError);
@@ -317,14 +365,14 @@ export class JMAPClient {
 
     const directSessionUrl = `${this.baseUrl}/jmap/session`;
     console.log(`[JMAPClient] Attempting to connect to: ${directSessionUrl}`);
-    
+
     const resolvedDirectUrl = await this.resolveUrlToIp(directSessionUrl);
-    
+
     try {
       const directRes = await fetch(resolvedDirectUrl, {
         headers: {
-          'Accept': 'application/json',
-          'Authorization': this.authHeader,
+          Accept: 'application/json',
+          Authorization: this.authHeader,
         },
         redirect: 'follow',
       });
@@ -339,8 +387,16 @@ export class JMAPClient {
           return directSession;
         }
       }
+
+      const directErrorText = await directRes.text().catch(() => '');
+      console.warn(
+        `[JMAPClient] Direct session endpoint failed: ${directRes.status} ${directRes.statusText}, response: ${directErrorText.substring(0, 200)}`
+      );
     } catch (error) {
-      console.error(`[JMAPClient] Connection error to ${resolvedDirectUrl} (original: ${directSessionUrl}):`, error);
+      console.error(
+        `[JMAPClient] Connection error to ${resolvedDirectUrl} (original: ${directSessionUrl}):`,
+        error
+      );
       if (error instanceof TypeError && error.message.includes('fetch failed')) {
         const cause = (error as any).cause;
         if (cause) {
@@ -357,24 +413,26 @@ export class JMAPClient {
 
     const discoveryUrl = `${this.baseUrl}/.well-known/jmap`;
     console.log(`[JMAPClient] Attempting discovery at: ${discoveryUrl}`);
-    
+
     const resolvedDiscoveryUrl = await this.resolveUrlToIp(discoveryUrl);
-    
+
     try {
       const authHeaderPreview = this.authHeader.substring(0, 20) + '...';
       console.log(`[JMAPClient] Discovery request with auth header: ${authHeaderPreview}`);
-      
+
       const discoveryRes = await fetch(resolvedDiscoveryUrl, {
         headers: {
-          'Accept': 'application/json',
-          'Authorization': this.authHeader,
+          Accept: 'application/json',
+          Authorization: this.authHeader,
         },
         redirect: 'follow',
       });
 
       if (!discoveryRes.ok) {
         const errorText = await discoveryRes.text().catch(() => '');
-        console.error(`[JMAPClient] Discovery failed: ${discoveryRes.status} ${discoveryRes.statusText}, response: ${errorText.substring(0, 200)}`);
+        console.error(
+          `[JMAPClient] Discovery failed: ${discoveryRes.status} ${discoveryRes.statusText}, response: ${errorText.substring(0, 200)}`
+        );
         throw new Error(`JMAP discovery failed: ${discoveryRes.status} ${discoveryRes.statusText}`);
       }
 
@@ -386,27 +444,42 @@ export class JMAPClient {
         logger.warn('Failed to parse discovery JSON, using default path:', e);
         discovery = { apiUrl: `${this.baseUrl}/jmap` };
       }
-      
+
       let sessionUrl = discovery.apiUrl || `${this.baseUrl}/jmap`;
-      
+
       const baseUrlObj = new URL(this.baseUrl);
       const baseHostname = baseUrlObj.hostname;
-      
+
       try {
         const discoveryUrlObj = new URL(sessionUrl);
         const discoveryHostname = discoveryUrlObj.hostname;
         const baseProtocol = baseUrlObj.protocol;
-        
+
         if (discoveryUrlObj.protocol !== baseProtocol) {
-          console.warn(`[JMAPClient] ⚠ Discovery returned URL with ${discoveryUrlObj.protocol} but baseUrl uses ${baseProtocol}`);
-          console.warn(`[JMAPClient] ⚠ Replacing protocol to match baseUrl for Docker container communication`);
+          console.warn(
+            `[JMAPClient] ⚠ Discovery returned URL with ${discoveryUrlObj.protocol} but baseUrl uses ${baseProtocol}`
+          );
+          console.warn(
+            `[JMAPClient] ⚠ Replacing protocol to match baseUrl for Docker container communication`
+          );
           discoveryUrlObj.protocol = baseProtocol;
         }
-        
-        if (discoveryHostname !== baseHostname && (discoveryHostname.includes('.') || discoveryHostname === 'localhost' || discoveryHostname === '127.0.0.1')) {
-          console.warn(`[JMAPClient] ⚠ Discovery returned URL with different hostname: ${discoveryHostname} (expected: ${baseHostname})`);
-          console.warn(`[JMAPClient] ⚠ Stalwart server.hostname (${discoveryHostname}) differs from STALWART_BASE_URL hostname (${baseHostname})`);
-          console.warn(`[JMAPClient] ⚠ Replacing discovery hostname with baseUrl hostname for Docker container communication`);
+
+        if (
+          discoveryHostname !== baseHostname &&
+          (discoveryHostname.includes('.') ||
+            discoveryHostname === 'localhost' ||
+            discoveryHostname === '127.0.0.1')
+        ) {
+          console.warn(
+            `[JMAPClient] ⚠ Discovery returned URL with different hostname: ${discoveryHostname} (expected: ${baseHostname})`
+          );
+          console.warn(
+            `[JMAPClient] ⚠ Stalwart server.hostname (${discoveryHostname}) differs from STALWART_BASE_URL hostname (${baseHostname})`
+          );
+          console.warn(
+            `[JMAPClient] ⚠ Replacing discovery hostname with baseUrl hostname for Docker container communication`
+          );
           discoveryUrlObj.hostname = baseHostname;
           discoveryUrlObj.port = baseUrlObj.port || discoveryUrlObj.port;
           sessionUrl = discoveryUrlObj.toString();
@@ -416,20 +489,23 @@ export class JMAPClient {
           console.log(`[JMAPClient] ✓ Normalized sessionUrl protocol: ${sessionUrl}`);
         }
       } catch (urlError) {
-        console.warn(`[JMAPClient] Could not parse discovery URL ${sessionUrl}, using as-is:`, urlError);
+        console.warn(
+          `[JMAPClient] Could not parse discovery URL ${sessionUrl}, using as-is:`,
+          urlError
+        );
       }
-      
+
       if (sessionUrl.endsWith('/')) {
         sessionUrl = sessionUrl.slice(0, -1);
       }
-      
+
       console.log(`[JMAPClient] Attempting session request to: ${sessionUrl}`);
       const resolvedSessionUrl = await this.resolveUrlToIp(sessionUrl);
       const sessionRes = await fetch(resolvedSessionUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': this.authHeader,
+          Authorization: this.authHeader,
         },
         body: JSON.stringify({
           using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'],
@@ -442,15 +518,17 @@ export class JMAPClient {
       }
 
       const sessionData: JMAPResponse = await sessionRes.json();
-      
+
       if (!sessionData.methodResponses || sessionData.methodResponses.length === 0) {
         throw new Error('Empty JMAP session response');
       }
-      
+
       const sessionResponse = sessionData.methodResponses[0];
 
       if (sessionResponse[0] !== 'Session/get') {
-        throw new Error(`Invalid session response: expected Session/get, got ${sessionResponse[0]}`);
+        throw new Error(
+          `Invalid session response: expected Session/get, got ${sessionResponse[0]}`
+        );
       }
 
       if ('type' in sessionResponse[1] && sessionResponse[1].type === 'error') {
@@ -459,11 +537,11 @@ export class JMAPClient {
       }
 
       const session = this.normalizeSessionUrls(sessionResponse[1] as JMAPSession);
-      
+
       if (!session.accounts || Object.keys(session.accounts).length === 0) {
         throw new Error('No accounts found in JMAP session. User may need mail access configured.');
       }
-      
+
       sessionCache.set(cacheKey, {
         session,
         expiresAt: Date.now() + SESSION_CACHE_TTL,
@@ -472,7 +550,7 @@ export class JMAPClient {
       return session;
     } catch (error) {
       console.error(`[JMAPClient] Error in getSession for baseUrl ${this.baseUrl}:`, error);
-      
+
       if (error instanceof TypeError && error.message.includes('fetch failed')) {
         const cause = (error as any).cause;
         if (cause) {
@@ -484,13 +562,17 @@ export class JMAPClient {
             port: cause.port,
             message: cause.message,
           });
-          
+
           if (cause.code === 'ECONNREFUSED') {
-            throw new Error(`Cannot connect to Stalwart server at ${this.baseUrl}. Please check that Stalwart is running and STALWART_BASE_URL is correct. DNS resolved to: ${cause.address}:${cause.port}`);
+            throw new Error(
+              `Cannot connect to Stalwart server at ${this.baseUrl}. Please check that Stalwart is running and STALWART_BASE_URL is correct. DNS resolved to: ${cause.address}:${cause.port}`
+            );
           }
-          
+
           if (cause.code === 'ENOTFOUND' || cause.code === 'EAI_AGAIN') {
-            throw new Error(`DNS resolution failed for ${this.baseUrl}. Hostname ${new URL(this.baseUrl).hostname} could not be resolved. Please check network configuration and ensure containers are in the same Docker network.`);
+            throw new Error(
+              `DNS resolution failed for ${this.baseUrl}. Hostname ${new URL(this.baseUrl).hostname} could not be resolved. Please check network configuration and ensure containers are in the same Docker network.`
+            );
           }
         }
       }
@@ -513,7 +595,7 @@ export class JMAPClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': this.authHeader,
+        Authorization: this.authHeader,
       },
       body: JSON.stringify(request),
     });
@@ -538,7 +620,7 @@ export class JMAPClient {
     };
 
     const requestBody = JSON.stringify(request);
-    
+
     if (methodCalls[0]?.[0] === 'Identity/get') {
       console.log('[JMAPClient] Identity/get request body:', requestBody);
       console.log('[JMAPClient] Request structure:', JSON.stringify(request, null, 2));
@@ -549,7 +631,7 @@ export class JMAPClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': this.authHeader,
+        Authorization: this.authHeader,
       },
       body: requestBody,
     });
@@ -560,18 +642,18 @@ export class JMAPClient {
         status: response.status,
         statusText: response.statusText,
         url: resolvedApiUrl,
-        methodCalls: methodCalls.map(m => m[0]),
+        methodCalls: methodCalls.map((m) => m[0]),
         errorBody: errorText,
       });
       throw new Error(`JMAP request failed: ${response.status} ${response.statusText}`);
     }
 
     const jsonResponse = await response.json();
-    
+
     if (methodCalls[0]?.[0] === 'Identity/get') {
       console.log('[JMAPClient] Identity/get response:', JSON.stringify(jsonResponse, null, 2));
     }
-    
+
     return jsonResponse;
   }
 
@@ -580,15 +662,11 @@ export class JMAPClient {
     return mailboxes;
   }
 
-  async getMailboxesWithState(accountId?: string): Promise<{ mailboxes: JMAPMailbox[]; state: string }> {
+  async getMailboxesWithState(
+    accountId?: string
+  ): Promise<{ mailboxes: JMAPMailbox[]; state: string }> {
     const targetAccountId = accountId || this.accountId;
-    const response = await this.request([
-      [
-        'Mailbox/get',
-        { accountId: targetAccountId },
-        '0',
-      ],
-    ]);
+    const response = await this.request([['Mailbox/get', { accountId: targetAccountId }, '0']]);
 
     const mailboxResponse = response.methodResponses[0];
     if (mailboxResponse[0] !== 'Mailbox/get') {
@@ -620,7 +698,12 @@ export class JMAPClient {
       return { cannotCalculateChanges: true };
     }
 
-    const d = data as { newState: string; hasMoreChanges: boolean; changed: string[]; destroyed: string[] };
+    const d = data as {
+      newState: string;
+      hasMoreChanges: boolean;
+      changed: string[];
+      destroyed: string[];
+    };
     return {
       changed: d.changed || [],
       destroyed: d.destroyed || [],
@@ -634,7 +717,13 @@ export class JMAPClient {
     accountId?: string,
     maxChanges = 500
   ): Promise<
-    | { created: string[]; updated: string[]; destroyed: string[]; newState: string; hasMoreChanges: boolean }
+    | {
+        created: string[];
+        updated: string[];
+        destroyed: string[];
+        newState: string;
+        hasMoreChanges: boolean;
+      }
     | { cannotCalculateChanges: true }
   > {
     const targetAccountId = accountId || this.accountId;
@@ -648,7 +737,13 @@ export class JMAPClient {
       return { cannotCalculateChanges: true };
     }
 
-    const d = data as { newState: string; hasMoreChanges: boolean; created: string[]; updated: string[]; destroyed: string[] };
+    const d = data as {
+      newState: string;
+      hasMoreChanges: boolean;
+      created: string[];
+      updated: string[];
+      destroyed: string[];
+    };
     return {
       created: d.created || [],
       updated: d.updated || [],
@@ -660,7 +755,7 @@ export class JMAPClient {
 
   async getIdentities(accountId?: string): Promise<JMAPIdentity[]> {
     const session = await this.getSession();
-    
+
     let targetAccountId: string;
     if (accountId) {
       targetAccountId = accountId;
@@ -676,30 +771,24 @@ export class JMAPClient {
         }
       }
     }
-    
+
     if (!targetAccountId || typeof targetAccountId !== 'string') {
       throw new Error(`Invalid accountId: ${targetAccountId}`);
     }
-    
+
     const requestBody = {
       accountId: targetAccountId,
     };
-    
+
     console.log('[JMAPClient] Identity/get request:', {
       accountId: targetAccountId,
       accountIdType: typeof targetAccountId,
       accountIdLength: targetAccountId.length,
       requestBody: JSON.stringify(requestBody, null, 2),
     });
-    
+
     const response = await this.requestWithUsing(
-      [
-        [
-          'Identity/get',
-          requestBody,
-          '0',
-        ],
-      ],
+      [['Identity/get', requestBody, '0']],
       ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']
     );
 
@@ -715,8 +804,13 @@ export class JMAPClient {
 
     const identityResponse = response.methodResponses[0];
     if (!identityResponse || !Array.isArray(identityResponse)) {
-      console.error('[JMAPClient] Invalid identityResponse structure:', JSON.stringify(identityResponse, null, 2));
-      throw new Error(`Invalid identity response: unexpected response structure. Got: ${JSON.stringify(identityResponse)}`);
+      console.error(
+        '[JMAPClient] Invalid identityResponse structure:',
+        JSON.stringify(identityResponse, null, 2)
+      );
+      throw new Error(
+        `Invalid identity response: unexpected response structure. Got: ${JSON.stringify(identityResponse)}`
+      );
     }
 
     if (identityResponse[0] === 'error') {
@@ -732,9 +826,15 @@ export class JMAPClient {
     }
 
     if (identityResponse[0] !== 'Identity/get') {
-      console.error('[JMAPClient] Unexpected method name:', identityResponse[0], 'Expected: Identity/get');
+      console.error(
+        '[JMAPClient] Unexpected method name:',
+        identityResponse[0],
+        'Expected: Identity/get'
+      );
       console.error('[JMAPClient] Full response:', JSON.stringify(response, null, 2));
-      throw new Error(`Invalid identity response: expected 'Identity/get', got '${identityResponse[0]}'`);
+      throw new Error(
+        `Invalid identity response: expected 'Identity/get', got '${identityResponse[0]}'`
+      );
     }
 
     if ('type' in identityResponse[1] && identityResponse[1].type === 'error') {
@@ -745,7 +845,10 @@ export class JMAPClient {
 
     const data = identityResponse[1] as { list: JMAPIdentity[] };
     if (!data || typeof data !== 'object') {
-      console.error('[JMAPClient] Invalid data structure:', JSON.stringify(identityResponse[1], null, 2));
+      console.error(
+        '[JMAPClient] Invalid data structure:',
+        JSON.stringify(identityResponse[1], null, 2)
+      );
       throw new Error('Invalid identity response: missing or invalid data');
     }
 
@@ -755,15 +858,20 @@ export class JMAPClient {
   async setIdentities(
     identities: Array<{ email: string; name?: string }>,
     accountId?: string
-  ): Promise<{ created?: Record<string, JMAPIdentity>; updated?: Record<string, JMAPIdentity>; notCreated?: Record<string, any>; notUpdated?: Record<string, any> }> {
+  ): Promise<{
+    created?: Record<string, JMAPIdentity>;
+    updated?: Record<string, JMAPIdentity>;
+    notCreated?: Record<string, any>;
+    notUpdated?: Record<string, any>;
+  }> {
     const targetAccountId = accountId || this.accountId;
-    
+
     const existingIdentities = await this.getIdentities(targetAccountId);
     const existingEmails = new Set(existingIdentities.map((id) => id.email));
-    
+
     const create: Record<string, { email: string; name?: string }> = {};
     const update: Record<string, { email: string; name?: string }> = {};
-    
+
     for (const identity of identities) {
       const existing = existingIdentities.find((id) => id.email === identity.email);
       if (existing) {
@@ -773,30 +881,24 @@ export class JMAPClient {
         create[tempId] = { email: identity.email, name: identity.name };
       }
     }
-    
+
     const requestBody: any = {
       accountId: targetAccountId,
     };
-    
+
     if (Object.keys(create).length > 0) {
       requestBody.create = create;
     }
     if (Object.keys(update).length > 0) {
       requestBody.update = update;
     }
-    
+
     if (Object.keys(create).length === 0 && Object.keys(update).length === 0) {
       return { created: {}, updated: {} };
     }
-    
+
     const response = await this.requestWithUsing(
-      [
-        [
-          'Identity/set',
-          requestBody,
-          '0',
-        ],
-      ],
+      [['Identity/set', requestBody, '0']],
       ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']
     );
 
@@ -816,7 +918,7 @@ export class JMAPClient {
       notCreated?: Record<string, any>;
       notUpdated?: Record<string, any>;
     };
-    
+
     return {
       created: data.created || {},
       updated: data.updated || {},
@@ -856,7 +958,7 @@ export class JMAPClient {
   ): Promise<{ ids: string[]; position: number; total?: number; queryState?: string }> {
     const targetAccountId = options.accountId || this.accountId;
     const finalFilter = options.filter || { inMailbox: mailboxId };
-    
+
     console.error('[JMAPClient] queryEmails called:', {
       mailboxId,
       accountId: targetAccountId,
@@ -864,7 +966,7 @@ export class JMAPClient {
       position: options.position,
       limit: options.limit,
     });
-    
+
     const response = await this.request([
       [
         'Email/query',
@@ -890,14 +992,19 @@ export class JMAPClient {
       throw new Error(`JMAP email query error: ${errorDesc}`);
     }
 
-    const result = queryResponse[1] as { ids: string[]; position: number; total?: number; queryState?: string };
+    const result = queryResponse[1] as {
+      ids: string[];
+      position: number;
+      total?: number;
+      queryState?: string;
+    };
     console.error('[JMAPClient] Email/query result:', {
       idsCount: result.ids?.length || 0,
       total: result.total,
       position: result.position,
       firstFewIds: result.ids?.slice(0, 5),
     });
-    
+
     return result;
   }
 
@@ -952,29 +1059,35 @@ export class JMAPClient {
         requestBody.fetchHTMLBodyValues = options.fetchHTMLBodyValues;
       }
 
-      const response = await this.request([
-        [
-          'Email/get',
-          requestBody,
-          '0',
-        ],
-      ]);
+      const response = await this.request([['Email/get', requestBody, '0']]);
 
       if (!response || !response.methodResponses || response.methodResponses.length === 0) {
-        console.error('[JMAPClient] Invalid response structure:', JSON.stringify(response, null, 2));
+        console.error(
+          '[JMAPClient] Invalid response structure:',
+          JSON.stringify(response, null, 2)
+        );
         throw new Error('Invalid email get response: missing methodResponses');
       }
 
       const getResponse = response.methodResponses[0];
       if (!Array.isArray(getResponse) || getResponse.length < 2) {
-        console.error('[JMAPClient] Invalid getResponse structure:', JSON.stringify(getResponse, null, 2));
+        console.error(
+          '[JMAPClient] Invalid getResponse structure:',
+          JSON.stringify(getResponse, null, 2)
+        );
         throw new Error('Invalid email get response: unexpected response structure');
       }
 
       if (getResponse[0] !== 'Email/get') {
-        console.error('[JMAPClient] Unexpected method name:', getResponse[0], 'Expected: Email/get');
+        console.error(
+          '[JMAPClient] Unexpected method name:',
+          getResponse[0],
+          'Expected: Email/get'
+        );
         console.error('[JMAPClient] Full response:', JSON.stringify(response, null, 2));
-        throw new Error(`Invalid email get response: expected 'Email/get', got '${getResponse[0]}'`);
+        throw new Error(
+          `Invalid email get response: expected 'Email/get', got '${getResponse[0]}'`
+        );
       }
 
       if ('type' in getResponse[1] && getResponse[1].type === 'error') {
@@ -985,7 +1098,10 @@ export class JMAPClient {
 
       const data = getResponse[1] as { list: JMAPEmail[] };
       if (!data || typeof data !== 'object') {
-        console.error('[JMAPClient] Invalid data structure:', JSON.stringify(getResponse[1], null, 2));
+        console.error(
+          '[JMAPClient] Invalid data structure:',
+          JSON.stringify(getResponse[1], null, 2)
+        );
         throw new Error('Invalid email get response: missing or invalid data');
       }
 
@@ -1029,7 +1145,10 @@ export class JMAPClient {
   }
 
   async bulkSetEmails(
-    updates: Record<string, { keywords?: Record<string, boolean>; mailboxIds?: Record<string, boolean> }>,
+    updates: Record<
+      string,
+      { keywords?: Record<string, boolean>; mailboxIds?: Record<string, boolean> }
+    >,
     accountId?: string
   ): Promise<void> {
     const targetAccountId = accountId || this.accountId;
@@ -1079,7 +1198,8 @@ export class JMAPClient {
 
   async getBlobDownloadUrl(blobId: string, accountId: string, name?: string): Promise<string> {
     const session = await this.getSession();
-    const downloadUrl = session.downloadUrl || `${this.baseUrl}/jmap/download/{accountId}/{blobId}/{name}`;
+    const downloadUrl =
+      session.downloadUrl || `${this.baseUrl}/jmap/download/{accountId}/{blobId}/{name}`;
     // Stalwart may return URL-encoded placeholders (%7BaccountId%7D etc.) — decode before replacing
     return downloadUrl
       .replace(/%7BaccountId%7D/gi, accountId)
@@ -1109,15 +1229,15 @@ export class JMAPClient {
 
     const resolvedUrl = await this.resolveUrlToIp(resolvedUploadUrl);
     const headers: Record<string, string> = {
-      'Authorization': this.authHeader,
+      Authorization: this.authHeader,
     };
-    
+
     if (contentType) {
       headers['Content-Type'] = contentType;
     } else {
       headers['Content-Type'] = 'application/octet-stream';
     }
-    
+
     const response = await fetch(resolvedUrl, {
       method: 'POST',
       headers,
@@ -1143,14 +1263,10 @@ export class JMAPClient {
     return uploadData.blobId;
   }
 
-  async sendEmail(
-    emailId: string,
-    accountId?: string,
-    identityId?: string
-  ): Promise<string> {
+  async sendEmail(emailId: string, accountId?: string, identityId?: string): Promise<string> {
     const targetAccountId = accountId || this.accountId;
     const session = await this.getSession();
-    
+
     let actualIdentityId = identityId;
     if (!actualIdentityId) {
       const identities = await this.getIdentities(targetAccountId);
@@ -1200,17 +1316,16 @@ export class JMAPClient {
 
   // ── Sieve (RFC 9661) ──────────────────────────────────────────────────────
 
-  private readonly SIEVE_USING = [
-    'urn:ietf:params:jmap:core',
-    'urn:ietf:params:jmap:sieve',
-  ];
+  private readonly SIEVE_USING = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:sieve'];
 
-  async getSieveScripts(accountId?: string): Promise<Array<{
-    id: string;
-    name: string | null;
-    blobId: string;
-    isActive: boolean;
-  }>> {
+  async getSieveScripts(accountId?: string): Promise<
+    Array<{
+      id: string;
+      name: string | null;
+      blobId: string;
+      isActive: boolean;
+    }>
+  > {
     const targetAccountId = accountId || this.accountId;
     const response = await this.requestWithUsing(
       [['SieveScript/get', { accountId: targetAccountId, ids: null }, '0']],
@@ -1220,7 +1335,9 @@ export class JMAPClient {
     if (res[0] === 'error') {
       throw new Error(`SieveScript/get error: ${(res[1] as any).description || 'unknown'}`);
     }
-    const data = res[1] as { list: Array<{ id: string; name: string | null; blobId: string; isActive: boolean }> };
+    const data = res[1] as {
+      list: Array<{ id: string; name: string | null; blobId: string; isActive: boolean }>;
+    };
     return data.list || [];
   }
 
@@ -1292,7 +1409,9 @@ export class JMAPClient {
 
     if (params.existingId) {
       if (data.notUpdated?.[params.existingId]) {
-        throw new Error(`SieveScript/set update failed: ${JSON.stringify(data.notUpdated[params.existingId])}`);
+        throw new Error(
+          `SieveScript/set update failed: ${JSON.stringify(data.notUpdated[params.existingId])}`
+        );
       }
       return { id: params.existingId, blobId };
     }
@@ -1336,7 +1455,10 @@ export class JMAPClient {
     }
   }
 
-  async validateSieveScript(content: string, accountId?: string): Promise<{ valid: boolean; error?: string }> {
+  async validateSieveScript(
+    content: string,
+    accountId?: string
+  ): Promise<{ valid: boolean; error?: string }> {
     const targetAccountId = accountId || this.accountId;
 
     // Upload as blob first (validate endpoint requires blobId too)

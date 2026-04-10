@@ -1,10 +1,14 @@
 import { StalwartJMAPProvider } from '@/providers/stalwart-jmap/stalwart-provider';
 import type { MailProvider } from '@/providers/mail-provider';
+import { setCredentials } from '@/lib/storage';
+import { getAuthMode } from '@/lib/auth-config';
 
 const stalwartProviders = new Map<string, StalwartJMAPProvider>();
 
 export function getMailProvider(): MailProvider {
-  throw new Error('Stalwart provider requires account context. Use getMailProviderForAccount() instead.');
+  throw new Error(
+    'Stalwart provider requires account context. Use getMailProviderForAccount() instead.'
+  );
 }
 
 export function getMailProviderForAccount(accountId: string): MailProvider {
@@ -14,10 +18,18 @@ export function getMailProviderForAccount(accountId: string): MailProvider {
   return stalwartProviders.get(accountId)!;
 }
 
-/**
- * OAuth-only mode: credentials are not used.
- * Authentication is handled via OAuth tokens.
- */
-export async function ensureAccount(_accountId: string, _email: string, _password?: string): Promise<void> {
-  // No-op in OAuth-only mode
+export async function ensureAccount(
+  accountId: string,
+  email: string,
+  password?: string
+): Promise<void> {
+  if (getAuthMode() !== 'basic') {
+    return;
+  }
+
+  if (!password) {
+    throw new Error('Password is required for basic authentication');
+  }
+
+  await setCredentials(accountId, email, password);
 }

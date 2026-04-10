@@ -74,10 +74,10 @@ describe('LoginPage', () => {
     });
 
     const oauthButton = screen.getByRole('button', { name: /Войти через OAuth/i });
-    
+
     // First click
     fireEvent.click(oauthButton);
-    
+
     // Button should be disabled (loading state)
     await waitFor(() => {
       expect(oauthButton).toBeDisabled();
@@ -108,5 +108,39 @@ describe('LoginPage', () => {
 
     // Check that info text is present
     expect(screen.getByText(/Вы будете перенаправлены на сервер Stalwart/i)).toBeInTheDocument();
+  });
+
+  it('shows basic login form and submits credentials', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ authMode: 'basic', passwordLoginEnabled: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+    render(<LoginPage />);
+
+    const emailInput = await screen.findByLabelText('Логин');
+    const passwordInput = screen.getByLabelText('Пароль');
+
+    fireEvent.change(emailInput, { target: { value: 'user@example.com' } });
+    fireEvent.change(passwordInput, { target: { value: 'secret' } });
+    fireEvent.click(screen.getByRole('button', { name: /Войти по логину и паролю/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        2,
+        '/api/auth/login',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/mail');
+      expect(mockRefresh).toHaveBeenCalled();
+    });
   });
 });

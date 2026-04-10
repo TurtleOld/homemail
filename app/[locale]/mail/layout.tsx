@@ -131,6 +131,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   });
   const debouncedSearch = useDebounce(searchQuery, 400);
   const queryClient = useQueryClient();
+  const bulkActionButtonClass =
+    'rounded-2xl border-white/80 bg-white/80 text-slate-700 shadow-sm hover:mail-hover-surface max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation';
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -856,12 +858,12 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="min-w-[44px] min-h-[44px] touch-manipulation"
+            className="min-h-[44px] min-w-[44px] rounded-2xl bg-white/70 text-slate-700 shadow-sm touch-manipulation hover:mail-hover-surface"
             aria-label={t('openMenu')}
           >
             <Menu className="h-6 w-6" />
           </Button>
-          <div className="flex-1">
+          <div className="flex-1 text-slate-900">
             <img src="/icons/mail-icon.png" alt="Mail" className="h-5 w-5 inline mr-2" />
             <span className="text-lg font-bold">Mail</span>
           </div>
@@ -875,7 +877,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               setActiveDraftId(null);
               setComposeOpen(true);
             }}
-            className="min-w-[44px] min-h-[44px] touch-manipulation"
+            className="min-h-[44px] min-w-[44px] rounded-2xl bg-white/70 text-slate-700 shadow-sm touch-manipulation hover:mail-hover-surface"
             aria-label={t('composeMail')}
           >
             <FileText className="h-6 w-6" />
@@ -971,7 +973,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   variant={conversationView ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setConversationView(!conversationView)}
-                  className="max-md:text-xs max-md:px-2 max-md:h-8"
+                  className="h-10 rounded-2xl px-3 shadow-sm max-md:h-8 max-md:px-2 max-md:text-xs"
                   title={conversationView ? t('switchToNormal') : t('switchToThread')}
                   aria-label={conversationView ? t('switchToNormal') : t('switchToThread')}
                 >
@@ -1099,7 +1101,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     setSelectedMessageId(null);
                     setSelectedIds(new Set());
                   }}
-                  className="min-w-[44px] min-h-[44px] touch-manipulation"
+                  className="min-h-[44px] min-w-[44px] rounded-2xl bg-white/70 text-slate-700 shadow-sm touch-manipulation hover:mail-hover-surface"
                   aria-label={t('backToList')}
                 >
                   <ArrowLeft className="h-6 w-6" />
@@ -1167,9 +1169,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         )}
       </div>
       {selectedIds.size > 0 && (
-        <div className="mail-panel-muted border-t border-white/80 p-3 max-md:p-3 max-md:sticky max-md:bottom-0 max-md:z-50 max-md:shadow-lg">
-          <div className="flex items-center gap-2 max-md:gap-2 max-md:flex-wrap max-md:justify-center">
-            <span className="text-sm max-md:text-sm max-md:font-medium">
+        <div className="mail-panel-muted border-t border-white/80 p-3 max-md:sticky max-md:bottom-0 max-md:z-50 max-md:p-3 max-md:shadow-lg">
+          <div className="flex items-center gap-2 max-md:flex-wrap max-md:justify-center max-md:gap-2">
+            <span className="rounded-full bg-white/75 px-3 py-1 text-sm font-medium text-slate-700 shadow-sm max-md:text-sm">
               {t('selected', { count: selectedIds.size })}
             </span>
             {(() => {
@@ -1182,7 +1184,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     variant="outline"
                     size="sm"
                     onClick={() => handleBulkAction('move', { folderId: inboxFolder.id })}
-                    className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                    className={bulkActionButtonClass}
                     aria-label={t('notSpam')}
                   >
                     <Inbox className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
@@ -1196,7 +1198,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               variant="outline"
               size="sm"
               onClick={() => handleBulkAction('markRead')}
-              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              className={bulkActionButtonClass}
               aria-label={t('markReadAria')}
             >
               <Mail className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
@@ -1206,7 +1208,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               variant="outline"
               size="sm"
               onClick={() => handleBulkAction('markUnread')}
-              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              className={bulkActionButtonClass}
               aria-label={t('markUnreadAria')}
             >
               <Mail className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
@@ -1216,7 +1218,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               variant="outline"
               size="sm"
               onClick={() => handleBulkAction('star')}
-              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              className={bulkActionButtonClass}
               aria-label={t('starAria')}
             >
               <Star className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
@@ -1231,7 +1233,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   selectedMessages.length > 0 && selectedMessages.every((m) => m.flags.important);
                 handleBulkAction(allImportant ? 'unmarkImportant' : 'markImportant');
               }}
-              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              className={bulkActionButtonClass}
               aria-label={t('importantAria')}
             >
               <AlertCircle className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
@@ -1241,7 +1243,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               variant="outline"
               size="sm"
               onClick={handleBulkExport}
-              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              className={bulkActionButtonClass}
               aria-label={t('exportAria')}
             >
               <FileDown className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
@@ -1256,7 +1258,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     variant="outline"
                     size="sm"
                     onClick={() => handleBulkAction('archive')}
-                    className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                    className={bulkActionButtonClass}
                     aria-label={t('archiveAria')}
                   >
                     <Archive className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
@@ -1271,7 +1273,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 <Button
                   variant="outline"
                   size="sm"
-                  className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+                  className={bulkActionButtonClass}
                   aria-label={t('moveAria')}
                 >
                   <FolderIcon className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />
@@ -1299,7 +1301,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               variant="outline"
               size="sm"
               onClick={() => handleBulkAction('delete')}
-              className="max-md:min-h-[44px] max-md:min-w-[44px] max-md:px-3 max-md:text-sm touch-manipulation"
+              className={bulkActionButtonClass}
               aria-label={t('deleteAria')}
             >
               <Trash2 className="mr-2 h-4 w-4 max-md:mr-0 max-md:h-5 max-md:w-5" />

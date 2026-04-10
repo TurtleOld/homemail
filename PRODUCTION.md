@@ -18,17 +18,20 @@
 #### Шаги:
 
 1. **Подготовка конфигурации:**
+
    ```bash
    cp .env.production.example .env.production
    # Отредактируйте .env.production с вашими настройками
    ```
 
 2. **Сборка и запуск:**
+
    ```bash
    docker-compose up -d --build
    ```
 
 3. **Проверка статуса:**
+
    ```bash
    docker-compose ps
    docker-compose logs -f
@@ -92,23 +95,27 @@ pm2 delete mailclient    # Удаление
 #### Установка:
 
 1. **Скопируйте файлы:**
+
    ```bash
    sudo cp -r /path/to/mailclient /opt/mailclient
    sudo cp mailclient.service /etc/systemd/system/
    ```
 
 2. **Настройте права:**
+
    ```bash
    sudo chown -R www-data:www-data /opt/mailclient
    sudo chmod +x /opt/mailclient/deploy.sh
    ```
 
 3. **Настройте .env.production:**
+
    ```bash
    sudo nano /opt/mailclient/.env.production
    ```
 
 4. **Установите зависимости и соберите:**
+
    ```bash
    cd /opt/mailclient
    sudo -u www-data npm ci --production=false
@@ -133,12 +140,14 @@ sudo journalctl -u mailclient -f   # Логи
 ## Настройка Nginx
 
 1. **Установите Nginx:**
+
    ```bash
    sudo apt update
    sudo apt install nginx
    ```
 
 2. **Скопируйте конфигурацию:**
+
    ```bash
    sudo cp nginx.conf.example /etc/nginx/sites-available/mailclient
    sudo nano /etc/nginx/sites-available/mailclient
@@ -155,11 +164,13 @@ sudo journalctl -u mailclient -f   # Логи
 ## SSL сертификат (Let's Encrypt)
 
 1. **Установите Certbot:**
+
    ```bash
    sudo apt install certbot python3-certbot-nginx
    ```
 
 2. **Получите сертификат:**
+
    ```bash
    sudo certbot --nginx -d your-domain.com -d www.your-domain.com
    ```
@@ -190,7 +201,18 @@ OAUTH_CLIENT_ID=your-oauth-client-id
 NODE_ENV=production
 PORT=3000
 NEXT_PUBLIC_APP_URL=https://your-domain.com
+NEXT_PUBLIC_MAIL_DESIGN=legacy
 ```
+
+### Calm Productivity rollout
+
+- `NEXT_PUBLIC_MAIL_DESIGN=legacy` - safe production default
+- `NEXT_PUBLIC_MAIL_DESIGN=calm-productivity` - enable new mail UI for staging or controlled rollout
+- Recommended sequence:
+  1. Enable `calm-productivity` in staging
+  2. Run smoke checklist on desktop and mobile widths
+  3. Roll to internal users first
+  4. Switch production default only after QA and metric review
 
 ## Мониторинг
 
@@ -203,6 +225,7 @@ curl http://localhost:3000/api/health
 ```
 
 Ответ:
+
 ```json
 {
   "status": "ok",
@@ -224,6 +247,7 @@ curl http://localhost:3000/api/health
 ### Рекомендации:
 
 1. **Firewall:**
+
    ```bash
    sudo ufw allow 22/tcp    # SSH
    sudo ufw allow 80/tcp     # HTTP
@@ -233,6 +257,7 @@ curl http://localhost:3000/api/health
 
 2. **Обновления:**
    Регулярно обновляйте систему и зависимости:
+
    ```bash
    npm audit fix
    npm update
@@ -257,6 +282,7 @@ curl http://localhost:3000/api/health
 ### Вертикальное масштабирование
 
 Увеличьте ресурсы сервера:
+
 - CPU: минимум 2 ядра
 - RAM: минимум 2GB (рекомендуется 4GB+)
 - Disk: SSD рекомендуется
