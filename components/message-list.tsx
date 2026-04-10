@@ -244,7 +244,7 @@ export const MessageItem = memo(function MessageItem({
                   'truncate max-md:text-sm',
                   message.flags.unread
                     ? 'font-semibold text-foreground'
-                    : 'font-normal text-slate-600'
+                    : 'font-normal text-muted-foreground'
                 )}
               >
                 {message.from.name || message.from.email}
@@ -269,14 +269,14 @@ export const MessageItem = memo(function MessageItem({
               <span
                 className={cn(
                   'truncate',
-                  message.flags.unread ? 'font-medium text-foreground' : 'text-slate-600'
+                  message.flags.unread ? 'font-medium text-foreground' : 'text-muted-foreground'
                 )}
               >
                 {message.subject || tCommon('noSubject')}
               </span>
               <span
                 className={cn(
-                  'flex-shrink-0 tabular-nums text-slate-500',
+                  'flex-shrink-0 tabular-nums text-muted-foreground',
                   density === 'compact' ? 'text-[10px]' : 'text-xs',
                   'max-md:text-[10px]'
                 )}
@@ -285,7 +285,7 @@ export const MessageItem = memo(function MessageItem({
               </span>
             </div>
             {density !== 'compact' && message.snippet && (
-              <div className="truncate text-xs text-slate-500 max-md:text-[10px]">
+              <div className="truncate text-xs text-muted-foreground max-md:text-[10px]">
                 {message.snippet}
               </div>
             )}
@@ -316,7 +316,7 @@ export const MessageItem = memo(function MessageItem({
           {/* Hover action buttons */}
           <div
             className={cn(
-              'flex-shrink-0 flex items-center gap-0.5 rounded-xl border border-transparent bg-white/70 px-1 py-0.5 shadow-sm backdrop-blur-sm',
+              'flex-shrink-0 flex items-center gap-0.5 rounded-xl border border-border/70 bg-card/85 px-1 py-0.5 text-foreground shadow-sm backdrop-blur-sm',
               'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
               'max-md:hidden'
             )}
@@ -327,7 +327,7 @@ export const MessageItem = memo(function MessageItem({
                   e.stopPropagation();
                   onStar(message.id, !message.flags.starred);
                 }}
-                className="rounded-md p-1.5 transition-colors hover:bg-slate-100"
+                className="rounded-md p-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
                 title={
                   message.flags.starred ? tViewer('removeFromFavorites') : tViewer('addToFavorites')
                 }
@@ -351,7 +351,7 @@ export const MessageItem = memo(function MessageItem({
                   e.stopPropagation();
                   onToggleImportant(message.id, !message.flags.important);
                 }}
-                className="rounded-md p-1.5 transition-colors hover:bg-slate-100"
+                className="rounded-md p-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
                 title={message.flags.important ? t('removeImportance') : t('markImportant')}
                 aria-label={message.flags.important ? t('removeImportance') : t('markImportant')}
               >

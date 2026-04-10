@@ -281,7 +281,7 @@ export function Sidebar({
               }
             }}
             className={cn(
-              'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 transition-all duration-150 hover:mail-hover-surface hover:text-foreground active:scale-[0.995] max-md:min-h-[44px] touch-manipulation',
+              'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-foreground/80 transition-all duration-150 hover:mail-hover-surface hover:text-foreground active:scale-[0.995] max-md:min-h-[44px] touch-manipulation',
               selectedFolderId === folder.id &&
                 'mail-selected-surface mail-border-strong border font-medium text-foreground shadow-sm',
               draggedOverFolderId === folder.id &&
@@ -297,7 +297,7 @@ export function Sidebar({
                   'flex items-center justify-center rounded-full px-2 min-w-[24px] h-5 text-[11px] font-semibold tabular-nums whitespace-nowrap',
                   selectedFolderId === folder.id
                     ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-background/90 text-muted-foreground border border-border/80'
+                    : 'border border-border/80 bg-card/80 text-muted-foreground'
                 )}
               >
                 {folder.unreadCount > 999 ? '999+' : folder.unreadCount}
@@ -336,7 +336,7 @@ export function Sidebar({
                   <button
                     onClick={() => onFolderSelect(f.id)}
                     className={cn(
-                      'flex w-full items-center justify-center rounded-xl p-2 text-sm text-slate-600 transition-colors hover:mail-hover-surface hover:text-foreground',
+                      'flex w-full items-center justify-center rounded-xl p-2 text-sm text-foreground/75 transition-colors hover:mail-hover-surface hover:text-foreground',
                       selectedFolderId === f.id &&
                         'mail-selected-surface mail-border-strong border font-medium text-foreground',
                       draggedOverFolderId === f.id &&
@@ -397,7 +397,7 @@ export function Sidebar({
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0">
             {!isMobile && (
-              <div className="flex items-center gap-2 text-slate-900">
+              <div className="flex items-center gap-2 text-foreground">
                 <img
                   src="/icons/mail-icon.png"
                   alt={t('appHeading')}
@@ -410,7 +410,7 @@ export function Sidebar({
               </div>
             )}
             {statusItems.length > 0 && (
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 {statusItems.map((item) => (
                   <div key={item.label} className="flex items-center gap-1">
                     <span className={`h-2 w-2 rounded-full ${getStatusStyle(item.status)}`} />
@@ -426,7 +426,7 @@ export function Sidebar({
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-xl text-slate-600 hover:mail-hover-surface hover:text-foreground"
+              className="rounded-xl text-muted-foreground hover:mail-hover-surface hover:text-foreground"
               onClick={() => setIsCollapsed(true)}
               title={t('closeMenu')}
             >
@@ -460,7 +460,7 @@ export function Sidebar({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 rounded-xl p-0 text-slate-500 hover:mail-hover-surface hover:text-foreground"
+              className="h-7 w-7 rounded-xl p-0 text-muted-foreground hover:mail-hover-surface hover:text-foreground"
               onClick={async () => {
                 setIsRefreshing(true);
                 try {
@@ -498,10 +498,10 @@ export function Sidebar({
               ) : (
                 <Settings className="h-4 w-4 flex-shrink-0" />
               )}
-              <span className="flex-1 truncate text-left text-xs text-slate-600">
+              <span className="flex-1 truncate text-left text-xs text-muted-foreground">
                 {account?.email || t('settingsLabel')}
               </span>
-              <Settings className="h-3.5 w-3.5 flex-shrink-0 text-slate-500" />
+              <Settings className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
