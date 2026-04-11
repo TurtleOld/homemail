@@ -188,13 +188,17 @@ export function MessageViewer({
 
   const iframeSrcDoc = useMemo(() => {
     if (!sanitizedHtml) return '';
-    const bgColor = isDark ? 'hsl(217.2, 32.6%, 17.5%)' : '#ffffff';
-    const textColor = isDark ? 'hsl(210, 40%, 98%)' : '#111827';
-    const codeBg = isDark ? 'hsl(222.2, 84%, 4.9%)' : '#f3f4f6';
-    const blockquoteBg = isDark ? 'hsl(217.2, 32.6%, 17.5%)' : '#f9fafb';
-    const blockquoteBorder = isDark ? 'hsl(215, 20.2%, 65.1%)' : '#e5e7eb';
-    const blockquoteText = isDark ? 'hsl(210, 40%, 98%)' : '#374151';
-    const tableHeaderBg = isDark ? 'hsl(217.2, 32.6%, 20%)' : '#f9fafb';
+    const shellBg = isDark ? 'hsl(220, 24%, 12%)' : '#f4f7fb';
+    const paperBg = '#ffffff';
+    const textColor = '#111827';
+    const codeBg = '#f3f4f6';
+    const blockquoteBg = '#f8fafc';
+    const blockquoteBorder = '#dbe4f0';
+    const blockquoteText = '#334155';
+    const panelBorder = isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0';
+    const panelShadow = isDark
+      ? '0 22px 44px -28px rgba(0,0,0,0.65)'
+      : '0 22px 44px -28px rgba(15,23,42,0.18)';
     return [
       '<!DOCTYPE html>',
       '<html>',
@@ -203,11 +207,11 @@ export function MessageViewer({
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
       '<style>',
       '* { box-sizing: border-box; }',
-      'html, body { height: 100%; margin: 0; padding: 0; }',
-      `body { padding: 0; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: ${bgColor}; color: ${textColor}; line-height: 1.6; font-size: 15px; transition: background-color 0.3s ease, color 0.3s ease; word-wrap: break-word; overflow-wrap: break-word; overflow-x: hidden; }`,
-      '.email-content { padding: 20px; }',
-      '.email-content--table-layout { padding: 0; }',
-      '.email-content--table-layout > table { width: 100% !important; }',
+      `html, body { min-height: 100%; margin: 0; padding: 0; background: ${shellBg}; }`,
+      `body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: ${textColor}; line-height: 1.6; font-size: 15px; word-wrap: break-word; overflow-wrap: break-word; overflow-x: auto; }`,
+      '.email-shell { padding: 20px; }',
+      `.email-content { width: 100%; max-width: 920px; margin: 0 auto; padding: 24px; background: ${paperBg}; color: ${textColor}; border: 1px solid ${panelBorder}; border-radius: 18px; box-shadow: ${panelShadow}; }`,
+      '.email-content--table-layout { padding: 0; overflow: hidden; }',
       'p { margin: 0 0 12px 0; }',
       'p:last-child { margin-bottom: 0; }',
       'h1, h2, h3, h4, h5, h6 { margin: 0 0 12px 0; font-weight: 600; line-height: 1.3; }',
@@ -225,11 +229,11 @@ export function MessageViewer({
       'pre code { padding: 0; background: transparent; }',
       'a { color: #2563eb; text-decoration: underline; }',
       'a:hover { color: #1d4ed8; }',
-      'img { max-width: 100%; height: auto; display: block; margin: 12px auto; }',
+      'img { max-width: 100%; height: auto; display: block; }',
       'img[align="left"] { float: left; margin: 0 16px 12px 0; }',
       'img[align="right"] { float: right; margin: 0 0 12px 16px; }',
       'img[align="center"] { display: block; margin: 12px auto; float: none; }',
-      'table { max-width: 100%; border-collapse: collapse; border: none !important; margin-left: auto; margin-right: auto; }',
+      'table { max-width: 100%; border-collapse: collapse; margin-left: auto; margin-right: auto; }',
       'table td, table th { word-wrap: break-word; }',
       `table th { font-weight: 600; color: ${textColor}; }`,
       'table[role="presentation"] { border: none !important; }',
@@ -249,16 +253,18 @@ export function MessageViewer({
       'table[align="center"] { margin-left: auto; margin-right: auto; }',
       'table[align="left"] { margin-left: 0; margin-right: auto; }',
       'table[align="right"] { margin-left: auto; margin-right: 0; }',
+      'body, body * { max-width: 100%; }',
       '@media (max-width: 600px) {',
       '  body { font-size: 14px; }',
-      '  .email-content { padding: 12px; }',
+      '  .email-shell { padding: 8px; }',
+      '  .email-content { padding: 14px; border-radius: 14px; }',
       '  img[align="left"], img[align="right"] { float: none; display: block; margin: 12px auto; }',
       '  table { font-size: 14px; max-width: 100% !important; }',
       '  table td, table th { word-wrap: break-word; }',
       '}',
       '</style>',
       '</head>',
-      `<body><div class="email-content${isTableLayout ? ' email-content--table-layout' : ''}">${sanitizedHtml}</div></body>`,
+      `<body><div class="email-shell"><div class="email-content${isTableLayout ? ' email-content--table-layout' : ''}">${sanitizedHtml}</div></div></body>`,
       '</html>',
     ].join('');
   }, [sanitizedHtml, isDark, isTableLayout]);
@@ -741,12 +747,12 @@ export function MessageViewer({
           </div>
         )}
         {hasRemoteImages && !effectiveAllowImages && (
-          <div className="border-b border-amber-200/70 bg-amber-50/90 px-4 py-2 flex-shrink-0">
+          <div className="border-b border-border/70 bg-[hsl(var(--surface-panel-muted)/0.92)] px-4 py-2 flex-shrink-0">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setLocalAllowImages(true)}
-              className="h-7 text-xs"
+              className="h-8 rounded-xl border-border/80 bg-background/90 text-foreground shadow-sm hover:mail-hover-surface"
             >
               {t('showImages')}
             </Button>

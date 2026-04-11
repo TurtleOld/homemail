@@ -5,7 +5,7 @@ import { Virtuoso } from 'react-virtuoso';
 import type { MessageListItem, Label } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
-import { Star, Paperclip, AlertCircle, Trash2, Mail } from 'lucide-react';
+import { Star, Paperclip, AlertCircle, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { groupMessagesByThread } from '@/lib/thread-utils';
@@ -104,7 +104,6 @@ export const MessageItem = memo(function MessageItem({
   const localeSettings = useLocaleSettings();
   const t = useTranslations('messageList');
   const tCommon = useTranslations('common');
-  const tViewer = useTranslations('messageViewer');
   const { data: labels = [] } = useQuery({
     queryKey: ['labels'],
     queryFn: getLabels,
@@ -310,73 +309,6 @@ export const MessageItem = memo(function MessageItem({
                   </span>
                 )}
               </div>
-            )}
-          </div>
-
-          {/* Hover action buttons */}
-          <div
-            className={cn(
-              'flex-shrink-0 flex items-center gap-0.5 rounded-xl border border-border/70 bg-card/85 px-1 py-0.5 text-foreground shadow-sm backdrop-blur-sm',
-              'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
-              'max-md:hidden'
-            )}
-          >
-            {onStar && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStar(message.id, !message.flags.starred);
-                }}
-                className="rounded-md p-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
-                title={
-                  message.flags.starred ? tViewer('removeFromFavorites') : tViewer('addToFavorites')
-                }
-                aria-label={
-                  message.flags.starred ? tViewer('removeFromFavorites') : tViewer('addToFavorites')
-                }
-              >
-                <Star
-                  className={cn(
-                    'h-3.5 w-3.5',
-                    message.flags.starred
-                      ? 'fill-[hsl(var(--starred))] text-[hsl(var(--starred))]'
-                      : 'text-muted-foreground'
-                  )}
-                />
-              </button>
-            )}
-            {onToggleImportant && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleImportant(message.id, !message.flags.important);
-                }}
-                className="rounded-md p-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
-                title={message.flags.important ? t('removeImportance') : t('markImportant')}
-                aria-label={message.flags.important ? t('removeImportance') : t('markImportant')}
-              >
-                <AlertCircle
-                  className={cn(
-                    'h-3.5 w-3.5',
-                    message.flags.important
-                      ? 'fill-orange-500 text-orange-500'
-                      : 'text-muted-foreground'
-                  )}
-                />
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(message.id);
-                }}
-                className="rounded-md p-1.5 transition-colors hover:bg-destructive/10 hover:text-destructive"
-                title={tCommon('delete')}
-                aria-label={tCommon('delete')}
-              >
-                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-              </button>
             )}
           </div>
         </div>

@@ -493,7 +493,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   }, [queryClient]);
 
   const updateMessageInList = useCallback(
-    (messageId: string, updater: (message: MessageListItem) => MessageListItem) => {
+    (messageId: string, updater: (message: MessageListItem) => MessageListItem | null) => {
       queryClient.setQueriesData({ queryKey: ['messages'] }, (oldData) => {
         if (!oldData || typeof oldData !== 'object') return oldData;
         const data = oldData as {
@@ -502,9 +502,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         };
         const pages = data.pages.map((page) => ({
           ...page,
-          messages: page.messages.map((message) =>
-            message.id === messageId ? updater(message) : message
-          ),
+          messages: page.messages
+            .map((message) => (message.id === messageId ? updater(message) : message))
+            .filter((message): message is MessageListItem => message !== null),
         }));
         return { ...data, pages };
       });
@@ -1063,7 +1063,13 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                       },
                       body: JSON.stringify({ ids: [messageId], action: 'delete' }),
                     });
-                    updateMessageInList(messageId, () => null as never);
+                    updateMessageInList(messageId, () => null);
+                    setSelectedIds((prev) => {
+                      if (!prev.has(messageId)) return prev;
+                      const next = new Set(prev);
+                      next.delete(messageId);
+                      return next;
+                    });
                     if (selectedMessageId === messageId) setSelectedMessageId(null);
                     queryClient.invalidateQueries({ queryKey: ['messages'] });
                     queryClient.invalidateQueries({ queryKey: ['folders'] });
@@ -1077,10 +1083,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         )}
         {!isMobile && (
           <div
-            className="group relative hidden w-2 flex-shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/10 lg:block"
+            className="group relative hidden w-1 flex-shrink-0 cursor-col-resize bg-transparent transition-colors lg:block"
             onMouseDown={handleMouseDown}
           >
-            <div className="absolute inset-y-6 left-1/2 w-px -translate-x-1/2 rounded-full bg-border group-hover:bg-primary" />
+            <div className="absolute inset-y-8 left-1/2 w-px -translate-x-1/2 rounded-full bg-border/45 opacity-70 group-hover:bg-border group-hover:opacity-100" />
           </div>
         )}
         {isMobile && !selectedMessageId ? null : (
