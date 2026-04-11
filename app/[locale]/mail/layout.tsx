@@ -97,6 +97,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>('inbox');
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [allMessagesSelected, setAllMessagesSelected] = useState(false);
+  const [isSelectingAllInFolder, setIsSelectingAllInFolder] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<{
     subject: string;
@@ -344,6 +346,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     return allMessages;
   }, [messagesData, quickFilter, uiSettings, locale]);
 
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setAllMessagesSelected(false);
+  }, [selectedFolderId, debouncedSearch, quickFilter, filterGroup]);
+
   const {
     data: selectedMessage,
     isLoading: isMessageLoading,
@@ -555,6 +562,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
 
       toast.success(t('actionSuccess'));
+      setAllMessagesSelected(false);
       setSelectedIds(new Set());
 
       await Promise.all([
@@ -624,6 +632,40 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       toast.error(t('exportErrorGeneric'));
     }
   };
+
+  const handleSelectAllInFolder = useCallback(async () => {
+    if (!selectedFolderId || isSelectingAllInFolder) return;
+
+    setIsSelectingAllInFolder(true);
+
+    try {
+      const params = new URLSearchParams();
+      params.set('folderId', selectedFolderId);
+
+      if (debouncedSearch) {
+        params.set('q', debouncedSearch);
+      }
+
+      if (quickFilter || filterGroup) {
+        params.set('messageFilter', JSON.stringify({ quickFilter, filterGroup }));
+      }
+
+      const res = await fetch(`/api/mail/messages/selection?${params.toString()}`);
+      if (!res.ok) {
+        toast.error(t('actionError'));
+        return;
+      }
+
+      const data = (await res.json()) as { ids: string[]; total: number };
+      setSelectedIds(new Set(data.ids));
+      setAllMessagesSelected(true);
+      toast.success(t('selected', { count: data.total }));
+    } catch {
+      toast.error(t('connectionError'));
+    } finally {
+      setIsSelectingAllInFolder(false);
+    }
+  }, [selectedFolderId, isSelectingAllInFolder, debouncedSearch, quickFilter, filterGroup, t]);
 
   const handleReply = () => {
     if (!selectedMessage) return;
@@ -997,14 +1039,24 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                       else next.add(id);
                       return next;
                     });
+                    setAllMessagesSelected(false);
                   } else {
                     setSelectedIds(new Set([id]));
+                    setAllMessagesSelected(false);
                   }
                 }}
                 onSelectAll={() => {
-                  if (selectedIds.size === messages.length) setSelectedIds(new Set());
-                  else setSelectedIds(new Set(messages.map((m) => m.id)));
+                  if (selectedIds.size === messages.length && messages.length > 0) {
+                    setSelectedIds(new Set());
+                    setAllMessagesSelected(false);
+                  } else {
+                    setSelectedIds(new Set(messages.map((m) => m.id)));
+                    setAllMessagesSelected(false);
+                  }
                 }}
+                onSelectAllInFolder={handleSelectAllInFolder}
+                isSelectingAllInFolder={isSelectingAllInFolder}
+                allMessagesSelected={allMessagesSelected}
                 onMessageClick={handleMessageClick}
                 onMessageDoubleClick={handleMessageDoubleClick}
                 onLoadMore={() => {

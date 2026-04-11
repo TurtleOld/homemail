@@ -18,6 +18,9 @@ interface MessageListProps {
   selectedIds: Set<string>;
   onSelect: (id: string, multi: boolean) => void;
   onSelectAll: () => void;
+  onSelectAllInFolder?: () => void;
+  isSelectingAllInFolder?: boolean;
+  allMessagesSelected?: boolean;
   onMessageClick: (message: MessageListItem) => void;
   onMessageDoubleClick?: (message: MessageListItem) => void;
   onLoadMore?: () => void;
@@ -313,6 +316,9 @@ export function MessageList({
   selectedIds,
   onSelect,
   onSelectAll,
+  onSelectAllInFolder,
+  isSelectingAllInFolder = false,
+  allMessagesSelected = false,
   onMessageClick,
   onMessageDoubleClick,
   onLoadMore,
@@ -555,6 +561,24 @@ export function MessageList({
             </span>
           )}
         </div>
+        {onSelectAllInFolder && selectedIds.size > 0 && !allMessagesSelected && hasMore && (
+          <div className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground max-md:flex-wrap">
+            <span>{t('selectedLoadedHint', { count: selectedIds.size })}</span>
+            <button
+              type="button"
+              onClick={onSelectAllInFolder}
+              disabled={isSelectingAllInFolder}
+              className="font-medium text-primary hover:underline disabled:opacity-60"
+            >
+              {isSelectingAllInFolder ? t('selectingAll') : t('selectAllInFolder')}
+            </button>
+          </div>
+        )}
+        {allMessagesSelected && (
+          <div className="mt-2 px-1 text-xs font-medium text-primary">
+            {t('allMessagesSelected', { count: selectedIds.size })}
+          </div>
+        )}
       </div>
       <div className="flex-1 overflow-hidden">
         {isLoading ? (
