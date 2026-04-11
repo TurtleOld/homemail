@@ -253,6 +253,22 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     staleTime: 5000,
   });
 
+  useEffect(() => {
+    if (!folders.length) return;
+
+    const inboxFolder = folders.find((folder) => folder.role === 'inbox');
+    if (!inboxFolder) return;
+
+    setSelectedFolderId((current) => {
+      if (!current || current === 'inbox') {
+        return inboxFolder.id;
+      }
+
+      const exists = folders.some((folder) => folder.id === current);
+      return exists ? current : inboxFolder.id;
+    });
+  }, [folders]);
+
   const {
     data: messagesData,
     fetchNextPage,
