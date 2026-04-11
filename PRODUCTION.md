@@ -201,18 +201,7 @@ OAUTH_CLIENT_ID=your-oauth-client-id
 NODE_ENV=production
 PORT=3000
 NEXT_PUBLIC_APP_URL=https://your-domain.com
-NEXT_PUBLIC_MAIL_DESIGN=legacy
 ```
-
-### Calm Productivity rollout
-
-- `NEXT_PUBLIC_MAIL_DESIGN=legacy` - safe production default
-- `NEXT_PUBLIC_MAIL_DESIGN=calm-productivity` - enable new mail UI for staging or controlled rollout
-- Recommended sequence:
-  1. Enable `calm-productivity` in staging
-  2. Run smoke checklist on desktop and mobile widths
-  3. Roll to internal users first
-  4. Switch production default only after QA and metric review
 
 ## Мониторинг
 

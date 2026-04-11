@@ -7,7 +7,6 @@ import { Toaster } from '@/components/ui/toast';
 import { PerformanceReporter } from '@/components/performance-reporter';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
-import { getMailDesignVariant } from '@/lib/mail-design';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -26,7 +25,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
 
-    root.dataset.mailDesign = getMailDesignVariant(process.env.NEXT_PUBLIC_MAIL_DESIGN);
+    root.dataset.mailDesign = 'calm-productivity';
 
     const applyTheme = async () => {
       if (pathname === '/login' || pathname.startsWith('/login')) {

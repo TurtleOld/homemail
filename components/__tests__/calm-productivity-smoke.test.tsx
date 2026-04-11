@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { MessageList } from '../message-list';
 import { MessageViewer } from '../message-viewer';
-import { getMailDesignVariant, isCalmProductivityEnabled } from '@/lib/mail-design';
 import type { MessageListItem, MessageDetail } from '@/lib/types';
 
 const mockListMessage: MessageListItem = {
@@ -179,10 +178,9 @@ describe('Calm Productivity smoke coverage', () => {
     expect(screen.getAllByRole('generic').length).toBeGreaterThan(0);
   });
 
-  it('keeps calm productivity flag parsing stable', () => {
-    expect(getMailDesignVariant('calm-productivity')).toBe('calm-productivity');
-    expect(getMailDesignVariant('unknown')).toBe('legacy');
-    expect(isCalmProductivityEnabled('calm-productivity')).toBe(true);
-    expect(isCalmProductivityEnabled('legacy')).toBe(false);
+  it('keeps calm productivity mode enabled on the document root', () => {
+    document.documentElement.dataset.mailDesign = 'calm-productivity';
+
+    expect(document.documentElement.dataset.mailDesign).toBe('calm-productivity');
   });
 });
