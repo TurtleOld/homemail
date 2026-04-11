@@ -62,7 +62,7 @@
     "regionLabel": "Message list",
     "toolbarLabel": "Message list actions",
     "selectAll": "Select all messages",
-    "selectAllInFolder": "Select all messages in folder",
+    "selectAllInFolder": "Select all messages",
     "selectingAll": "Selecting all...",
     "selectedLoadedHint": "Currently selected: {count} loaded messages.",
     "allMessagesSelected": "All messages in folder selected: {count}",

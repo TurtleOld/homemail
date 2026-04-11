@@ -956,6 +956,35 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   ): Promise<void> {
     try {
+      const BATCH_SIZE = 200;
+      const chunkIds = <T>(items: T[]): T[][] => {
+        const chunks: T[][] = [];
+        for (let i = 0; i < items.length; i += BATCH_SIZE) {
+          chunks.push(items.slice(i, i + BATCH_SIZE));
+        }
+        return chunks;
+      };
+      const applyEmailUpdates = async (
+        updates: Record<
+          string,
+          { keywords?: Record<string, boolean>; mailboxIds?: Record<string, boolean> }
+        >,
+        targetAccountId: string
+      ) => {
+        const entries = Object.entries(updates);
+        for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+          await client.bulkSetEmails(
+            Object.fromEntries(entries.slice(i, i + BATCH_SIZE)),
+            targetAccountId
+          );
+        }
+      };
+      const destroyInBatches = async (ids: string[], targetAccountId: string) => {
+        for (const batchIds of chunkIds(ids)) {
+          await client.destroyEmails(batchIds, targetAccountId);
+        }
+      };
+
       const client = await this.getClient(accountId);
 
       const session = await client.getSession();
@@ -996,11 +1025,11 @@ export class StalwartJMAPProvider implements MailProvider {
             }
 
             if (Object.keys(emailsToMove).length > 0) {
-              await client.bulkSetEmails(emailsToMove, actualAccountId);
+              await applyEmailUpdates(emailsToMove, actualAccountId);
             }
 
             if (emailsToDestroy.length > 0) {
-              await client.destroyEmails(emailsToDestroy, actualAccountId);
+              await destroyInBatches(emailsToDestroy, actualAccountId);
             }
           } catch (error) {
             const { logger } = await import('@/lib/logger');
@@ -1011,7 +1040,7 @@ export class StalwartJMAPProvider implements MailProvider {
             throw error;
           }
         } else {
-          await client.destroyEmails(action.ids, actualAccountId);
+          await destroyInBatches(action.ids, actualAccountId);
         }
         return;
       }
@@ -1039,7 +1068,7 @@ export class StalwartJMAPProvider implements MailProvider {
             }
 
             if (Object.keys(updates).length > 0) {
-              await client.bulkSetEmails(updates, actualAccountId);
+              await applyEmailUpdates(updates, actualAccountId);
             }
           } catch (error) {
             const { logger } = await import('@/lib/logger');
@@ -1083,7 +1112,7 @@ export class StalwartJMAPProvider implements MailProvider {
             }
 
             if (Object.keys(updates).length > 0) {
-              await client.bulkSetEmails(updates, actualAccountId);
+              await applyEmailUpdates(updates, actualAccountId);
             }
           } catch (error) {
             const { logger } = await import('@/lib/logger');
@@ -1113,7 +1142,7 @@ export class StalwartJMAPProvider implements MailProvider {
             }
 
             if (Object.keys(updates).length > 0) {
-              await client.bulkSetEmails(updates, actualAccountId);
+              await applyEmailUpdates(updates, actualAccountId);
             }
           } catch (error) {
             const { logger } = await import('@/lib/logger');
@@ -1134,7 +1163,7 @@ export class StalwartJMAPProvider implements MailProvider {
           newMailboxIds[action.payload.folderId] = true;
           updates[id] = { mailboxIds: newMailboxIds };
         }
-        await client.bulkSetEmails(updates, actualAccountId);
+        await applyEmailUpdates(updates, actualAccountId);
         return;
       }
 
@@ -1174,7 +1203,7 @@ export class StalwartJMAPProvider implements MailProvider {
         updates[id] = { keywords: newKeywords };
       }
 
-      await client.bulkSetEmails(updates, actualAccountId);
+      await applyEmailUpdates(updates, actualAccountId);
     } catch (error) {
       throw error;
     }

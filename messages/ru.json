@@ -62,7 +62,7 @@
     "regionLabel": "Список писем",
     "toolbarLabel": "Действия со списком писем",
     "selectAll": "Выбрать все письма",
-    "selectAllInFolder": "Выделить все письма в папке",
+    "selectAllInFolder": "Выделить все письма",
     "selectingAll": "Выделяем все...",
     "selectedLoadedHint": "Сейчас выбрано {count} писем на экране.",
     "allMessagesSelected": "Выбраны все письма в папке: {count}",

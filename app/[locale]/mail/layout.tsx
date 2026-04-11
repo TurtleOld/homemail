@@ -799,6 +799,21 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     if (isMobile) setSidebarOpen(false);
   };
 
+  useEffect(() => {
+    if (isMobile || selectedMessageId || messages.length === 0) return;
+
+    const currentFolder = folders.find((folder) => folder.id === selectedFolderId);
+    const isInbox = selectedFolderId === 'inbox' || currentFolder?.role === 'inbox';
+
+    if (!isInbox) return;
+
+    const latestMessage = messages[0];
+    if (!latestMessage) return;
+
+    setSelectedMessageId(latestMessage.id);
+    setSelectedIds(new Set([latestMessage.id]));
+  }, [isMobile, selectedMessageId, messages, folders, selectedFolderId]);
+
   const folderIcons: Record<string, React.ReactNode> = {
     inbox: <Inbox className="h-4 w-4" />,
     sent: <Send className="h-4 w-4" />,
