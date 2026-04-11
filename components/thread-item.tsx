@@ -5,7 +5,16 @@ import type { MessageListItem } from '@/lib/types';
 import type { ThreadGroup } from '@/lib/thread-utils';
 import { formatDate } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
-import { Star, StarOff, Mail, MailOpen, Paperclip, AlertCircle, ChevronDown, ChevronRight, Users } from 'lucide-react';
+import {
+  Star,
+  StarOff,
+  Mail,
+  MailOpen,
+  Paperclip,
+  ChevronDown,
+  ChevronRight,
+  Users,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MessageItem } from './message-list';
 
@@ -16,7 +25,6 @@ interface ThreadItemProps {
   onMessageClick: (message: MessageListItem) => void;
   onMessageDoubleClick?: (message: MessageListItem) => void;
   onDragStart?: (messageId: string) => void;
-  onToggleImportant?: (messageId: string, important: boolean) => void;
   isExpanded?: boolean;
   onToggleExpand?: (threadId: string) => void;
 }
@@ -28,7 +36,6 @@ export const ThreadItem = memo(function ThreadItem({
   onMessageClick,
   onMessageDoubleClick,
   onDragStart,
-  onToggleImportant,
   isExpanded = false,
   onToggleExpand,
 }: ThreadItemProps) {
@@ -59,13 +66,14 @@ export const ThreadItem = memo(function ThreadItem({
   };
 
   return (
-    <div className="border-b">
+    <div className="mx-2 my-1 overflow-hidden rounded-2xl border border-transparent">
       <article
         role="article"
         aria-label={`Тред: ${latestMessage.subject || 'без темы'}, ${thread.messages.length} сообщений`}
         className={cn(
-          'flex cursor-pointer items-start gap-3 p-3 max-md:p-4 transition-all duration-200 hover:bg-muted/50 active:bg-muted/70 touch-manipulation hover:shadow-sm',
-          someSelected && 'bg-muted/30'
+          'flex cursor-pointer items-start gap-3 rounded-2xl border border-border/60 bg-background/55 p-3 transition-all duration-200 hover:mail-hover-surface hover:border-border/80 hover:shadow-[0_10px_22px_-20px_hsl(var(--shadow-soft)/0.45)] active:scale-[0.998] touch-manipulation max-md:p-4',
+          thread.unreadCount > 0 && 'mail-unread-surface',
+          someSelected && 'mail-selected-surface mail-border-strong shadow-sm'
         )}
         onClick={handleThreadClick}
         onDoubleClick={handleThreadDoubleClick}
@@ -104,7 +112,7 @@ export const ThreadItem = memo(function ThreadItem({
               e.stopPropagation();
               toggleExpanded();
             }}
-            className="p-0.5 hover:bg-muted rounded transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2 flex-shrink-0"
+            className="flex-shrink-0 rounded-lg p-0.5 transition-colors hover:bg-accent focus:ring-2 focus:ring-primary focus:ring-offset-2"
             aria-label={expanded ? 'Свернуть тред' : 'Развернуть тред'}
           >
             {expanded ? (
@@ -123,7 +131,14 @@ export const ThreadItem = memo(function ThreadItem({
             )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 max-md:gap-1">
-                <span className={cn('truncate max-md:text-sm', thread.unreadCount > 0 ? 'font-bold' : 'font-normal')}>
+                <span
+                  className={cn(
+                    'truncate max-md:text-sm',
+                    thread.unreadCount > 0
+                      ? 'font-bold text-foreground'
+                      : 'font-normal text-foreground/85'
+                  )}
+                >
                   {thread.messages.length > 1 ? (
                     <span className="flex items-center gap-1">
                       <Users className="h-3 w-3 max-md:h-2.5 max-md:w-2.5" />
@@ -138,16 +153,21 @@ export const ThreadItem = memo(function ThreadItem({
                 )}
               </div>
               <div className="mt-1 max-md:mt-0.5 flex items-center gap-2 text-sm max-md:text-xs">
-                <span className={cn('truncate', thread.unreadCount > 0 ? 'font-semibold' : 'text-muted-foreground')}>
+                <span
+                  className={cn(
+                    'truncate',
+                    thread.unreadCount > 0 ? 'font-semibold' : 'text-muted-foreground'
+                  )}
+                >
                   {latestMessage.subject || '(без темы)'}
                 </span>
                 {thread.messages.length > 1 && (
-                  <span className="text-xs max-md:text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  <span className="rounded-full bg-secondary/85 px-1.5 py-0.5 text-xs text-muted-foreground max-md:text-[10px]">
                     {thread.messages.length}
                   </span>
                 )}
                 {thread.unreadCount > 0 && (
-                  <span className="text-xs max-md:text-[10px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">
+                  <span className="rounded-full bg-primary/12 px-1.5 py-0.5 text-xs font-semibold text-primary max-md:text-[10px]">
                     {thread.unreadCount}
                   </span>
                 )}
@@ -172,7 +192,7 @@ export const ThreadItem = memo(function ThreadItem({
         </div>
       </article>
       {expanded && (
-        <div className="bg-muted/20 pl-8 max-md:pl-4">
+        <div className="mail-panel-muted mt-1 rounded-2xl border border-border/60 pl-8 max-md:pl-4">
           {thread.messages.map((message, index) => (
             <MessageItem
               key={message.id}
@@ -186,7 +206,6 @@ export const ThreadItem = memo(function ThreadItem({
               onMessageClick={onMessageClick}
               onMessageDoubleClick={onMessageDoubleClick}
               onDragStart={onDragStart}
-              onToggleImportant={onToggleImportant}
             />
           ))}
         </div>

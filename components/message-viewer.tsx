@@ -97,7 +97,9 @@ export function MessageViewer({
   const t = useTranslations('messageViewer');
   const tCommon = useTranslations('common');
   const markedAsReadRef = useRef<Set<string>>(new Set());
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [localAllowImages, setLocalAllowImages] = useState(false);
+  const [iframeHeight, setIframeHeight] = useState(640);
   const [previewAttachment, setPreviewAttachment] = useState<{
     id: string;
     filename: string;
@@ -132,6 +134,24 @@ export function MessageViewer({
   });
 
   const body = decryptedBody ?? message?.body;
+
+  const syncIframeHeight = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    try {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+      const nextHeight = Math.max(
+        doc.documentElement?.scrollHeight || 0,
+        doc.body?.scrollHeight || 0,
+        360
+      );
+      setIframeHeight(nextHeight);
+    } catch {
+      // srcDoc should stay accessible; ignore if browser temporarily blocks measurement
+    }
+  }, []);
 
   const hasRemoteImages = useMemo(() => {
     if (!body) return false;
@@ -178,7 +198,7 @@ export function MessageViewer({
   const isDark = useMemo(() => {
     if (typeof document === 'undefined') return false;
     return document.documentElement.classList.contains('dark');
-  }, [message?.id]);
+  }, []);
 
   const isTableLayout = useMemo(() => {
     if (!sanitizedHtml) return false;
@@ -296,6 +316,20 @@ export function MessageViewer({
     }
   }, [message, handleMarkRead]);
 
+  useEffect(() => {
+    if (!iframeSrcDoc) return;
+
+    const raf = window.requestAnimationFrame(syncIframeHeight);
+    const timeouts = [120, 400, 1200, 2400].map((delay) =>
+      window.setTimeout(syncIframeHeight, delay)
+    );
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      timeouts.forEach((timeout) => window.clearTimeout(timeout));
+    };
+  }, [iframeSrcDoc, syncIframeHeight]);
+
   if (isLoading && hasSelection) {
     return (
       <div className="mail-panel-surface flex h-full flex-col p-4 space-y-4">
@@ -406,7 +440,7 @@ export function MessageViewer({
       aria-label={t('viewerLabel')}
     >
       {/* Header — subject, from/to, auth badges, secondary actions */}
-      <div className="mail-panel-muted border-b border-white/80 px-5 pb-4 pt-5 max-md:px-3 max-md:pb-2 max-md:pt-3 flex-shrink-0">
+      <div className="mail-panel-muted border-b border-white/80 px-5 pb-4 pt-5 dark:bg-slate-800/55 max-md:px-3 max-md:pb-2 max-md:pt-3 flex-shrink-0">
         <div className="flex items-start gap-2">
           {isMobile && onBack && (
             <Button
@@ -760,9 +794,12 @@ export function MessageViewer({
         )}
         {iframeSrcDoc ? (
           <iframe
+            ref={iframeRef}
             sandbox="allow-same-origin allow-popups"
             srcDoc={iframeSrcDoc}
-            className="flex-1 w-full border-0 min-h-[300px]"
+            onLoad={syncIframeHeight}
+            className="w-full border-0 min-h-[300px]"
+            style={{ height: iframeHeight }}
             title="Message content"
           />
         ) : (

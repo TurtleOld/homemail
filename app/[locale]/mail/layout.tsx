@@ -1015,68 +1015,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 isFetchingMore={isFetchingNextPage}
                 isSearching={debouncedSearch.length > 0}
                 onDragStart={() => {}}
-                onToggleImportant={async (messageId, important) => {
-                  try {
-                    await fetch(`/api/mail/messages/${messageId}/flags`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ important }),
-                    });
-                    updateMessageInList(messageId, (message) => ({
-                      ...message,
-                      flags: { ...message.flags, important },
-                    }));
-                    if (selectedMessageId === messageId) {
-                      updateMessageDetail(messageId, (message) => ({
-                        ...message,
-                        flags: { ...message.flags, important },
-                      }));
-                    }
-                  } catch (error) {
-                    toast.error(t('importanceError'));
-                  }
-                }}
-                onStar={async (messageId, starred) => {
-                  try {
-                    await fetch(`/api/mail/messages/${messageId}/flags`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ starred }),
-                    });
-                    updateMessageInList(messageId, (message) => ({
-                      ...message,
-                      flags: { ...message.flags, starred },
-                    }));
-                  } catch {
-                    toast.error(t('importanceError'));
-                  }
-                }}
-                onDelete={async (messageId) => {
-                  try {
-                    const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
-                    const csrfToken = csrfMatch ? decodeURIComponent(csrfMatch[1]!) : '';
-                    await fetch('/api/mail/messages/bulk', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
-                      },
-                      body: JSON.stringify({ ids: [messageId], action: 'delete' }),
-                    });
-                    updateMessageInList(messageId, () => null);
-                    setSelectedIds((prev) => {
-                      if (!prev.has(messageId)) return prev;
-                      const next = new Set(prev);
-                      next.delete(messageId);
-                      return next;
-                    });
-                    if (selectedMessageId === messageId) setSelectedMessageId(null);
-                    queryClient.invalidateQueries({ queryKey: ['messages'] });
-                    queryClient.invalidateQueries({ queryKey: ['folders'] });
-                  } catch {
-                    toast.error(t('actionError'));
-                  }
-                }}
               />
             </div>
           </div>

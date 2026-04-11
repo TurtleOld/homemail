@@ -26,9 +26,6 @@ interface MessageListProps {
   isFetchingMore?: boolean;
   isSearching?: boolean;
   onDragStart?: (messageId: string) => void;
-  onToggleImportant?: (messageId: string, important: boolean) => void;
-  onStar?: (messageId: string, starred: boolean) => void;
-  onDelete?: (messageId: string) => void;
   conversationView?: boolean;
   density?: 'compact' | 'comfortable' | 'spacious';
   groupBy?: 'none' | 'date' | 'sender';
@@ -81,9 +78,6 @@ export const MessageItem = memo(function MessageItem({
   onMessageClick,
   onMessageDoubleClick,
   onDragStart,
-  onToggleImportant,
-  onStar,
-  onDelete,
   density = 'comfortable',
 }: {
   message: MessageListItem;
@@ -96,9 +90,6 @@ export const MessageItem = memo(function MessageItem({
   onMessageClick: (message: MessageListItem) => void;
   onMessageDoubleClick?: (message: MessageListItem) => void;
   onDragStart?: (messageId: string) => void;
-  onToggleImportant?: (messageId: string, important: boolean) => void;
-  onStar?: (messageId: string, starred: boolean) => void;
-  onDelete?: (messageId: string) => void;
   density?: 'compact' | 'comfortable' | 'spacious';
 }) {
   const localeSettings = useLocaleSettings();
@@ -330,9 +321,6 @@ export function MessageList({
   isFetchingMore = false,
   isSearching = false,
   onDragStart,
-  onToggleImportant,
-  onStar,
-  onDelete,
   conversationView = false,
   density = 'comfortable',
   groupBy = 'none',
@@ -504,9 +492,6 @@ export function MessageList({
           onMessageClick={onMessageClick}
           onMessageDoubleClick={onMessageDoubleClick}
           onDragStart={onDragStart}
-          onToggleImportant={onToggleImportant}
-          onStar={onStar}
-          onDelete={onDelete}
           density={density}
         />
       );
@@ -519,9 +504,6 @@ export function MessageList({
       onMessageClick,
       onMessageDoubleClick,
       onDragStart,
-      onToggleImportant,
-      onStar,
-      onDelete,
       density,
     ]
   );
@@ -609,7 +591,6 @@ export function MessageList({
                 onMessageClick={onMessageClick}
                 onMessageDoubleClick={onMessageDoubleClick}
                 onDragStart={onDragStart}
-                onToggleImportant={onToggleImportant}
                 isExpanded={expandedThreads.has(thread.threadId)}
                 onToggleExpand={toggleThreadExpand}
               />
@@ -662,9 +643,6 @@ export function MessageList({
                   onMessageClick={onMessageClick}
                   onMessageDoubleClick={onMessageDoubleClick}
                   onDragStart={onDragStart}
-                  onToggleImportant={onToggleImportant}
-                  onStar={onStar}
-                  onDelete={onDelete}
                   density={density}
                 />
               );
