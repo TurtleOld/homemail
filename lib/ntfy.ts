@@ -1,3 +1,5 @@
+import { sendWakeUpPing } from '@/lib/firebase-fcm';
+
 function trimTrailingSlashes(value: string): string {
   return value.replace(/\/+$/, '');
 }
@@ -6,38 +8,60 @@ function buildNtfyTopic(accountId: string, topicPattern: string): string {
   return topicPattern.replace('{accountId}', accountId);
 }
 
+function buildAuthorizationHeader(): string | null {
+  const token = process.env.NTFY_TOKEN?.trim();
+  if (token) {
+    return `Bearer ${token}`;
+  }
+
+  const username = process.env.NTFY_USERNAME?.trim();
+  const password = process.env.NTFY_PASSWORD?.trim();
+  if (username && password) {
+    return `Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`;
+  }
+
+  return null;
+}
+
 export async function sendPushNotification({
   accountId,
+  messageId,
   subject,
   fromName,
 }: {
   accountId: string;
+  messageId: string;
   subject: string;
   fromName: string;
 }): Promise<void> {
   const baseUrl = process.env.NTFY_URL?.trim();
-  const username = process.env.NTFY_USERNAME?.trim();
-  const password = process.env.NTFY_PASSWORD?.trim();
   const topicPattern = process.env.NTFY_TOPIC_PATTERN?.trim() || 'homemail-user-{accountId}';
+  const authorization = buildAuthorizationHeader();
 
-  if (!baseUrl || !username || !password || !accountId.trim()) {
+  if (!baseUrl || !authorization || !accountId.trim() || !messageId.trim()) {
     return;
   }
 
   const topic = buildNtfyTopic(accountId.trim(), topicPattern);
   const url = `${trimTrailingSlashes(baseUrl)}/${encodeURIComponent(topic)}`;
-  const message = (subject || '(No subject)').trim() || '(No subject)';
+  const normalizedSubject = (subject || '(No subject)').trim() || '(No subject)';
   const title = (fromName || 'New message').trim() || 'New message';
+  const payload = JSON.stringify({
+    messageId: messageId.trim(),
+    accountId: accountId.trim(),
+    subject: normalizedSubject,
+    fromName: title,
+  });
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      Authorization: `Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`,
+      'Content-Type': 'application/json; charset=utf-8',
+      Authorization: authorization,
       Title: title,
       Tags: 'email',
     },
-    body: message,
+    body: payload,
   });
 
   const responseText = await response.text();
@@ -45,5 +69,6 @@ export async function sendPushNotification({
     throw new Error(`ntfy error ${response.status}: ${responseText}`);
   }
 
+  await sendWakeUpPing({ topic });
   console.log('[ntfy] Push sent:', responseText);
 }

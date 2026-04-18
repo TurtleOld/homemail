@@ -509,6 +509,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
             console.log('[auto-sort-daemon] Sending push to:', accountEmail, 'subject:', message.subject);
             await sendPushNotification({
               accountId,
+              messageId: message.id,
               subject: message.subject,
               fromName: message.from.name || message.from.email,
             });
