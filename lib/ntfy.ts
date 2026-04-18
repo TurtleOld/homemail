@@ -17,6 +17,14 @@ function buildAuthorizationHeader(): string | null {
   return null;
 }
 
+function encodeHeaderValue(value: string): string {
+  if (/^[\x20-\x7E]*$/.test(value)) {
+    return value;
+  }
+
+  return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`;
+}
+
 export async function sendPushNotification({
   accountId,
   messageId,
@@ -52,7 +60,7 @@ export async function sendPushNotification({
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       Authorization: authorization,
-      Title: title,
+      Title: encodeHeaderValue(title),
       Tags: 'email',
     },
     body: payload,
