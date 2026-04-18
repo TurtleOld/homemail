@@ -14,12 +14,6 @@ function buildAuthorizationHeader(): string | null {
     return `Bearer ${token}`;
   }
 
-  const username = process.env.NTFY_USERNAME?.trim();
-  const password = process.env.NTFY_PASSWORD?.trim();
-  if (username && password) {
-    return `Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`;
-  }
-
   return null;
 }
 
