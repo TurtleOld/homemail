@@ -1,6 +1,6 @@
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { processNewMessage } from '@/lib/process-new-message';
-import { sendPushNotification } from '@/lib/onesignal';
+import { sendPushNotification } from '@/lib/ntfy';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
 import { getPendingJobs, markJobProcessing, markJobCompleted, markJobFailed, cleanupOldJobs } from '@/lib/filter-job-queue';
 import { readStorage, writeStorage } from '@/lib/storage';
@@ -460,7 +460,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
   } catch (e) {
     console.error('[auto-sort-daemon] Failed to load account email for:', accountId, e);
   }
-  console.log('[auto-sort-daemon] Push target email:', accountEmail);
+  console.log('[auto-sort-daemon] Push target accountId:', accountId, 'email:', accountEmail);
 
   const unsubscribe = provider.subscribeToUpdates(accountId, async (event) => {
     if (event.type !== 'message.new') {
@@ -508,7 +508,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
           try {
             console.log('[auto-sort-daemon] Sending push to:', accountEmail, 'subject:', message.subject);
             await sendPushNotification({
-              recipientEmail: accountEmail,
+              accountId,
               subject: message.subject,
               fromName: message.from.name || message.from.email,
             });
