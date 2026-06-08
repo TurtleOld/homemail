@@ -9,6 +9,7 @@ export interface OAuthDiscoveryResponse {
   device_authorization_endpoint: string;
   token_endpoint: string;
   authorization_endpoint?: string;
+  introspection_endpoint?: string;
   grant_types_supported?: string[];
   scopes_supported?: string[];
   response_types_supported?: string[];
@@ -200,6 +201,7 @@ export class OAuthDiscovery {
           device_authorization_endpoint: normalizeUrl(data.device_authorization_endpoint) || data.device_authorization_endpoint,
           token_endpoint: normalizeUrl(data.token_endpoint) || data.token_endpoint,
           authorization_endpoint: normalizeUrl(data.authorization_endpoint),
+          introspection_endpoint: normalizeUrl(data.introspection_endpoint),
         };
       }
 
