@@ -1,9 +1,3 @@
-import * as dns from 'node:dns';
-import { promisify } from 'node:util';
-
-const lookup = promisify(dns.lookup);
-const resolve4 = promisify(dns.resolve4);
-
 export interface OAuthDiscoveryResponse {
   issuer: string;
   device_authorization_endpoint?: string;
@@ -13,105 +7,6 @@ export interface OAuthDiscoveryResponse {
   grant_types_supported?: string[];
   scopes_supported?: string[];
   response_types_supported?: string[];
-}
-
-function isDockerInternalIp(ip: string): boolean {
-  return ip.startsWith('172.') || 
-         ip.startsWith('10.') || 
-         ip.startsWith('192.168.') ||
-         ip.startsWith('169.254.');
-}
-
-function isAllowedHostIp(ip: string): boolean {
-  const allowedNetworks = process.env.ALLOWED_DOCKER_NETWORKS
-    ? process.env.ALLOWED_DOCKER_NETWORKS.split(',').map((n) => n.trim())
-    : [];
-  
-  if (allowedNetworks.length === 0) {
-    return false;
-  }
-
-  function ipToNumber(ip: string): number {
-    const parts = ip.split('.').map(Number);
-    return parts[0] * 256 ** 3 + parts[1] * 256 ** 2 + parts[2] * 256 + parts[3];
-  }
-
-  for (const network of allowedNetworks) {
-    if (network.includes('/')) {
-      const [networkIp, prefix] = network.split('/');
-      const prefixLength = Number.parseInt(prefix, 10);
-      const networkNum = ipToNumber(networkIp);
-      const mask = (0xffffffff << (32 - prefixLength)) >>> 0;
-      const ipNum = ipToNumber(ip);
-
-      if ((networkNum & mask) === (ipNum & mask)) {
-        return true;
-      }
-    } else if (ip.startsWith(network)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-async function resolveHostnameToIp(hostname: string): Promise<string | null> {
-  try {
-    const ips = await resolve4(hostname);
-    if (ips && ips.length > 0) {
-      for (const ip of ips) {
-        if (isDockerInternalIp(ip) || isAllowedHostIp(ip)) {
-          return ip;
-        }
-      }
-    }
-  } catch {
-  }
-  
-  try {
-    const addresses = await lookup(hostname, { family: 4, all: true });
-    if (addresses && addresses.length > 0) {
-      for (const addr of addresses) {
-        const ip = addr.address;
-        if (isDockerInternalIp(ip) || isAllowedHostIp(ip)) {
-          return ip;
-        }
-      }
-    }
-  } catch {
-  }
-  
-  return null;
-}
-
-async function resolveUrlToIp(url: string): Promise<string> {
-  try {
-    const urlObj = new URL(url);
-    const hostname = urlObj.hostname;
-    
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
-      if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) && !isDockerInternalIp(hostname) && !isAllowedHostIp(hostname)) {
-        throw new Error(`URL contains external IP address ${hostname}. This will not work for Docker container communication. Please use container hostname, internal IP, or add IP to ALLOWED_DOCKER_NETWORKS.`);
-      }
-      
-      return url;
-    }
-    
-    const isContainerName = !hostname.includes('.') || hostname === 'stalwart' || hostname === 'homemail-stalwart' || hostname.startsWith('homemail-');
-    
-    if (isContainerName || hostname.includes('stalwart')) {
-      const ip = await resolveHostnameToIp(hostname);
-      
-      if (ip && (isDockerInternalIp(ip) || isAllowedHostIp(ip))) {
-        urlObj.hostname = ip;
-        return urlObj.toString();
-      }
-    }
-    
-    return url;
-  } catch {
-    return url;
-  }
 }
 
 export class OAuthDiscovery {
@@ -135,13 +30,7 @@ export class OAuthDiscovery {
       const { logger } = await import('@/lib/logger');
       logger.info(`[OAuthDiscovery] Attempting discovery at: ${this.discoveryUrl}`);
       
-      const resolvedUrl = await resolveUrlToIp(this.discoveryUrl);
-      
-      if (resolvedUrl !== this.discoveryUrl) {
-        logger.info(`[OAuthDiscovery] Resolved discovery URL to IP: ${this.discoveryUrl} -> ${resolvedUrl}`);
-      }
-      
-      const response = await fetch(resolvedUrl, {
+      const response = await fetch(this.discoveryUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',

@@ -32,6 +32,10 @@ describe('OAuthDiscovery', () => {
 
     const endpoints = await discovery.discover();
 
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://stalwart:8080/.well-known/oauth-authorization-server',
+      expect.any(Object)
+    );
     expect(endpoints.issuer).toBe('https://auth.example.test/');
     expect(endpoints.authorization_endpoint).toBe('https://auth.example.test/authorize/code');
     expect(endpoints.device_authorization_endpoint).toBe('https://auth.example.test/authorize/device');
