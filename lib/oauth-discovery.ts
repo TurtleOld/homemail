@@ -63,11 +63,12 @@ export class OAuthDiscovery {
       }
 
       const publicUrl = process.env.STALWART_PUBLIC_URL;
-      if (publicUrl) {
+      const endpointBaseUrl = publicUrl || data.issuer || new URL(this.discoveryUrl).origin;
+      if (endpointBaseUrl) {
         const normalizeUrl = (url: string | undefined): string | undefined => {
           if (!url) return url;
           try {
-            const urlObj = new URL(url);
+            const urlObj = new URL(url, endpointBaseUrl);
             const isInternal = !urlObj.hostname.includes('.') ||
                               urlObj.hostname.includes('stalwart') || 
                               urlObj.hostname === 'localhost' || 
@@ -75,7 +76,7 @@ export class OAuthDiscovery {
                               /^\d+\.\d+\.\d+\.\d+$/.test(urlObj.hostname);
             
             if (isInternal) {
-              const publicUrlObj = new URL(publicUrl);
+              const publicUrlObj = new URL(endpointBaseUrl);
               urlObj.hostname = publicUrlObj.hostname;
               urlObj.protocol = publicUrlObj.protocol;
               if (publicUrlObj.port && publicUrlObj.port !== '80' && publicUrlObj.port !== '443') {
@@ -87,14 +88,36 @@ export class OAuthDiscovery {
               logger.info(`[OAuthDiscovery] Normalized internal URL to public: ${url} -> ${normalized}`);
               return normalized;
             }
+
+            if (url !== urlObj.toString()) {
+              const normalized = urlObj.toString();
+              logger.info(`[OAuthDiscovery] Resolved relative URL: ${url} -> ${normalized}`);
+              return normalized;
+            }
           } catch {
           }
           return url;
         };
 
+        const normalizeIssuer = (issuer: string | undefined): string | undefined => {
+          if (!issuer) return issuer;
+          try {
+            const issuerUrl = new URL(issuer);
+            const isInternal = !issuerUrl.hostname.includes('.') ||
+                              issuerUrl.hostname.includes('stalwart') ||
+                              issuerUrl.hostname === 'localhost' ||
+                              issuerUrl.hostname === '127.0.0.1' ||
+                              /^\d+\.\d+\.\d+\.\d+$/.test(issuerUrl.hostname);
+
+            return isInternal ? normalizeUrl(issuer) : issuer;
+          } catch {
+            return normalizeUrl(issuer) || issuer;
+          }
+        };
+
         data = {
           ...data,
-          issuer: normalizeUrl(data.issuer) || data.issuer,
+          issuer: normalizeIssuer(data.issuer),
           device_authorization_endpoint: normalizeUrl(data.device_authorization_endpoint) || data.device_authorization_endpoint,
           token_endpoint: normalizeUrl(data.token_endpoint) || data.token_endpoint,
           authorization_endpoint: normalizeUrl(data.authorization_endpoint),

@@ -79,4 +79,27 @@ describe('OAuthDiscovery', () => {
     expect(endpoints.authorization_endpoint).toBe('https://auth.example.test/authorize/code');
     expect(endpoints.token_endpoint).toBe('https://auth.example.test/token');
   });
+
+  it('resolves relative endpoints against STALWART_PUBLIC_URL', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      issuer: '',
+      authorization_endpoint: '/auth/code',
+      device_authorization_endpoint: '/auth/device',
+      token_endpoint: '/auth/token',
+      introspection_endpoint: '/auth/introspect',
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    const discovery = new OAuthDiscovery('http://stalwart:8080/.well-known/oauth-authorization-server');
+
+    const endpoints = await discovery.discover();
+
+    expect(endpoints.issuer).toBe('https://auth.example.test');
+    expect(endpoints.authorization_endpoint).toBe('https://auth.example.test/auth/code');
+    expect(endpoints.device_authorization_endpoint).toBe('https://auth.example.test/auth/device');
+    expect(endpoints.token_endpoint).toBe('https://auth.example.test/auth/token');
+    expect(endpoints.introspection_endpoint).toBe('https://auth.example.test/auth/introspect');
+  });
 });
