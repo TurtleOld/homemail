@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { OAuthDiscovery } from '@/lib/oauth-discovery';
 import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
 import { logger } from '@/lib/logger';
+import { getClientIp } from '@/lib/client-ip';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { SecurityLogger } from '@/lib/security-logger';
 
 type IntrospectionResponse = {
   active?: boolean;
@@ -133,7 +136,12 @@ async function validateAccessTokenForAccount(accessToken: string, accountId: str
       }
     }
 
-    return await tokenHasJmapAccount(accessToken, accountId);
+    if (process.env.MOBILE_NTFY_ALLOW_JMAP_TOKEN_VALIDATION === 'true') {
+      return await tokenHasJmapAccount(accessToken, accountId);
+    }
+
+    logger.warn('[mobile ntfy] OAuth introspection endpoint or account claim is unavailable; refusing JMAP bearer fallback by default');
+    return false;
   } catch (error) {
     logger.warn('[mobile ntfy] access token validation failed', {
       message: error instanceof Error ? error.message : String(error),
@@ -143,6 +151,19 @@ async function validateAccessTokenForAccount(accessToken: string, accountId: str
 }
 
 export async function GET(request: NextRequest) {
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(ip, 'mobile_ntfy_poll', request);
+  if (!rl.allowed) {
+    SecurityLogger.logRateLimitRejected(request, ip, 'mobile_ntfy_poll', 'rate_limit', {
+      resetAt: rl.resetAt,
+      blockedUntil: rl.blockedUntil,
+    });
+    return NextResponse.json(
+      { error: 'Too many requests', resetAt: rl.resetAt, blockedUntil: rl.blockedUntil },
+      { status: 429 }
+    );
+  }
+
   try {
     const accessToken = getBearerToken(request);
     if (!accessToken) {

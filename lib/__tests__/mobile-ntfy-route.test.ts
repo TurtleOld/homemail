@@ -67,6 +67,23 @@ describe('mobile ntfy poll route', () => {
     expect(JSON.stringify(await response.json())).not.toContain(process.env.NTFY_TOKEN);
   });
 
+  it('does not fall back to JMAP bearer validation by default when introspection is unavailable', async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        issuer: 'https://mail.example.test',
+        device_authorization_endpoint: 'https://mail.example.test/oauth/device',
+        token_endpoint: 'https://mail.example.test/oauth/token',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    const response = await GET(makeRequest(
+      'https://app.example.test/api/mobile/ntfy/poll?topic=homemail-user-user@example.com&since=latest',
+      'valid-oauth-token'
+    ));
+
+    expect(response.status).toBe(403);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('proxies ntfy polling with server-side NTFY_TOKEN when token matches topic account', async () => {
     const ntfyBody = '{"id":"msg-1","event":"message","message":"hello"}\n';
 

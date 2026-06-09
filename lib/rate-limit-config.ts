@@ -24,6 +24,10 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
     max: parseInt(process.env.RATE_LIMIT_OAUTH_POLL_MAX || '120', 10),
     window: parseInt(process.env.RATE_LIMIT_OAUTH_POLL_WINDOW || '60000', 10),
   },
+  mobile_ntfy_poll: {
+    max: parseInt(process.env.RATE_LIMIT_MOBILE_NTFY_POLL_MAX || '60', 10),
+    window: parseInt(process.env.RATE_LIMIT_MOBILE_NTFY_POLL_WINDOW || '60000', 10),
+  },
   bulk: {
     max: parseInt(process.env.RATE_LIMIT_BULK_MAX || '10', 10),
     window: parseInt(process.env.RATE_LIMIT_BULK_WINDOW || '60000', 10),
