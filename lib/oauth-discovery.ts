@@ -43,13 +43,23 @@ export class OAuthDiscovery {
         throw new Error(`Discovery failed: ${response.status} ${response.statusText}`);
       }
 
-      let data = await response.json() as OAuthDiscoveryResponse;
+      let data = await response.json() as Partial<OAuthDiscoveryResponse>;
 
-      if (!data.issuer) {
-        throw new Error('Missing issuer in discovery response');
-      }
       if (!data.token_endpoint) {
+        logger.error('[OAuthDiscovery] Discovery response missing token_endpoint', {
+          url: this.discoveryUrl,
+          keys: Object.keys(data),
+        });
         throw new Error('Missing token_endpoint in discovery response');
+      }
+      if (!data.issuer) {
+        const issuerFallback = process.env.STALWART_PUBLIC_URL || new URL(this.discoveryUrl).origin;
+        logger.warn('[OAuthDiscovery] Discovery response missing issuer; using configured URL as issuer fallback', {
+          url: this.discoveryUrl,
+          issuerFallback,
+          keys: Object.keys(data),
+        });
+        data.issuer = issuerFallback;
       }
 
       const publicUrl = process.env.STALWART_PUBLIC_URL;
@@ -92,12 +102,14 @@ export class OAuthDiscovery {
         };
       }
 
-      logger.info(`[OAuthDiscovery] Discovery successful, issuer: ${data.issuer}, device_endpoint: ${data.device_authorization_endpoint || 'not advertised'}`);
+      const discovered = data as OAuthDiscoveryResponse;
 
-      this.cachedDiscovery = data;
+      logger.info(`[OAuthDiscovery] Discovery successful, issuer: ${discovered.issuer}, device_endpoint: ${discovered.device_authorization_endpoint || 'not advertised'}`);
+
+      this.cachedDiscovery = discovered;
       this.cacheExpiry = now + this.CACHE_TTL;
 
-      return data;
+      return discovered;
     } catch (error) {
       const { logger } = await import('@/lib/logger');
       if (error instanceof TypeError && error.message.includes('fetch failed')) {

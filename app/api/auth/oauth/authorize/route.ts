@@ -7,6 +7,10 @@ import { getClientIp } from '@/lib/client-ip';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { SecurityLogger } from '@/lib/security-logger';
 
+function uniqueUrls(urls: Array<string | undefined | null>): string[] {
+  return Array.from(new Set(urls.filter((url): url is string => !!url)));
+}
+
 /**
  * GET /api/auth/oauth/authorize
  * 
@@ -59,15 +63,41 @@ export async function GET(request: NextRequest) {
                               baseUrl.includes('127.0.0.1') ||
                               /^http:\/\/\d+\.\d+\.\d+\.\d+/.test(baseUrl);
 
-    const discoveryUrl = isInternalBaseUrl
-      ? `${baseUrl.replace(/\/$/, '')}/.well-known/oauth-authorization-server`
-      : `${publicUrl.replace(/\/$/, '')}/.well-known/oauth-authorization-server`;
+    const internalDiscoveryUrl = `${baseUrl.replace(/\/$/, '')}/.well-known/oauth-authorization-server`;
+    const publicDiscoveryUrl = `${publicUrl.replace(/\/$/, '')}/.well-known/oauth-authorization-server`;
+    const explicitDiscoveryUrl = process.env.OAUTH_DISCOVERY_URL && !process.env.OAUTH_DISCOVERY_URL.includes('example.com')
+      ? process.env.OAUTH_DISCOVERY_URL
+      : undefined;
+    const discoveryUrls = uniqueUrls([
+      explicitDiscoveryUrl,
+      isInternalBaseUrl ? internalDiscoveryUrl : publicDiscoveryUrl,
+      publicDiscoveryUrl,
+    ]);
 
-    logger.info(`[OAuth Authorize] Using discovery URL: ${discoveryUrl}`);
+    logger.info('[OAuth Authorize] Using discovery URLs', { discoveryUrls });
 
     // 3. Discover OAuth endpoints
-    const discovery = new OAuthDiscovery(discoveryUrl);
-    const endpoints = await discovery.discover();
+    let discoveryUrl = discoveryUrls[0];
+    let endpoints: Awaited<ReturnType<OAuthDiscovery['discover']>> | null = null;
+    let lastDiscoveryError: unknown = null;
+
+    for (const candidate of discoveryUrls) {
+      try {
+        discoveryUrl = candidate;
+        endpoints = await new OAuthDiscovery(candidate).discover();
+        break;
+      } catch (error) {
+        lastDiscoveryError = error;
+        logger.warn('[OAuth Authorize] Discovery candidate failed', {
+          discoveryUrl: candidate,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    if (!endpoints) {
+      throw lastDiscoveryError instanceof Error ? lastDiscoveryError : new Error('OAuth discovery failed');
+    }
 
     if (!endpoints.authorization_endpoint) {
       logger.error('[OAuth Authorize] Discovery response missing authorization_endpoint', {
