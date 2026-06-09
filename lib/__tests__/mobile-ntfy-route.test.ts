@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { GET, extractAccountIdFromTopic } from './route';
+import { GET, extractAccountIdFromTopic } from '../../app/api/mobile/ntfy/poll/route';
 
 function makeRequest(url: string, token?: string): NextRequest {
   return new NextRequest(url, {

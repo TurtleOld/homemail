@@ -6,7 +6,7 @@ const resolve4 = promisify(dns.resolve4);
 
 export interface OAuthDiscoveryResponse {
   issuer: string;
-  device_authorization_endpoint: string;
+  device_authorization_endpoint?: string;
   token_endpoint: string;
   authorization_endpoint?: string;
   introspection_endpoint?: string;
@@ -159,9 +159,6 @@ export class OAuthDiscovery {
       if (!data.issuer) {
         throw new Error('Missing issuer in discovery response');
       }
-      if (!data.device_authorization_endpoint) {
-        throw new Error('Missing device_authorization_endpoint in discovery response');
-      }
       if (!data.token_endpoint) {
         throw new Error('Missing token_endpoint in discovery response');
       }
@@ -172,7 +169,8 @@ export class OAuthDiscovery {
           if (!url) return url;
           try {
             const urlObj = new URL(url);
-            const isInternal = urlObj.hostname.includes('stalwart') || 
+            const isInternal = !urlObj.hostname.includes('.') ||
+                              urlObj.hostname.includes('stalwart') || 
                               urlObj.hostname === 'localhost' || 
                               urlObj.hostname === '127.0.0.1' ||
                               /^\d+\.\d+\.\d+\.\d+$/.test(urlObj.hostname);
@@ -205,7 +203,7 @@ export class OAuthDiscovery {
         };
       }
 
-      logger.info(`[OAuthDiscovery] Discovery successful, issuer: ${data.issuer}, device_endpoint: ${data.device_authorization_endpoint}`);
+      logger.info(`[OAuthDiscovery] Discovery successful, issuer: ${data.issuer}, device_endpoint: ${data.device_authorization_endpoint || 'not advertised'}`);
 
       this.cachedDiscovery = data;
       this.cacheExpiry = now + this.CACHE_TTL;

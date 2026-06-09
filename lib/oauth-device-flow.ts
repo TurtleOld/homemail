@@ -47,6 +47,9 @@ export class DeviceFlowClient {
 
   async requestDeviceCode(): Promise<DeviceCodeResponse> {
     const discovery = await this.discovery.discover();
+    if (!discovery.device_authorization_endpoint) {
+      throw new Error('device_authorization_endpoint not found in discovery response');
+    }
     
     const body = new URLSearchParams();
     body.append('client_id', this.clientId);
