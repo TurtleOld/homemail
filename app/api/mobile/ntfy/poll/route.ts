@@ -105,8 +105,10 @@ async function introspectAccessToken(accessToken: string): Promise<Introspection
   });
 
   if (!response.ok) {
-    logger.warn('[mobile ntfy] OAuth introspection failed', { status: response.status });
-    return { active: false };
+    logger.warn('[mobile ntfy] OAuth introspection request failed; treating introspection as unavailable', {
+      status: response.status,
+    });
+    return null;
   }
 
   return (await response.json()) as IntrospectionResponse;

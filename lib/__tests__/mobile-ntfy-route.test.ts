@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, extractAccountIdFromTopic } from '../../app/api/mobile/ntfy/poll/route';
+import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
+
+vi.mock('@/providers/stalwart-jmap/jmap-client', () => ({
+  JMAPClient: vi.fn(),
+}));
 
 function makeRequest(url: string, token?: string): NextRequest {
   return new NextRequest(url, {
@@ -82,6 +87,60 @@ describe('mobile ntfy poll route', () => {
 
     expect(response.status).toBe(403);
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a rejected introspection request as unavailable and denies by default', async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        issuer: 'https://mail.example.test',
+        device_authorization_endpoint: 'https://mail.example.test/oauth/device',
+        token_endpoint: 'https://mail.example.test/oauth/token',
+        introspection_endpoint: 'https://mail.example.test/oauth/introspect',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }));
+
+    const response = await GET(makeRequest(
+      'https://app.example.test/api/mobile/ntfy/poll?topic=homemail-user-user@example.com&since=latest',
+      'valid-oauth-token'
+    ));
+
+    expect(response.status).toBe(403);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to JMAP validation when introspection is rejected and the fallback is enabled', async () => {
+    process.env.MOBILE_NTFY_ALLOW_JMAP_TOKEN_VALIDATION = 'true';
+
+    const ntfyBody = '{"id":"msg-1","event":"message","message":"hello"}\n';
+    vi.mocked(JMAPClient).mockImplementation(function () {
+      return {
+        getSession: vi.fn().mockResolvedValue({
+          accounts: { 'user@example.com': {} },
+          primaryAccounts: { mail: 'user@example.com' },
+        }),
+      } as unknown as JMAPClient;
+    });
+
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        issuer: 'https://mail.example.test',
+        device_authorization_endpoint: 'https://mail.example.test/oauth/device',
+        token_endpoint: 'https://mail.example.test/oauth/token',
+        introspection_endpoint: 'https://mail.example.test/oauth/introspect',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
+      .mockResolvedValueOnce(new Response(ntfyBody, {
+        status: 200,
+        headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+      }));
+
+    const response = await GET(makeRequest(
+      'https://app.example.test/api/mobile/ntfy/poll?topic=homemail-user-user@example.com&since=latest',
+      'valid-oauth-token'
+    ));
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(ntfyBody);
   });
 
   it('proxies ntfy polling with server-side NTFY_TOKEN when token matches topic account', async () => {

@@ -68,6 +68,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Mobile API routes authenticate with OAuth bearer tokens, not the session cookie
+  if (pathname.startsWith('/api/mobile/')) {
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith('/api/')) {
     const sessionCookie = request.cookies.get('mail_session');
     if (!sessionCookie) {
