@@ -66,7 +66,9 @@ export async function sendWakeUpPing({ topic }: { topic: string }): Promise<void
     topic: normalizedTopic,
     android: {
       priority: 'high',
-      ttl: 60 * 1000,
+      // Keep the wake-up ping alive while the device is in doze/offline;
+      // the actual payload stays available in ntfy for 12 hours.
+      ttl: 60 * 60 * 1000,
     },
     data: {
       topic: normalizedTopic,
