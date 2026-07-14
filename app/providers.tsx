@@ -25,11 +25,34 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
 
-    root.dataset.mailDesign = 'calm-productivity';
+    type ThemePreference = 'light' | 'dark' | 'system';
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+    let removeSystemListener: (() => void) | undefined;
+
+    const applyThemePreference = (preference: ThemePreference) => {
+      removeSystemListener?.();
+      root.dataset.theme = preference;
+
+      const updateResolvedTheme = () => {
+        const dark = preference === 'dark' || (preference === 'system' && systemTheme.matches);
+        root.classList.toggle('dark', dark);
+        root.style.colorScheme = dark ? 'dark' : 'light';
+      };
+
+      updateResolvedTheme();
+      if (preference === 'system') {
+        systemTheme.addEventListener('change', updateResolvedTheme);
+        removeSystemListener = () => systemTheme.removeEventListener('change', updateResolvedTheme);
+      }
+    };
 
     const applyTheme = async () => {
-      if (pathname === '/login' || pathname.startsWith('/login')) {
-        root.classList.remove('dark');
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--secondary');
+      root.style.removeProperty('--accent');
+
+      if (/\/(?:(?:ru|en)\/)?login$/.test(pathname)) {
+        applyThemePreference('light');
         return;
       }
 
@@ -37,13 +60,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         const res = await fetch('/api/settings');
         if (res.ok) {
           const settings = await res.json();
-          const theme = settings.theme || 'light';
-
-          if (theme === 'dark') {
-            root.classList.add('dark');
-          } else {
-            root.classList.remove('dark');
-          }
+          const theme: ThemePreference = ['light', 'dark', 'system'].includes(settings.theme)
+            ? settings.theme
+            : 'system';
+          applyThemePreference(theme);
 
           if (settings.customTheme?.colors) {
             const colors = settings.customTheme.colors;
@@ -85,14 +105,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
             }
           }
         } else {
-          root.classList.remove('dark');
+          applyThemePreference('system');
         }
-      } catch (error) {
-        root.classList.remove('dark');
+      } catch {
+        applyThemePreference('system');
       }
     };
 
     applyTheme();
+
+    return () => removeSystemListener?.();
   }, [pathname]);
 
   return (

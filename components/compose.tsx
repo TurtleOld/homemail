@@ -577,7 +577,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           ? 'inset-4 max-md:inset-0 max-md:rounded-none'
           : isMinimized
           ? 'bottom-4 right-4 w-80 h-12 overflow-hidden max-md:bottom-0 max-md:right-0 max-md:left-0 max-md:w-full max-md:rounded-none'
-          : 'bottom-4 right-4 w-[520px] max-h-[calc(100vh-2rem)] max-md:inset-0 max-md:rounded-none'
+          : 'bottom-4 right-4 w-[520px] max-h-[calc(100dvh-2rem)] max-md:inset-0 max-md:rounded-none'
       )}
       role="dialog"
       aria-modal="true"

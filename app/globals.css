@@ -4,116 +4,127 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 230 85% 62%;
+    color-scheme: light;
+
+    /* Mail semantic surfaces */
+    --surface-app: 214 32% 97%;
+    --surface-navigation: 214 28% 94%;
+    --surface-panel: 210 25% 98%;
+    --surface-raised: 0 0% 100%;
+    --surface-hover: 216 30% 92%;
+    --surface-selected: 219 76% 92%;
+    --surface-unread: 216 45% 96%;
+
+    /* Mail semantic content */
+    --text-primary: 222 30% 14%;
+    --text-secondary: 218 15% 38%;
+    --text-disabled: 216 11% 58%;
+    --border-subtle: 216 22% 87%;
+    --border-strong: 216 18% 74%;
+    --focus-ring: 220 76% 48%;
+    --action-primary: 220 76% 48%;
+    --action-destructive: 0 68% 48%;
+    --status-success: 151 57% 36%;
+    --status-warning: 38 86% 43%;
+    --status-starred: 41 90% 48%;
+    --shadow-color: 218 34% 22%;
+
+    /* Shape, spacing, icon and motion foundations */
+    --radius-panel: 0.75rem;
+    --radius-dialog: 0.75rem;
+    --radius-control: 0.5rem;
+    --radius-small: 0.375rem;
+    --space-control-x: 0.75rem;
+    --space-control-y: 0.5rem;
+    --icon-size: 1rem;
+    --icon-stroke: 1.75;
+    --motion-fast: 160ms;
+    --motion-panel: 220ms;
+    --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
+    /* Component aliases derive from the semantic system. */
+    --background: var(--surface-app);
+    --foreground: var(--text-primary);
+    --card: var(--surface-raised);
+    --card-foreground: var(--text-primary);
+    --popover: var(--surface-raised);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--action-primary);
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 40%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 230 85% 62%;
-    --radius: 0.5rem;
-    --unread: 217 91% 60%;
-    --starred: 43 96% 56%;
-    --message-bg: 0 0% 100%;
-    --message-text: 222.2 84% 4.9%;
-    --message-border: 214.3 31.8% 91.4%;
-    --message-code-bg: 210 40% 96.1%;
-    --message-blockquote-bg: 210 40% 96.1%;
-    --message-blockquote-border: 214.3 31.8% 91.4%;
-    --surface-app: 210 33% 98%;
-    --surface-sidebar: 210 29% 96%;
-    --surface-panel: 0 0% 100%;
-    --surface-panel-muted: 210 24% 97%;
-    --surface-hover: 220 40% 96%;
-    --surface-selected: 224 100% 97%;
-    --surface-unread: 210 60% 99%;
-    --border-strong: 214 26% 84%;
-    --shadow-soft: 220 35% 17%;
+    --secondary: var(--surface-hover);
+    --secondary-foreground: var(--text-primary);
+    --muted: var(--surface-hover);
+    --muted-foreground: var(--text-secondary);
+    --accent: var(--surface-hover);
+    --accent-foreground: var(--text-primary);
+    --destructive: var(--action-destructive);
+    --destructive-foreground: 0 0% 100%;
+    --border: var(--border-subtle);
+    --input: var(--border-strong);
+    --ring: var(--focus-ring);
+    --radius: var(--radius-control);
+    --unread: var(--action-primary);
+    --starred: var(--status-starred);
+    --message-bg: var(--surface-raised);
+    --message-text: var(--text-primary);
+    --message-border: var(--border-subtle);
+    --message-code-bg: var(--surface-hover);
+    --message-blockquote-bg: var(--surface-panel);
+    --message-blockquote-border: var(--border-strong);
+    --surface-sidebar: var(--surface-navigation);
+    --surface-panel-muted: var(--surface-panel);
+    --shadow-soft: var(--shadow-color);
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 230 85% 65%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 75%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 230 85% 65%;
-    --unread: 217 91% 60%;
-    --starred: 43 96% 56%;
-    --message-bg: 217.2 32.6% 17.5%;
-    --message-text: 210 40% 98%;
-    --message-border: 217.2 32.6% 17.5%;
-    --message-code-bg: 222.2 84% 4.9%;
-    --message-blockquote-bg: 217.2 32.6% 17.5%;
-    --message-blockquote-border: 215 20.2% 65.1%;
-    --surface-app: 222.2 84% 4.9%;
-    --surface-sidebar: 217.2 32.6% 14%;
-    --surface-panel: 217.2 32.6% 17.5%;
-    --surface-panel-muted: 217.2 32.6% 20%;
-    --surface-hover: 217.2 32.6% 22%;
-    --surface-selected: 230 50% 22%;
-    --surface-unread: 222 35% 18%;
-    --border-strong: 215 19% 29%;
-    --shadow-soft: 222 84% 3%;
+  :root.dark,
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --surface-app: 222 25% 9%;
+    --surface-navigation: 220 23% 12%;
+    --surface-panel: 220 20% 14%;
+    --surface-raised: 219 19% 17%;
+    --surface-hover: 218 18% 21%;
+    --surface-selected: 220 52% 24%;
+    --surface-unread: 220 25% 18%;
+    --text-primary: 214 28% 94%;
+    --text-secondary: 216 14% 72%;
+    --text-disabled: 217 10% 49%;
+    --border-subtle: 218 16% 23%;
+    --border-strong: 218 15% 34%;
+    --focus-ring: 218 88% 68%;
+    --action-primary: 218 82% 62%;
+    --action-destructive: 0 70% 59%;
+    --status-success: 151 52% 49%;
+    --status-warning: 41 90% 58%;
+    --status-starred: 42 91% 59%;
+    --shadow-color: 222 40% 3%;
+    --primary-foreground: 222 30% 10%;
   }
 
-  :root[data-mail-design='calm-productivity'] {
-    --primary: 285 45% 46%;
-    --primary-foreground: 0 0% 100%;
-    --ring: 285 45% 46%;
-    --background: 210 33% 98%;
-    --card: 0 0% 100%;
-    --popover: 0 0% 100%;
-    --secondary: 210 24% 96%;
-    --muted: 210 24% 96%;
-    --accent: 210 24% 96%;
-    --border: 214 22% 89%;
-    --input: 214 22% 89%;
-    --foreground: 221 34% 16%;
-    --card-foreground: 221 34% 16%;
-    --popover-foreground: 221 34% 16%;
-    --muted-foreground: 217 16% 42%;
-    --secondary-foreground: 221 34% 16%;
-    --accent-foreground: 221 34% 16%;
-    --message-bg: 0 0% 100%;
-    --message-text: 221 34% 16%;
-    --message-border: 214 22% 89%;
-    --message-code-bg: 210 24% 96%;
-    --message-blockquote-bg: 210 24% 97%;
-    --message-blockquote-border: 214 22% 89%;
-    --surface-app: 210 33% 98%;
-    --surface-sidebar: 210 29% 96%;
-    --surface-panel: 0 0% 100%;
-    --surface-panel-muted: 210 24% 97%;
-    --surface-hover: 220 40% 96%;
-    --surface-selected: 286 53% 96%;
-    --surface-unread: 210 60% 99%;
-    --border-strong: 214 26% 84%;
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      color-scheme: dark;
+      --surface-app: 222 25% 9%;
+      --surface-navigation: 220 23% 12%;
+      --surface-panel: 220 20% 14%;
+      --surface-raised: 219 19% 17%;
+      --surface-hover: 218 18% 21%;
+      --surface-selected: 220 52% 24%;
+      --surface-unread: 220 25% 18%;
+      --text-primary: 214 28% 94%;
+      --text-secondary: 216 14% 72%;
+      --text-disabled: 217 10% 49%;
+      --border-subtle: 218 16% 23%;
+      --border-strong: 218 15% 34%;
+      --focus-ring: 218 88% 68%;
+      --action-primary: 218 82% 62%;
+      --action-destructive: 0 70% 59%;
+      --status-success: 151 52% 49%;
+      --status-warning: 41 90% 58%;
+      --status-starred: 42 91% 59%;
+      --shadow-color: 222 40% 3%;
+      --primary-foreground: 222 30% 10%;
+    }
   }
 }
 
@@ -121,23 +132,32 @@
   * {
     @apply border-border;
   }
-  *:not([class*='animate-']) {
+  :where(a, button, input, textarea, select, summary, [role='button'], [role='menuitem']) {
     transition-property:
       color, background-color, border-color, text-decoration-color, fill, stroke, opacity,
       transform, box-shadow;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 150ms;
+    transition-timing-function: var(--motion-ease);
+    transition-duration: var(--motion-fast);
+  }
+  :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+    outline: 2px solid hsl(var(--focus-ring));
+    outline-offset: 2px;
   }
   body {
-    @apply bg-background text-foreground;
-    background-image:
-      radial-gradient(circle at top left, hsl(var(--primary) / 0.04), transparent 24%),
-      linear-gradient(180deg, hsl(var(--surface-app)) 0%, hsl(var(--background)) 100%);
+    @apply min-h-dvh bg-background font-sans text-foreground antialiased;
   }
   html {
-    transition:
-      background-color 0.3s ease,
-      color 0.3s ease;
+    min-height: 100%;
+    background: hsl(var(--surface-app));
+  }
+  :where(time, kbd, code, samp, .tabular-nums) {
+    font-variant-numeric: tabular-nums;
+  }
+  :where(kbd, code, samp) {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+  }
+  [data-lucide] {
+    stroke-width: var(--icon-stroke);
   }
   @media (prefers-reduced-motion: reduce) {
     * {
@@ -148,16 +168,16 @@
   }
 
   .high-contrast {
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 0 0% 0%;
+    --border-subtle: 0 0% 20%;
+    --border-strong: 0 0% 20%;
+    --focus-ring: 0 0% 0%;
     filter: contrast(1.2);
   }
 
   .dark.high-contrast {
-    --border: 0 0% 80%;
-    --input: 0 0% 80%;
-    --ring: 0 0% 100%;
+    --border-subtle: 0 0% 80%;
+    --border-strong: 0 0% 80%;
+    --focus-ring: 0 0% 100%;
   }
 
   .reduced-motion * {
@@ -203,12 +223,12 @@
   }
 
   .mail-sidebar-surface {
-    background: hsl(var(--surface-sidebar));
+    background: hsl(var(--surface-navigation));
   }
 
   .mail-panel-surface {
     background: hsl(var(--surface-panel));
-    box-shadow: 0 16px 40px -28px hsl(var(--shadow-soft) / 0.24);
+    box-shadow: 0 16px 40px -28px hsl(var(--shadow-color) / 0.24);
   }
 
   .mail-panel-muted {

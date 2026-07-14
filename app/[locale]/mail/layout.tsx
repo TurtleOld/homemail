@@ -921,7 +921,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   return (
     <div
       id="main-content"
-      className="mail-app-shell flex h-screen flex-col"
+      className="mail-app-shell flex min-h-dvh flex-col"
       role="main"
       aria-label={t('appLabel')}
     >

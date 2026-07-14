@@ -2229,7 +2229,7 @@ export default function SettingsPage() {
 
   if (isLoading || !settings) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <div className="text-center">
           <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
           <p className="text-muted-foreground">Загрузка настроек...</p>
@@ -2239,7 +2239,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       <div className="border-b bg-card p-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/mail`)}>

@@ -121,7 +121,7 @@ export default function StalwartSettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <div className="text-center">
           <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
           <p className="text-muted-foreground">Загрузка настроек Stalwart...</p>
@@ -132,7 +132,7 @@ export default function StalwartSettingsPage() {
 
   if (error) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <div className="text-center">
           <p className="text-destructive mb-4">{error}</p>
           <button
@@ -147,7 +147,7 @@ export default function StalwartSettingsPage() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-auto">
+    <div className="min-h-dvh w-full overflow-auto">
       <div id="stalwart-container" className="h-full w-full" />
     </div>
   );

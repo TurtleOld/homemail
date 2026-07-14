@@ -17,6 +17,10 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-geist-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -51,11 +55,24 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        surface: {
+          app: 'hsl(var(--surface-app))',
+          navigation: 'hsl(var(--surface-navigation))',
+          panel: 'hsl(var(--surface-panel))',
+          raised: 'hsl(var(--surface-raised))',
+          hover: 'hsl(var(--surface-hover))',
+          selected: 'hsl(var(--surface-selected))',
+          unread: 'hsl(var(--surface-unread))',
+        },
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        lg: 'var(--radius-dialog)',
+        md: 'var(--radius-control)',
+        sm: 'var(--radius-small)',
+      },
+      transitionDuration: {
+        fast: 'var(--motion-fast)',
+        panel: 'var(--motion-panel)',
       },
     },
   },

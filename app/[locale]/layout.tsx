@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -7,8 +8,6 @@ import { routing } from '@/i18n/routing';
 import { getTranslations } from 'next-intl/server';
 import { Providers } from '../providers';
 import '../globals.css';
-
-const inter = Inter({ subsets: ['latin', 'cyrillic'] });
 
 export async function generateMetadata({
   params,
@@ -50,7 +49,11 @@ export default async function LocaleLayout({
   const t = await getTranslations({ locale, namespace: 'layout' });
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html
+      lang={locale}
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#3b82f6" />
@@ -59,7 +62,7 @@ export default async function LocaleLayout({
         <meta name="apple-mobile-web-app-title" content="Mail" />
         <link rel="apple-touch-icon" href="/icons/mail-icon.png" />
       </head>
-      <body className={inter.className}>
+      <body className="font-sans">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md"

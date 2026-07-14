@@ -112,7 +112,7 @@ function renderWithQueryClient(ui: ReactNode) {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
-describe('Calm Productivity smoke coverage', () => {
+describe('Mail foundation smoke coverage', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
@@ -178,9 +178,9 @@ describe('Calm Productivity smoke coverage', () => {
     expect(screen.getAllByRole('generic').length).toBeGreaterThan(0);
   });
 
-  it('keeps calm productivity mode enabled on the document root', () => {
-    document.documentElement.dataset.mailDesign = 'calm-productivity';
+  it('supports an explicit system theme preference on the document root', () => {
+    document.documentElement.dataset.theme = 'system';
 
-    expect(document.documentElement.dataset.mailDesign).toBe('calm-productivity');
+    expect(document.documentElement.dataset.theme).toBe('system');
   });
 });
