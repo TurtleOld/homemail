@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const useProductionBuild = process.env.PLAYWRIGHT_USE_BUILD === '1';
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -8,7 +10,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://127.0.0.1:3000',
     trace: 'on-first-retry',
   },
   projects: [
@@ -18,8 +20,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
+    command: useProductionBuild ? 'npm start' : 'npm run dev',
+    // Use a static asset for readiness; page compilation happens lazily in development.
+    url: 'http://127.0.0.1:3000/favicon.ico',
     reuseExistingServer: !process.env.CI,
   },
 });
