@@ -528,7 +528,7 @@ export function MessageList({
 
   return (
     <div
-      className="mail-panel-surface flex h-full w-full flex-col border-r border-white/70 max-md:border-r-0"
+      className="mail-panel-surface flex h-full w-full flex-col border-r border-border max-md:border-r-0"
       role="region"
       aria-label={t('regionLabel')}
     >

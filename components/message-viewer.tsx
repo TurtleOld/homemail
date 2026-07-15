@@ -432,7 +432,7 @@ export function MessageViewer({
 
   return (
     <div
-      className="mail-panel-surface flex h-full w-full flex-col overflow-hidden border-l border-white/70 max-md:border-l-0"
+      className="mail-panel-surface flex h-full w-full flex-col overflow-hidden border-l border-border max-md:border-l-0"
       role="region"
       aria-label={t('viewerLabel')}
     >

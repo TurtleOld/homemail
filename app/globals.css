@@ -228,7 +228,6 @@
 
   .mail-panel-surface {
     background: hsl(var(--surface-panel));
-    box-shadow: 0 16px 40px -28px hsl(var(--shadow-color) / 0.24);
   }
 
   .mail-panel-muted {

@@ -10,6 +10,7 @@ import { Sidebar } from '@/components/sidebar';
 import { MessageList } from '@/components/message-list';
 import { MessageViewer } from '@/components/message-viewer';
 import { QuickFilters } from '@/components/quick-filters';
+import { SearchBar } from '@/components/search-bar';
 import type {
   Folder,
   Account,
@@ -83,6 +84,14 @@ interface UserSettings {
   };
 }
 
+interface ServerStatus {
+  smtp: 'up' | 'down' | 'unknown';
+  imapJmap: 'up' | 'down' | 'unknown';
+  queueSize: number | null;
+  deliveryErrors: number | null;
+  updatedAt: string;
+}
+
 const Compose = dynamic(() => import('@/components/compose').then((mod) => mod.Compose), {
   ssr: false,
   loading: () => null,
@@ -120,10 +129,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     if (!saved) return 400;
     const width = parseInt(saved, 10);
     if (Number.isNaN(width)) return 400;
-    if (width < 300 || width > 800) return 400;
+    if (width < 360 || width > 640) return 400;
     return width;
   });
   const [isResizing, setIsResizing] = useState(false);
+  const resizeStartRef = useRef({ pointerX: 0, width: 400 });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [conversationView, setConversationView] = useState(() => {
@@ -184,17 +194,17 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    resizeStartRef.current = { pointerX: e.clientX, width: messageListWidth };
     setIsResizing(true);
   };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
-      const newWidth = e.clientX - 256;
-      if (newWidth >= 300 && newWidth <= 800) {
-        setMessageListWidth(newWidth);
-        localStorage.setItem('messageListWidth', newWidth.toString());
-      }
+      const delta = e.clientX - resizeStartRef.current.pointerX;
+      const newWidth = Math.min(640, Math.max(360, resizeStartRef.current.width + delta));
+      setMessageListWidth(newWidth);
+      localStorage.setItem('messageListWidth', newWidth.toString());
     };
 
     const handleMouseUp = () => {
@@ -252,6 +262,19 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     refetchOnWindowFocus: true,
     staleTime: 5000,
   });
+
+  const { data: serverStatus, isError: isServerStatusError } = useQuery<ServerStatus>({
+    queryKey: ['server-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/mail/status');
+      if (!res.ok) throw new Error('Failed to load server status');
+      return res.json();
+    },
+    staleTime: 15000,
+    refetchInterval: 30000,
+  });
+
+  const hasConnectionProblem = isServerStatusError || serverStatus?.imapJmap === 'down';
 
   useEffect(() => {
     if (!folders.length) return;
@@ -809,6 +832,27 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     if (isMobile) setSidebarOpen(false);
   };
 
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    const hasStructuredSyntax =
+      /(?:^|\s)(?:from|to|cc|bcc|subject|body|date|folder|tag|tags|size|attachment|attachments|filename|after|before|is|has|message-id|messageid|id):/i.test(
+        query
+      );
+    if (hasStructuredSyntax) {
+      const parsed = FilterQueryParser.parse(query);
+      setQuickFilter(parsed.quickFilter);
+      setFilterGroup(parsed.filterGroup);
+    } else {
+      setQuickFilter(undefined);
+      setFilterGroup(undefined);
+    }
+  }, []);
+
+  const selectedFolder = useMemo(
+    () => folders.find((folder) => folder.id === selectedFolderId),
+    [folders, selectedFolderId]
+  );
+
   const handleMessageClick = (message: MessageListItem) => {
     setSelectedMessageId(message.id);
     setSelectedIds(new Set([message.id]));
@@ -852,6 +896,16 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
     },
     { enabled: !isMobile }
+  );
+
+  useHotkeys(
+    '/',
+    (e) => {
+      if (composeOpen) return;
+      e.preventDefault();
+      document.querySelector<HTMLInputElement>('[data-mail-search]')?.focus();
+    },
+    { enabled: !composeOpen }
   );
 
   useHotkeys(
@@ -957,7 +1011,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           </Button>
         </div>
       )}
-      <div className="relative flex flex-1 overflow-hidden gap-3 p-3 max-md:gap-0 max-md:p-0">
+      <div className="relative flex flex-1 overflow-hidden">
         {(!isMobile || sidebarOpen) && (
           <>
             {isMobile && sidebarOpen && (
@@ -968,7 +1022,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             )}
             <div
               className={`
-              ${isMobile ? 'fixed inset-y-0 left-0 z-50 w-64 bg-background shadow-lg' : 'relative overflow-hidden rounded-[28px] shadow-[0_20px_60px_-34px_hsl(var(--shadow-soft)/0.32)]'}
+              ${isMobile ? 'fixed inset-y-0 left-0 z-50 w-60 bg-background shadow-lg' : 'relative overflow-hidden'}
               ${isMobile && !sidebarOpen ? 'hidden' : ''}
             `}
             >
@@ -985,28 +1039,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   setComposeOpen(true);
                   if (isMobile) setSidebarOpen(false);
                 }}
-                searchQuery={searchQuery}
-                onSearchChange={(query) => {
-                  setSearchQuery(query);
-                  // Only parse structured queries (with field prefixes like from:, subject:, is:, etc.)
-                  // Plain text queries are sent as `q` parameter for simple search
-                  const hasStructuredSyntax =
-                    /(?:^|\s)(?:from|to|cc|bcc|subject|body|date|folder|tag|tags|size|attachment|attachments|filename|after|before|is|has|message-id|messageid|id):/i.test(
-                      query
-                    );
-                  if (hasStructuredSyntax) {
-                    const parsed = FilterQueryParser.parse(query);
-                    setQuickFilter(parsed.quickFilter);
-                    setFilterGroup(parsed.filterGroup);
-                  } else {
-                    setQuickFilter(undefined);
-                    setFilterGroup(undefined);
-                  }
-                }}
-                onFilterChange={(quickFilter, filterGroup) => {
-                  setQuickFilter(quickFilter);
-                  setFilterGroup(filterGroup);
-                  queryClient.invalidateQueries({ queryKey: ['messages'] });
+                activeQuickFilter={quickFilter}
+                onQuickFilterChange={(filter) => {
+                  setQuickFilter(filter);
+                  setFilterGroup(undefined);
                 }}
                 isMobile={isMobile}
                 onClose={() => setSidebarOpen(false)}
@@ -1019,181 +1055,228 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             </div>
           </>
         )}
-        {isMobile && selectedMessageId ? null : (
-          <div
-            className={`relative flex flex-col flex-shrink-0 ${isMobile ? 'w-full' : 'overflow-hidden rounded-[28px] shadow-[0_20px_60px_-34px_hsl(var(--shadow-soft)/0.28)]'}`}
-            style={!isMobile ? { width: `${messageListWidth}px` } : {}}
-            suppressHydrationWarning
-            {...(isMobile ? swipeHandlers : {})}
-          >
-            <div className="mail-panel-muted border-b border-white/80 p-2.5 max-md:p-1.5 flex-shrink-0 transition-colors duration-200">
-              <div className="flex items-center gap-2 max-md:gap-1">
-                <QuickFilters
-                  activeFilter={quickFilter}
-                  onFilterChange={(filter) => {
-                    setQuickFilter(filter);
-                    if (filter === 'drafts') {
-                      const draftsFolder = folders.find((f) => f.role === 'drafts');
-                      if (draftsFolder) setSelectedFolderId(draftsFolder.id);
-                    } else if (filter === 'sent') {
-                      const sentFolder = folders.find((f) => f.role === 'sent');
-                      if (sentFolder) setSelectedFolderId(sentFolder.id);
-                    }
-                    queryClient.invalidateQueries({ queryKey: ['messages'] });
-                  }}
-                />
-                <Button
-                  variant={conversationView ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setConversationView(!conversationView)}
-                  className="h-10 rounded-2xl px-3 shadow-sm max-md:h-8 max-md:px-2 max-md:text-xs"
-                  title={conversationView ? t('switchToNormal') : t('switchToThread')}
-                  aria-label={conversationView ? t('switchToNormal') : t('switchToThread')}
-                >
-                  <MessageSquare className="h-4 w-4 max-md:h-3 max-md:w-3 mr-1 max-md:mr-0" />
-                  <span className="max-md:hidden">{t('threads')}</span>
-                </Button>
+        <section className="flex min-w-0 flex-1 flex-col" aria-label={t('workspaceLabel')}>
+          {(!isMobile || !selectedMessageId) && (
+            <header className="mail-panel-surface flex min-h-16 flex-shrink-0 items-center gap-4 border-b border-border px-4 py-2 max-md:min-h-14 max-md:px-3">
+              <div className="min-w-0 flex-shrink-0 max-md:hidden">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {selectedFolder?.name || t('allMail')}
+                </p>
+                <p className="text-xs text-muted-foreground">{t('searchAllMail')}</p>
               </div>
-            </div>
-            <div className="flex-1 min-h-0">
-              <MessageList
-                messages={messages}
-                selectedIds={selectedIds}
-                conversationView={conversationView}
-                density={settings?.ui?.density || 'comfortable'}
-                groupBy={settings?.ui?.groupBy || 'none'}
-                onSelect={(id, multi) => {
-                  if (multi) {
-                    setSelectedIds((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(id)) next.delete(id);
-                      else next.add(id);
-                      return next;
-                    });
-                    setAllMessagesSelected(false);
-                  } else {
-                    setSelectedIds(new Set([id]));
-                    setAllMessagesSelected(false);
-                  }
+              <SearchBar
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onFilterChange={(nextQuickFilter, nextFilterGroup) => {
+                  setQuickFilter(nextQuickFilter);
+                  setFilterGroup(nextFilterGroup);
                 }}
-                onSelectAll={() => {
-                  if (selectedIds.size === messages.length && messages.length > 0) {
-                    setSelectedIds(new Set());
-                    setAllMessagesSelected(false);
-                  } else {
-                    setSelectedIds(new Set(messages.map((m) => m.id)));
-                    setAllMessagesSelected(false);
-                  }
-                }}
-                onSelectAllInFolder={handleSelectAllInFolder}
-                isSelectingAllInFolder={isSelectingAllInFolder}
-                allMessagesSelected={allMessagesSelected}
-                onMessageClick={handleMessageClick}
-                onMessageDoubleClick={handleMessageDoubleClick}
-                onLoadMore={() => {
-                  if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-                }}
-                hasMore={hasNextPage}
-                isLoading={isMessagesLoading}
-                isFetchingMore={isFetchingNextPage}
-                isSearching={debouncedSearch.length > 0}
-                onDragStart={() => {}}
+                placeholder={t('searchPlaceholder')}
+                className="mx-auto w-full max-w-2xl"
               />
+              <span className="flex-shrink-0 rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-muted-foreground max-md:hidden">
+                /
+              </span>
+            </header>
+          )}
+          {hasConnectionProblem && (
+            <div
+              className="flex flex-shrink-0 items-center gap-3 border-b border-[hsl(var(--status-warning)/0.35)] bg-[hsl(var(--status-warning)/0.1)] px-4 py-2 text-sm"
+              role="alert"
+            >
+              <AlertTriangle className="h-4 w-4 flex-shrink-0 text-[hsl(var(--status-warning))]" />
+              <span className="flex-1">{t('connectionWarning')}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 rounded-lg px-2 font-medium"
+                onClick={() => router.push(`/${locale}/settings/stalwart`)}
+              >
+                {t('openSystemSettings')}
+              </Button>
             </div>
-          </div>
-        )}
-        {!isMobile && (
-          <div
-            className="group relative hidden w-1 flex-shrink-0 cursor-col-resize bg-transparent transition-colors lg:block"
-            onMouseDown={handleMouseDown}
-          >
-            <div className="absolute inset-y-8 left-1/2 w-px -translate-x-1/2 rounded-full bg-border/45 opacity-70 group-hover:bg-border group-hover:opacity-100" />
-          </div>
-        )}
-        {isMobile && !selectedMessageId ? null : (
-          <div
-            className={`
-              flex-1 min-w-0
-              ${isMobile ? 'fixed inset-0 z-40 bg-background' : 'overflow-hidden rounded-[28px] shadow-[0_20px_60px_-34px_hsl(var(--shadow-soft)/0.28)]'}
-              ${isMobile && !selectedMessageId ? 'hidden' : ''}
-            `}
-            {...(isMobile && selectedMessageId ? swipeHandlers : {})}
-          >
-            {isMobile && (
-              <div className="mail-panel-muted flex items-center gap-2 border-b border-white/80 p-3 flex-shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setSelectedMessageId(null);
-                    setSelectedIds(new Set());
-                  }}
-                  className="min-h-[44px] min-w-[44px] rounded-2xl bg-white/70 text-slate-700 shadow-sm touch-manipulation hover:mail-hover-surface"
-                  aria-label={t('backToList')}
-                >
-                  <ArrowLeft className="h-6 w-6" />
-                </Button>
-                <span className="text-sm font-medium truncate flex-1">
-                  {selectedMessage?.subject || ''}
-                </span>
+          )}
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            {isMobile && selectedMessageId ? null : (
+              <div
+                className={`relative flex flex-col flex-shrink-0 border-r border-border ${isMobile ? 'w-full' : 'overflow-hidden'}`}
+                style={!isMobile ? { width: `${messageListWidth}px` } : {}}
+                suppressHydrationWarning
+                {...(isMobile ? swipeHandlers : {})}
+              >
+                <div className="mail-panel-muted flex-shrink-0 border-b border-border px-3 py-2 transition-colors duration-200">
+                  <div className="flex items-center gap-2 max-md:gap-1">
+                    <h2 className="mr-auto truncate text-sm font-semibold">
+                      {selectedFolder?.name || t('allMail')}
+                    </h2>
+                    <QuickFilters
+                      activeFilter={quickFilter}
+                      onFilterChange={(filter) => {
+                        setQuickFilter(filter);
+                        if (filter === 'drafts') {
+                          const draftsFolder = folders.find((f) => f.role === 'drafts');
+                          if (draftsFolder) setSelectedFolderId(draftsFolder.id);
+                        } else if (filter === 'sent') {
+                          const sentFolder = folders.find((f) => f.role === 'sent');
+                          if (sentFolder) setSelectedFolderId(sentFolder.id);
+                        }
+                        queryClient.invalidateQueries({ queryKey: ['messages'] });
+                      }}
+                    />
+                    <Button
+                      variant={conversationView ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setConversationView(!conversationView)}
+                      className="h-9 rounded-lg px-3 shadow-none max-md:h-8 max-md:px-2 max-md:text-xs"
+                      title={conversationView ? t('switchToNormal') : t('switchToThread')}
+                      aria-label={conversationView ? t('switchToNormal') : t('switchToThread')}
+                    >
+                      <MessageSquare className="h-4 w-4 max-md:h-3 max-md:w-3 mr-1 max-md:mr-0" />
+                      <span className="max-md:hidden">{t('threads')}</span>
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 min-h-0">
+                  <MessageList
+                    messages={messages}
+                    selectedIds={selectedIds}
+                    conversationView={conversationView}
+                    density={settings?.ui?.density || 'comfortable'}
+                    groupBy={settings?.ui?.groupBy || 'none'}
+                    onSelect={(id, multi) => {
+                      if (multi) {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(id)) next.delete(id);
+                          else next.add(id);
+                          return next;
+                        });
+                        setAllMessagesSelected(false);
+                      } else {
+                        setSelectedIds(new Set([id]));
+                        setAllMessagesSelected(false);
+                      }
+                    }}
+                    onSelectAll={() => {
+                      if (selectedIds.size === messages.length && messages.length > 0) {
+                        setSelectedIds(new Set());
+                        setAllMessagesSelected(false);
+                      } else {
+                        setSelectedIds(new Set(messages.map((m) => m.id)));
+                        setAllMessagesSelected(false);
+                      }
+                    }}
+                    onSelectAllInFolder={handleSelectAllInFolder}
+                    isSelectingAllInFolder={isSelectingAllInFolder}
+                    allMessagesSelected={allMessagesSelected}
+                    onMessageClick={handleMessageClick}
+                    onMessageDoubleClick={handleMessageDoubleClick}
+                    onLoadMore={() => {
+                      if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+                    }}
+                    hasMore={hasNextPage}
+                    isLoading={isMessagesLoading}
+                    isFetchingMore={isFetchingNextPage}
+                    isSearching={debouncedSearch.length > 0}
+                    onDragStart={() => {}}
+                  />
+                </div>
               </div>
             )}
-            <MessageViewer
-              key={selectedMessageId || 'empty-viewer'}
-              message={selectedMessage || null}
-              onReply={handleReply}
-              onReplyAll={handleReplyAll}
-              onForward={handleForward}
-              onDelete={handleDelete}
-              onStar={(starred) => {
-                if (!selectedMessageId) return;
-                updateMessageInList(selectedMessageId, (message) => ({
-                  ...message,
-                  flags: { ...message.flags, starred },
-                }));
-                updateMessageDetail(selectedMessageId, (message) => ({
-                  ...message,
-                  flags: { ...message.flags, starred },
-                }));
-              }}
-              onMarkRead={(read) => {
-                if (!selectedMessageId) return;
-                const message = messages.find((m) => m.id === selectedMessageId);
-                const wasUnread = message?.flags.unread;
-                updateMessageInList(selectedMessageId, (message) => ({
-                  ...message,
-                  flags: { ...message.flags, unread: !read },
-                }));
-                updateMessageDetail(selectedMessageId, (message) => ({
-                  ...message,
-                  flags: { ...message.flags, unread: !read },
-                }));
-                if (selectedFolderId && wasUnread !== undefined) {
-                  const delta = read && wasUnread ? -1 : !read && !wasUnread ? 1 : 0;
-                  if (delta !== 0) updateFolderCount(selectedFolderId, delta);
-                }
-                queryClient.invalidateQueries({ queryKey: ['folders'] });
-                refetchFolders();
-              }}
-              onToggleImportant={(important) => {
-                if (!selectedMessageId) return;
-                updateMessageInList(selectedMessageId, (message) => ({
-                  ...message,
-                  flags: { ...message.flags, important },
-                }));
-                updateMessageDetail(selectedMessageId, (message) => ({
-                  ...message,
-                  flags: { ...message.flags, important },
-                }));
-              }}
-              allowRemoteImages={allowRemoteImages}
-              isLoading={isMessageLoading}
-              hasSelection={!!selectedMessageId}
-              error={messageError}
-              isMobile={isMobile}
-            />
+            {!isMobile && (
+              <div
+                className="group relative hidden w-1 flex-shrink-0 cursor-col-resize bg-transparent transition-colors lg:block"
+                onMouseDown={handleMouseDown}
+              >
+                <div className="absolute inset-y-8 left-1/2 w-px -translate-x-1/2 rounded-full bg-border/45 opacity-70 group-hover:bg-border group-hover:opacity-100" />
+              </div>
+            )}
+            {isMobile && !selectedMessageId ? null : (
+              <div
+                className={`
+              flex-1 min-w-0
+              ${isMobile ? 'fixed inset-0 z-40 bg-background' : 'overflow-hidden'}
+              ${isMobile && !selectedMessageId ? 'hidden' : ''}
+            `}
+                {...(isMobile && selectedMessageId ? swipeHandlers : {})}
+              >
+                {isMobile && (
+                  <div className="mail-panel-muted flex items-center gap-2 border-b border-white/80 p-3 flex-shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedMessageId(null);
+                        setSelectedIds(new Set());
+                      }}
+                      className="min-h-[44px] min-w-[44px] rounded-2xl bg-white/70 text-slate-700 shadow-sm touch-manipulation hover:mail-hover-surface"
+                      aria-label={t('backToList')}
+                    >
+                      <ArrowLeft className="h-6 w-6" />
+                    </Button>
+                    <span className="text-sm font-medium truncate flex-1">
+                      {selectedMessage?.subject || ''}
+                    </span>
+                  </div>
+                )}
+                <MessageViewer
+                  key={selectedMessageId || 'empty-viewer'}
+                  message={selectedMessage || null}
+                  onReply={handleReply}
+                  onReplyAll={handleReplyAll}
+                  onForward={handleForward}
+                  onDelete={handleDelete}
+                  onStar={(starred) => {
+                    if (!selectedMessageId) return;
+                    updateMessageInList(selectedMessageId, (message) => ({
+                      ...message,
+                      flags: { ...message.flags, starred },
+                    }));
+                    updateMessageDetail(selectedMessageId, (message) => ({
+                      ...message,
+                      flags: { ...message.flags, starred },
+                    }));
+                  }}
+                  onMarkRead={(read) => {
+                    if (!selectedMessageId) return;
+                    const message = messages.find((m) => m.id === selectedMessageId);
+                    const wasUnread = message?.flags.unread;
+                    updateMessageInList(selectedMessageId, (message) => ({
+                      ...message,
+                      flags: { ...message.flags, unread: !read },
+                    }));
+                    updateMessageDetail(selectedMessageId, (message) => ({
+                      ...message,
+                      flags: { ...message.flags, unread: !read },
+                    }));
+                    if (selectedFolderId && wasUnread !== undefined) {
+                      const delta = read && wasUnread ? -1 : !read && !wasUnread ? 1 : 0;
+                      if (delta !== 0) updateFolderCount(selectedFolderId, delta);
+                    }
+                    queryClient.invalidateQueries({ queryKey: ['folders'] });
+                    refetchFolders();
+                  }}
+                  onToggleImportant={(important) => {
+                    if (!selectedMessageId) return;
+                    updateMessageInList(selectedMessageId, (message) => ({
+                      ...message,
+                      flags: { ...message.flags, important },
+                    }));
+                    updateMessageDetail(selectedMessageId, (message) => ({
+                      ...message,
+                      flags: { ...message.flags, important },
+                    }));
+                  }}
+                  allowRemoteImages={allowRemoteImages}
+                  isLoading={isMessageLoading}
+                  hasSelection={!!selectedMessageId}
+                  error={messageError}
+                  isMobile={isMobile}
+                />
+              </div>
+            )}
           </div>
-        )}
+        </section>
       </div>
       {selectedIds.size > 0 && (
         <div className="mail-panel-muted flex-shrink-0 border-t border-white/80 p-3 max-md:sticky max-md:bottom-0 max-md:z-50 max-md:p-3 max-md:shadow-lg">

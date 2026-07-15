@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import type { Folder, Account } from '@/lib/types';
+import type { Folder, Account, QuickFilterType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -27,12 +27,14 @@ import {
   UserPlus,
   Check,
   RefreshCw,
+  Mail,
+  Star,
+  Paperclip,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { SearchBar } from './search-bar';
 import { useTranslations, useLocale } from 'next-intl';
 
 interface SidebarProps {
@@ -41,32 +43,12 @@ interface SidebarProps {
   selectedFolderId: string | null;
   onFolderSelect: (folderId: string) => void;
   onCompose: () => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  onFilterChange?: (
-    quickFilter?: import('@/lib/types').QuickFilterType,
-    filterGroup?: import('@/lib/types').FilterGroup
-  ) => void;
+  activeQuickFilter?: QuickFilterType;
+  onQuickFilterChange: (filter?: QuickFilterType) => void;
   isMobile?: boolean;
   onClose?: () => void;
   onDropMessage?: (messageId: string, folderId: string) => void;
   onRefreshFolders?: () => void;
-}
-
-type ServiceStatus = 'up' | 'down' | 'unknown';
-
-interface ServerStatus {
-  smtp: ServiceStatus;
-  imapJmap: ServiceStatus;
-  queueSize: number | null;
-  deliveryErrors: number | null;
-  updatedAt: string;
-}
-
-interface StatusItem {
-  label: string;
-  status: ServiceStatus;
-  value?: string;
 }
 
 const folderIcons: Record<string, React.ReactNode> = {
@@ -84,9 +66,8 @@ export function Sidebar({
   selectedFolderId,
   onFolderSelect,
   onCompose,
-  searchQuery,
-  onSearchChange,
-  onFilterChange,
+  activeQuickFilter,
+  onQuickFilterChange,
   isMobile = false,
   onClose,
   onDropMessage,
@@ -99,19 +80,6 @@ export function Sidebar({
   const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const queryClient = useQueryClient();
-  const { data: serverStatus, isLoading: isStatusLoading } = useQuery<ServerStatus>({
-    queryKey: ['server-status'],
-    queryFn: async () => {
-      const res = await fetch('/api/mail/status');
-      if (!res.ok) {
-        throw new Error('Failed to load server status');
-      }
-      return res.json();
-    },
-    staleTime: 15000,
-    refetchInterval: 30000,
-  });
-
   const { data: accountsData } = useQuery<{
     accounts: Array<{ id: string; email: string; displayName?: string; isActive?: boolean }>;
   }>({
@@ -189,25 +157,6 @@ export function Sidebar({
     router.push('/login?addAccount=true');
   };
 
-  const statusItems = useMemo<StatusItem[]>(() => {
-    if (!serverStatus) {
-      return [];
-    }
-    return [{ label: 'IMAP/JMAP', status: serverStatus.imapJmap }];
-  }, [serverStatus]);
-
-  const getStatusStyle = (status: ServiceStatus) => {
-    if (status === 'up') return 'bg-emerald-500';
-    if (status === 'down') return 'bg-rose-500';
-    return 'bg-amber-400';
-  };
-
-  const getStatusText = (status: ServiceStatus) => {
-    if (status === 'up') return t('statusUp');
-    if (status === 'down') return t('statusDown');
-    return t('statusUnknown');
-  };
-
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
@@ -238,6 +187,21 @@ export function Sidebar({
 
     return rootFolders;
   }, [folders]);
+
+  const quickViews: Array<{
+    type: QuickFilterType | undefined;
+    label: string;
+    icon: React.ReactNode;
+  }> = [
+    { type: 'incoming', label: t('quickInbox'), icon: <Inbox className="h-4 w-4" /> },
+    { type: 'unread', label: t('quickUnread'), icon: <Mail className="h-4 w-4" /> },
+    { type: 'starred', label: t('quickStarred'), icon: <Star className="h-4 w-4" /> },
+    {
+      type: 'hasAttachments',
+      label: t('quickAttachments'),
+      icon: <Paperclip className="h-4 w-4" />,
+    },
+  ];
 
   const renderFolderItem = useCallback(
     (folder: Folder & { children?: Folder[] }, level = 0) => {
@@ -317,8 +281,8 @@ export function Sidebar({
 
   if (isCollapsed && !isMobile) {
     return (
-      <div className="mail-sidebar-surface flex h-full w-16 flex-col border-r border-white/60">
-        <div className="border-b border-white/70 p-2">
+      <aside className="mail-sidebar-surface flex h-full w-16 flex-col border-r border-border">
+        <div className="border-b border-border p-2">
           <Button
             variant="ghost"
             size="icon"
@@ -357,7 +321,7 @@ export function Sidebar({
             })}
           </nav>
         </div>
-        <div className="border-t border-white/70 p-2">
+        <div className="border-t border-border p-2">
           <Button
             variant="ghost"
             size="icon"
@@ -368,19 +332,19 @@ export function Sidebar({
             <Settings className="h-4 w-4" />
           </Button>
         </div>
-      </div>
+      </aside>
     );
   }
 
   return (
-    <div
+    <aside
       className={`
-      mail-sidebar-surface flex h-full flex-col border-r border-white/60
-      ${isMobile ? 'w-full' : 'w-64'}
+      mail-sidebar-surface flex h-full flex-col border-r border-border
+      ${isMobile ? 'w-full' : 'w-60'}
     `}
     >
       {isMobile && (
-        <div className="border-b border-white/70 p-3 flex items-center justify-between">
+        <div className="border-b border-border p-3 flex items-center justify-between">
           <h1 className="text-lg font-bold">{t('menuHeading')}</h1>
           <Button
             variant="ghost"
@@ -393,7 +357,7 @@ export function Sidebar({
           </Button>
         </div>
       )}
-      <div className="border-b border-white/70 p-4">
+      <div className="border-b border-border p-3">
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0">
             {!isMobile && (
@@ -404,21 +368,6 @@ export function Sidebar({
                   className="h-5 w-5 flex-shrink-0"
                 />
                 <h1 className="text-lg font-bold">{t('appHeading')}</h1>
-                {isStatusLoading && (
-                  <span className="text-xs text-muted-foreground">{t('statusLoading')}</span>
-                )}
-              </div>
-            )}
-            {statusItems.length > 0 && (
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                {statusItems.map((item) => (
-                  <div key={item.label} className="flex items-center gap-1">
-                    <span className={`h-2 w-2 rounded-full ${getStatusStyle(item.status)}`} />
-                    <span className="truncate">
-                      {item.label} {item.value ? item.value : getStatusText(item.status)}
-                    </span>
-                  </div>
-                ))}
               </div>
             )}
           </div>
@@ -435,27 +384,42 @@ export function Sidebar({
           )}
         </div>
         <Button
-          className="w-full rounded-2xl max-md:min-h-[44px] touch-manipulation font-semibold shadow-[0_14px_26px_-18px_hsl(var(--primary)/0.9)]"
+          className="w-full rounded-lg max-md:min-h-[44px] touch-manipulation font-semibold"
           onClick={onCompose}
           aria-label={t('compose')}
         >
           <Plus className="mr-2 h-4 w-4" />
           {t('compose')}
         </Button>
-        <div className="mt-3">
-          <SearchBar
-            value={searchQuery}
-            onChange={onSearchChange}
-            onFilterChange={onFilterChange}
-            placeholder={t('searchPlaceholder')}
-          />
-        </div>
       </div>
       <div className="flex-1 overflow-auto">
-        <div className="flex items-center justify-between border-b border-white/70 px-3 py-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            {t('foldersSection')}
-          </span>
+        <div className="border-b border-border px-2 py-3">
+          <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+            {t('quickViewsSection')}
+          </p>
+          <nav className="space-y-0.5" aria-label={t('quickViewsSection')}>
+            {quickViews.map((view) => (
+              <button
+                key={view.type}
+                type="button"
+                onClick={() =>
+                  onQuickFilterChange(activeQuickFilter === view.type ? undefined : view.type)
+                }
+                className={cn(
+                  'flex min-h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground/80 hover:mail-hover-surface hover:text-foreground',
+                  activeQuickFilter === view.type &&
+                    'mail-selected-surface font-medium text-foreground'
+                )}
+                aria-current={activeQuickFilter === view.type ? 'page' : undefined}
+              >
+                {view.icon}
+                <span className="truncate">{view.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+        <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
+          <span className="text-xs font-medium text-muted-foreground">{t('foldersSection')}</span>
           {onRefreshFolders && (
             <Button
               variant="ghost"
@@ -483,7 +447,7 @@ export function Sidebar({
           {organizedFolders.map((folder) => renderFolderItem(folder))}
         </nav>
       </div>
-      <div className="border-t border-white/70 p-2">
+      <div className="border-t border-border p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -566,6 +530,6 @@ export function Sidebar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </div>
+    </aside>
   );
 }

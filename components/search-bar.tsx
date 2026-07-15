@@ -100,16 +100,17 @@ export function SearchBar({
   };
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className || ''}`} role="search">
       <div className="relative flex items-center">
-        <Search className="absolute left-3 h-4 w-4 text-slate-400 max-md:left-2 max-md:h-3 max-md:w-3" />
+        <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
         <Input
           ref={inputRef}
           type="text"
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}
-          className="h-11 rounded-2xl border-white/80 bg-white/80 pl-10 pr-24 text-slate-700 shadow-[0_14px_32px_-24px_hsl(var(--shadow-soft)/0.3)] placeholder:text-slate-400 focus-visible:ring-primary/30 focus-visible:ring-offset-0 max-md:pl-8 max-md:pr-16 max-md:text-sm"
+          className="h-10 rounded-lg border-border bg-background pl-10 pr-24 text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-primary/30 focus-visible:ring-offset-0 max-md:text-sm"
+          data-mail-search
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               handleClear();
@@ -123,7 +124,7 @@ export function SearchBar({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowSaveDialog(true)}
-                className="absolute right-20 h-7 w-7 rounded-xl p-0 text-slate-500 hover:mail-hover-surface hover:text-foreground max-md:right-16 max-md:h-5 max-md:w-5"
+                className="absolute right-20 h-7 w-7 rounded-lg p-0 text-muted-foreground hover:mail-hover-surface hover:text-foreground"
                 title="Сохранить поиск"
               >
                 <Bookmark className="h-4 w-4 max-md:h-3 max-md:w-3" />
@@ -133,7 +134,7 @@ export function SearchBar({
               variant="ghost"
               size="sm"
               onClick={handleClear}
-              className="absolute right-10 h-7 w-7 rounded-xl p-0 text-slate-500 hover:mail-hover-surface hover:text-foreground max-md:right-8 max-md:h-5 max-md:w-5"
+              className="absolute right-10 h-7 w-7 rounded-lg p-0 text-muted-foreground hover:mail-hover-surface hover:text-foreground"
             >
               <X className="h-4 w-4 max-md:h-3 max-md:w-3" />
             </Button>
@@ -144,7 +145,7 @@ export function SearchBar({
             <Button
               variant="ghost"
               size="sm"
-              className="absolute right-2 h-7 w-7 rounded-xl p-0 text-slate-500 hover:mail-hover-surface hover:text-foreground max-md:right-1 max-md:h-5 max-md:w-5"
+              className="absolute right-2 h-7 w-7 rounded-lg p-0 text-muted-foreground hover:mail-hover-surface hover:text-foreground"
               title="Сохраненные поиски и справка"
             >
               <HelpCircle className="h-4 w-4 max-md:h-3 max-md:w-3" />
@@ -152,11 +153,11 @@ export function SearchBar({
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            className="w-64 rounded-2xl border-white/80 bg-white/95 p-1 shadow-[0_24px_48px_-24px_hsl(var(--shadow-soft)/0.35)]"
+            className="w-64 rounded-xl border-border bg-popover p-1 shadow-lg"
           >
             {savedFilters.length > 0 && (
               <>
-                <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
                   Сохраненные поиски
                 </div>
                 {savedFilters.map((filter) => (
@@ -166,7 +167,7 @@ export function SearchBar({
                       onChange(filter.query);
                       setShowHelp(false);
                     }}
-                    className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                    className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                   >
                     <BookmarkCheck className="h-4 w-4 mr-2" />
                     <span className="truncate">{filter.name}</span>
@@ -177,7 +178,7 @@ export function SearchBar({
             )}
             <DropdownMenuItem
               onClick={() => setShowHelp(!showHelp)}
-              className="rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+              className="rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
             >
               <HelpCircle className="h-4 w-4 mr-2" />
               Справка по поиску
@@ -186,9 +187,9 @@ export function SearchBar({
         </DropdownMenu>
       </div>
       {showHelp && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-3xl border border-white/80 bg-white/95 p-4 shadow-[0_28px_56px_-28px_hsl(var(--shadow-soft)/0.38)] backdrop-blur-sm max-md:p-2 max-md:text-xs">
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-xl border border-border bg-popover p-4 shadow-lg max-md:p-2 max-md:text-xs">
           <h3 className="font-semibold mb-2 max-md:text-sm">Справка по поиску</h3>
-          <div className="space-y-3 text-sm text-slate-600 max-md:text-xs">
+          <div className="space-y-3 text-sm text-muted-foreground max-md:text-xs">
             <div>
               <strong>Быстрые фильтры:</strong>
               <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
@@ -254,13 +255,13 @@ export function SearchBar({
         </div>
       )}
       {showSaveDialog && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-3xl border border-white/80 bg-white/95 p-4 shadow-[0_28px_56px_-28px_hsl(var(--shadow-soft)/0.38)] backdrop-blur-sm">
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-xl border border-border bg-popover p-4 shadow-lg">
           <h3 className="font-semibold mb-2">Сохранить поисковый запрос</h3>
           <Input
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
             placeholder="Название поиска"
-            className="mb-2 rounded-2xl border-border/80 bg-white/80"
+            className="mb-2 rounded-lg border-border bg-background"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && saveName.trim()) {
                 saveMutation.mutate();
