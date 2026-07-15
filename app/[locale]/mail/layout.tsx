@@ -921,7 +921,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   return (
     <div
       id="main-content"
-      className="mail-app-shell flex min-h-dvh flex-col"
+      className="mail-app-shell flex h-dvh flex-col overflow-hidden"
       role="main"
       aria-label={t('appLabel')}
     >
@@ -1196,7 +1196,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         )}
       </div>
       {selectedIds.size > 0 && (
-        <div className="mail-panel-muted border-t border-white/80 p-3 max-md:sticky max-md:bottom-0 max-md:z-50 max-md:p-3 max-md:shadow-lg">
+        <div className="mail-panel-muted flex-shrink-0 border-t border-white/80 p-3 max-md:sticky max-md:bottom-0 max-md:z-50 max-md:p-3 max-md:shadow-lg">
           <div className="flex items-center gap-2 max-md:flex-wrap max-md:justify-center max-md:gap-2">
             <span className="rounded-full bg-white/75 px-3 py-1 text-sm font-medium text-slate-700 shadow-sm max-md:text-sm">
               {t('selected', { count: selectedIds.size })}

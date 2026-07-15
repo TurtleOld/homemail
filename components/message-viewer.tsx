@@ -99,7 +99,7 @@ export function MessageViewer({
   const markedAsReadRef = useRef<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [localAllowImages, setLocalAllowImages] = useState(false);
-  const [iframeHeight, setIframeHeight] = useState(640);
+  const [iframeHeight, setIframeHeight] = useState(300);
   const [previewAttachment, setPreviewAttachment] = useState<{
     id: string;
     filename: string;
@@ -142,11 +142,8 @@ export function MessageViewer({
     try {
       const doc = iframe.contentDocument;
       if (!doc) return;
-      const nextHeight = Math.max(
-        doc.documentElement?.scrollHeight || 0,
-        doc.body?.scrollHeight || 0,
-        360
-      );
+      const emailShell = doc.querySelector<HTMLElement>('.email-shell');
+      const nextHeight = Math.max(emailShell?.scrollHeight || doc.body?.scrollHeight || 0, 300);
       setIframeHeight(nextHeight);
     } catch {
       // srcDoc should stay accessible; ignore if browser temporarily blocks measurement
@@ -227,7 +224,7 @@ export function MessageViewer({
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
       '<style>',
       '* { box-sizing: border-box; }',
-      `html, body { min-height: 100%; margin: 0; padding: 0; background: ${shellBg}; }`,
+      `html, body { margin: 0; padding: 0; background: ${shellBg}; }`,
       `body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: ${textColor}; line-height: 1.6; font-size: 15px; word-wrap: break-word; overflow-wrap: break-word; overflow-x: auto; }`,
       '.email-shell { padding: 20px; }',
       `.email-content { width: 100%; max-width: 920px; margin: 0 auto; padding: 24px; background: ${paperBg}; color: ${textColor}; border: 1px solid ${panelBorder}; border-radius: 18px; box-shadow: ${panelShadow}; }`,

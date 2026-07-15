@@ -178,6 +178,12 @@ describe('Mail foundation smoke coverage', () => {
     expect(screen.getAllByRole('generic').length).toBeGreaterThan(0);
   });
 
+  it('does not reserve a tall iframe for a short message', () => {
+    renderWithQueryClient(<MessageViewer message={mockDetailMessage} />);
+
+    expect(screen.getByTitle('Message content')).toHaveStyle({ height: '300px' });
+  });
+
   it('supports an explicit system theme preference on the document root', () => {
     document.documentElement.dataset.theme = 'system';
 
