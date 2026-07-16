@@ -5,18 +5,10 @@ import type { MessageListItem } from '@/lib/types';
 import type { ThreadGroup } from '@/lib/thread-utils';
 import { formatDate } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
-import {
-  Star,
-  StarOff,
-  Mail,
-  MailOpen,
-  Paperclip,
-  ChevronDown,
-  ChevronRight,
-  Users,
-} from 'lucide-react';
+import { Star, Paperclip, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MessageItem } from './message-list';
+import { useTranslations } from 'next-intl';
 
 interface ThreadItemProps {
   thread: ThreadGroup;
@@ -27,6 +19,7 @@ interface ThreadItemProps {
   onDragStart?: (messageId: string) => void;
   isExpanded?: boolean;
   onToggleExpand?: (threadId: string) => void;
+  density?: 'compact' | 'comfortable' | 'spacious';
 }
 
 export const ThreadItem = memo(function ThreadItem({
@@ -38,8 +31,11 @@ export const ThreadItem = memo(function ThreadItem({
   onDragStart,
   isExpanded = false,
   onToggleExpand,
+  density = 'comfortable',
 }: ThreadItemProps) {
   const localeSettings = useLocaleSettings();
+  const t = useTranslations('messageList');
+  const tCommon = useTranslations('common');
   const [localExpanded, setLocalExpanded] = useState(isExpanded);
   const expanded = onToggleExpand ? isExpanded : localExpanded;
   const toggleExpanded = onToggleExpand
@@ -66,19 +62,32 @@ export const ThreadItem = memo(function ThreadItem({
   };
 
   return (
-    <div className="mx-2 my-1 overflow-hidden rounded-2xl border border-transparent">
+    <div className="border-b border-border/70">
       <article
         role="article"
-        aria-label={`Тред: ${latestMessage.subject || 'без темы'}, ${thread.messages.length} сообщений`}
+        aria-label={t('threadAriaLabel', {
+          subject: latestMessage.subject || tCommon('noSubject'),
+          count: thread.messages.length,
+        })}
         className={cn(
-          'flex cursor-pointer items-start gap-3 rounded-2xl border border-border/60 bg-background/55 p-3 transition-all duration-200 hover:mail-hover-surface hover:border-border/80 hover:shadow-[0_10px_22px_-20px_hsl(var(--shadow-soft)/0.45)] active:scale-[0.998] touch-manipulation max-md:p-4',
+          'group relative flex cursor-pointer items-center gap-2.5 px-3 transition-colors duration-150 hover:mail-hover-surface focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary',
+          density === 'compact' && 'min-h-12 py-1.5',
+          density === 'comfortable' && 'min-h-16 py-2.5',
+          density === 'spacious' && 'min-h-20 py-3.5',
           thread.unreadCount > 0 && 'mail-unread-surface',
-          someSelected && 'mail-selected-surface mail-border-strong shadow-sm'
+          someSelected && 'mail-selected-surface'
         )}
         onClick={handleThreadClick}
         onDoubleClick={handleThreadDoubleClick}
       >
-        <div className="flex items-start gap-2 mt-1">
+        <span
+          aria-hidden="true"
+          className={cn(
+            'absolute inset-y-2 left-0 w-0.5 rounded-r',
+            thread.unreadCount > 0 ? 'bg-[hsl(var(--unread))]' : 'bg-transparent'
+          )}
+        />
+        <div className="flex flex-shrink-0 items-center gap-1">
           <input
             type="checkbox"
             checked={allSelected}
@@ -104,95 +113,83 @@ export const ThreadItem = memo(function ThreadItem({
               });
             }}
             onClick={(e) => e.stopPropagation()}
-            className="max-md:scale-110 max-md:min-w-[24px] max-md:min-h-[24px] touch-manipulation focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            aria-label={`Выбрать тред ${latestMessage.subject || 'без темы'}`}
+            className="h-4 w-4 rounded border-[hsl(var(--border-strong))] accent-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            aria-label={t('selectThread', {
+              subject: latestMessage.subject || tCommon('noSubject'),
+            })}
           />
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               toggleExpanded();
             }}
-            className="flex-shrink-0 rounded-lg p-0.5 transition-colors hover:bg-accent focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            aria-label={expanded ? 'Свернуть тред' : 'Развернуть тред'}
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label={expanded ? t('collapseThread') : t('expandThread')}
           >
             {expanded ? (
-              <ChevronDown className="h-4 w-4 max-md:h-3 max-md:w-3 text-muted-foreground" />
+              <ChevronDown className="h-4 w-4" strokeWidth={1.8} />
             ) : (
-              <ChevronRight className="h-4 w-4 max-md:h-3 max-md:w-3 text-muted-foreground" />
+              <ChevronRight className="h-4 w-4" strokeWidth={1.8} />
             )}
           </button>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 max-md:gap-1">
-            {thread.hasStarred ? (
-              <Star className="h-4 w-4 max-md:h-3 max-md:w-3 flex-shrink-0 fill-yellow-500 text-yellow-500" />
-            ) : (
-              <StarOff className="h-4 w-4 max-md:h-3 max-md:w-3 flex-shrink-0 text-muted-foreground" />
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span
+              className={cn(
+                'min-w-0 flex-1 truncate text-sm',
+                thread.unreadCount > 0
+                  ? 'font-semibold text-foreground'
+                  : 'font-normal text-foreground'
+              )}
+            >
+              {latestMessage.from.name || latestMessage.from.email}
+            </span>
+            {thread.messages.some((message) => message.flags.hasAttachments) && (
+              <Paperclip
+                className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground"
+                strokeWidth={1.8}
+              />
             )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 max-md:gap-1">
-                <span
-                  className={cn(
-                    'truncate max-md:text-sm',
-                    thread.unreadCount > 0
-                      ? 'font-bold text-foreground'
-                      : 'font-normal text-foreground/85'
-                  )}
-                >
-                  {thread.messages.length > 1 ? (
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3 max-md:h-2.5 max-md:w-2.5" />
-                      {thread.messages.length} участников
-                    </span>
-                  ) : (
-                    latestMessage.from.name || latestMessage.from.email
-                  )}
+            {thread.hasStarred && (
+              <Star
+                className="h-3.5 w-3.5 flex-shrink-0 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]"
+                strokeWidth={1.8}
+              />
+            )}
+            <time
+              dateTime={new Date(thread.latestDate).toISOString()}
+              className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+            >
+              {formatDate(thread.latestDate, localeSettings)}
+            </time>
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5 text-[13px]">
+            <span
+              className={cn('truncate', thread.unreadCount > 0 ? 'font-medium' : 'font-normal')}
+            >
+              {latestMessage.subject || tCommon('noSubject')}
+            </span>
+            {!expanded && density !== 'compact' && latestMessage.snippet && (
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                <span aria-hidden="true">— </span>
+                {latestMessage.snippet}
+              </span>
+            )}
+            <span className="ml-auto flex flex-shrink-0 items-center gap-1 font-mono text-[10px] tabular-nums text-muted-foreground">
+              <span className="rounded bg-secondary px-1.5 py-0.5">{thread.messages.length}</span>
+              {thread.unreadCount > 0 && (
+                <span className="rounded bg-primary/12 px-1.5 py-0.5 font-semibold text-primary">
+                  {thread.unreadCount}
                 </span>
-                {thread.messages.some((m) => m.flags.hasAttachments) && (
-                  <Paperclip className="h-3 w-3 max-md:h-2.5 max-md:w-2.5 flex-shrink-0 text-muted-foreground" />
-                )}
-              </div>
-              <div className="mt-1 max-md:mt-0.5 flex items-center gap-2 text-sm max-md:text-xs">
-                <span
-                  className={cn(
-                    'truncate',
-                    thread.unreadCount > 0 ? 'font-semibold' : 'text-muted-foreground'
-                  )}
-                >
-                  {latestMessage.subject || '(без темы)'}
-                </span>
-                {thread.messages.length > 1 && (
-                  <span className="rounded-full bg-secondary/85 px-1.5 py-0.5 text-xs text-muted-foreground max-md:text-[10px]">
-                    {thread.messages.length}
-                  </span>
-                )}
-                {thread.unreadCount > 0 && (
-                  <span className="rounded-full bg-primary/12 px-1.5 py-0.5 text-xs font-semibold text-primary max-md:text-[10px]">
-                    {thread.unreadCount}
-                  </span>
-                )}
-                <span className="text-xs max-md:text-[10px] text-muted-foreground flex-shrink-0">
-                  {formatDate(thread.latestDate, localeSettings)}
-                </span>
-              </div>
-              {latestMessage.snippet && !expanded && (
-                <div className="mt-1 max-md:mt-0.5 truncate text-xs max-md:text-[10px] text-muted-foreground">
-                  {latestMessage.snippet}
-                </div>
               )}
-            </div>
-            <div className="flex-shrink-0 max-md:hidden">
-              {thread.unreadCount > 0 ? (
-                <Mail className="h-4 w-4 text-primary" />
-              ) : (
-                <MailOpen className="h-4 w-4 text-muted-foreground" />
-              )}
-            </div>
+            </span>
           </div>
         </div>
       </article>
       {expanded && (
-        <div className="mail-panel-muted mt-1 rounded-2xl border border-border/60 pl-8 max-md:pl-4">
+        <div className="border-l-2 border-primary/20 pl-5">
           {thread.messages.map((message, index) => (
             <MessageItem
               key={message.id}
@@ -206,6 +203,7 @@ export const ThreadItem = memo(function ThreadItem({
               onMessageClick={onMessageClick}
               onMessageDoubleClick={onMessageDoubleClick}
               onDragStart={onDragStart}
+              density={density}
             />
           ))}
         </div>

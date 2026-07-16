@@ -18,6 +18,7 @@ interface MessageListProps {
   selectedIds: Set<string>;
   onSelect: (id: string, multi: boolean) => void;
   onSelectAll: () => void;
+  onClearSelection?: () => void;
   onSelectAllInFolder?: () => void;
   isSelectingAllInFolder?: boolean;
   allMessagesSelected?: boolean;
@@ -32,34 +33,6 @@ interface MessageListProps {
   conversationView?: boolean;
   density?: 'compact' | 'comfortable' | 'spacious';
   groupBy?: 'none' | 'date' | 'sender';
-}
-
-const AVATAR_COLORS = [
-  'bg-blue-500',
-  'bg-violet-500',
-  'bg-emerald-500',
-  'bg-orange-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-amber-500',
-  'bg-teal-500',
-];
-
-function getAvatarColor(email: string): string {
-  let hash = 0;
-  for (let i = 0; i < email.length; i++) {
-    hash = (hash * 31 + email.charCodeAt(i)) & 0xffffffff;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function getInitials(name?: string, email?: string): string {
-  if (name && name.trim()) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    return parts[0][0].toUpperCase();
-  }
-  return (email || '?')[0].toUpperCase();
 }
 
 async function getLabels(): Promise<Label[]> {
@@ -108,18 +81,16 @@ export const MessageItem = memo(function MessageItem({
     return labels.filter((label) => message.labels?.includes(label.id));
   }, [message.labels, labels]);
   const densityClasses = {
-    compact: 'p-2 gap-2',
-    comfortable: 'p-3 gap-3',
-    spacious: 'p-4 gap-4',
+    compact: 'min-h-12 px-3 py-1.5 gap-2',
+    comfortable: 'min-h-16 px-3 py-2.5 gap-2.5',
+    spacious: 'min-h-20 px-4 py-3.5 gap-3',
   };
 
-  const textSizeClasses = {
+  const subjectSizeClasses = {
     compact: 'text-xs',
-    comfortable: 'text-sm',
-    spacious: 'text-base',
+    comfortable: 'text-[13px]',
+    spacious: 'text-sm',
   };
-  const avatarColor = getAvatarColor(message.from.email);
-  const initials = getInitials(message.from.name, message.from.email);
 
   return (
     <article
@@ -151,12 +122,11 @@ export const MessageItem = memo(function MessageItem({
         }
       }}
       className={cn(
-        'group relative mx-2 my-1 flex cursor-pointer items-start rounded-2xl border border-transparent transition-all duration-150 hover:mail-hover-surface hover:border-border/80 hover:shadow-[0_10px_22px_-20px_hsl(var(--shadow-soft)/0.45)] active:scale-[0.998] touch-manipulation',
+        'group relative flex cursor-pointer items-center border-b border-border/70 transition-colors duration-150 hover:mail-hover-surface active:bg-[hsl(var(--surface-hover))] touch-manipulation focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
         densityClasses[density],
-        'max-md:p-4 max-md:gap-3',
         message.flags.unread && 'mail-unread-surface',
-        isSelected && 'mail-selected-surface mail-border-strong shadow-sm',
-        isFocused && 'ring-2 ring-primary/35 ring-inset',
+        isSelected && 'mail-selected-surface',
+        isFocused && 'z-[1] ring-2 ring-primary/45 ring-inset',
         onDragStart && 'cursor-grab active:cursor-grabbing'
       )}
       onClick={(e) => {
@@ -180,20 +150,20 @@ export const MessageItem = memo(function MessageItem({
         }
       }}
     >
-      {/* Unread dot — left edge */}
-      <div
+      <span
+        aria-hidden="true"
         className={cn(
-          'absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full transition-all duration-150',
-          message.flags.unread ? 'h-8 bg-[hsl(var(--unread))]' : 'h-0'
+          'absolute inset-y-2 left-0 w-0.5 rounded-r transition-transform duration-150',
+          message.flags.unread ? 'scale-y-100 bg-[hsl(var(--unread))]' : 'scale-y-0 bg-transparent'
         )}
       />
 
-      {/* Checkbox — hover reveal, always visible in selection mode */}
       <div
         className={cn(
-          'flex-shrink-0 flex items-center justify-center mt-0.5',
-          'transition-opacity duration-150',
-          isSelected || isSelectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          'flex h-5 w-5 flex-shrink-0 items-center justify-center transition-opacity duration-150',
+          isSelected || isSelectionMode
+            ? 'opacity-100'
+            : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
         )}
       >
         <input
@@ -204,107 +174,82 @@ export const MessageItem = memo(function MessageItem({
             onSelect(message.id, true);
           }}
           onClick={(e) => e.stopPropagation()}
-          className="max-md:scale-110 max-md:min-w-[24px] max-md:min-h-[24px] touch-manipulation focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          className="h-4 w-4 rounded border-[hsl(var(--border-strong))] accent-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           aria-label={t('selectMessage', { sender: message.from.name || message.from.email })}
         />
       </div>
 
-      {/* Avatar — shown when checkbox hidden */}
-      <div
-        className={cn(
-          'absolute flex-shrink-0 flex items-center justify-center',
-          'transition-opacity duration-150',
-          isSelected || isSelectionMode ? 'opacity-0' : 'opacity-100 group-hover:opacity-0',
-          density === 'compact' ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-xs',
-          avatarColor,
-          'rounded-full text-white font-semibold select-none',
-          density === 'compact' ? 'top-2' : 'top-3'
-        )}
-        style={{ left: density === 'compact' ? '8px' : '12px' }}
-      >
-        {initials}
-      </div>
-
-      {/* Spacer matching avatar/checkbox width */}
-      <div className={cn('flex-shrink-0', density === 'compact' ? 'w-7' : 'w-8')} />
-
       <div className="flex-1 min-w-0">
-        <div className="flex items-start gap-2 max-md:gap-1">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span
-                className={cn(
-                  'truncate max-md:text-sm',
-                  message.flags.unread
-                    ? 'font-semibold text-foreground'
-                    : 'font-normal text-muted-foreground'
-                )}
-              >
-                {message.from.name || message.from.email}
-              </span>
-              {message.flags.hasAttachments && (
-                <Paperclip className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-              )}
-              {message.flags.important && (
-                <AlertCircle className="h-3 w-3 flex-shrink-0 fill-orange-500 text-orange-500" />
-              )}
-              {message.flags.starred && (
-                <Star className="h-3 w-3 flex-shrink-0 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" />
-              )}
-            </div>
-            <div
-              className={cn(
-                'flex items-center gap-2 max-md:gap-1',
-                textSizeClasses[density],
-                'max-md:text-xs'
-              )}
-            >
-              <span
-                className={cn(
-                  'truncate',
-                  message.flags.unread ? 'font-medium text-foreground' : 'text-muted-foreground'
-                )}
-              >
-                {message.subject || tCommon('noSubject')}
-              </span>
-              <span
-                className={cn(
-                  'flex-shrink-0 tabular-nums text-muted-foreground',
-                  density === 'compact' ? 'text-[10px]' : 'text-xs',
-                  'max-md:text-[10px]'
-                )}
-              >
-                {formatDate(message.date, localeSettings)}
-              </span>
-            </div>
-            {density !== 'compact' && message.snippet && (
-              <div className="truncate text-xs text-muted-foreground max-md:text-[10px]">
-                {message.snippet}
-              </div>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate text-sm',
+              message.flags.unread ? 'font-semibold text-foreground' : 'font-normal text-foreground'
             )}
-            {messageLabels.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {messageLabels.slice(0, 3).map((label) => (
-                  <span
-                    key={label.id}
-                    className="inline-flex items-center rounded-lg px-1.5 py-0.5 text-[10px] font-medium max-md:text-[8px]"
-                    style={{
-                      backgroundColor: `${label.color || '#3b82f6'}15`,
-                      color: label.color || '#3b82f6',
-                      border: `1px solid ${label.color || '#3b82f6'}30`,
-                    }}
-                  >
-                    {label.name}
-                  </span>
-                ))}
-                {messageLabels.length > 3 && (
-                  <span className="text-[10px] text-muted-foreground max-md:text-[8px]">
-                    +{messageLabels.length - 3}
-                  </span>
-                )}
-              </div>
+          >
+            {message.from.name || message.from.email}
+          </span>
+          <div className="flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
+            {message.flags.hasAttachments && (
+              <Paperclip className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} />
+            )}
+            {message.flags.important && (
+              <AlertCircle
+                className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]"
+                strokeWidth={1.8}
+              />
+            )}
+            {message.flags.starred && (
+              <Star
+                className="h-3.5 w-3.5 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]"
+                strokeWidth={1.8}
+              />
             )}
           </div>
+          <time
+            dateTime={new Date(message.date).toISOString()}
+            className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+          >
+            {formatDate(message.date, localeSettings)}
+          </time>
+        </div>
+        <div
+          className={cn('mt-0.5 flex min-w-0 items-baseline gap-1.5', subjectSizeClasses[density])}
+        >
+          <span
+            className={cn(
+              'min-w-0 truncate',
+              message.flags.unread ? 'font-medium text-foreground' : 'font-normal text-foreground'
+            )}
+          >
+            {message.subject || tCommon('noSubject')}
+          </span>
+          {density !== 'compact' && message.snippet && (
+            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+              <span aria-hidden="true">— </span>
+              {message.snippet}
+            </span>
+          )}
+          {messageLabels.length > 0 && (
+            <span
+              className="ml-auto flex flex-shrink-0 items-center gap-1"
+              aria-label={messageLabels.map((label) => label.name).join(', ')}
+            >
+              {messageLabels.slice(0, 3).map((label) => (
+                <span
+                  key={label.id}
+                  className="h-1.5 w-1.5 rounded-full border border-border"
+                  style={{ backgroundColor: label.color || 'hsl(var(--primary))' }}
+                  title={label.name}
+                />
+              ))}
+              {messageLabels.length > 3 && (
+                <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                  +{messageLabels.length - 3}
+                </span>
+              )}
+            </span>
+          )}
         </div>
       </div>
     </article>
@@ -316,6 +261,7 @@ export function MessageList({
   selectedIds,
   onSelect,
   onSelectAll,
+  onClearSelection,
   onSelectAllInFolder,
   isSelectingAllInFolder = false,
   allMessagesSelected = false,
@@ -352,6 +298,12 @@ export function MessageList({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedIds.size > 0 && onClearSelection) {
+        e.preventDefault();
+        onClearSelection();
+        return;
+      }
+
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -384,7 +336,7 @@ export function MessageList({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [onClearSelection, selectedIds.size]);
 
   const groupedMessages = useMemo(() => {
     if (groupBy === 'none') {
@@ -472,7 +424,7 @@ export function MessageList({
         return (
           <div
             key={`group-${item.groupHeader}`}
-            className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm border-b px-3 py-2 text-sm font-semibold text-muted-foreground"
+            className="mail-panel-muted sticky top-0 z-10 border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground backdrop-blur-sm"
           >
             {item.groupHeader}
           </div>
@@ -528,12 +480,13 @@ export function MessageList({
 
   return (
     <div
+      id="message-list"
       className="mail-panel-surface flex h-full w-full flex-col border-r border-border max-md:border-r-0"
       role="region"
       aria-label={t('regionLabel')}
     >
       <div
-        className="mail-panel-muted sticky top-0 z-10 border-b border-white/80 p-2.5 max-md:p-1.5"
+        className="mail-panel-muted sticky top-0 z-10 border-b border-border px-3 py-2"
         role="toolbar"
         aria-label={t('toolbarLabel')}
       >
@@ -547,7 +500,7 @@ export function MessageList({
             aria-controls="message-list"
           />
           <span
-            className="text-sm text-slate-600 max-md:text-xs"
+            className="text-sm text-muted-foreground max-md:text-xs"
             aria-live="polite"
             aria-atomic="true"
           >
@@ -556,7 +509,7 @@ export function MessageList({
               : t('totalCount', { count: messages.length })}
           </span>
           {isFetchingMore && (
-            <span className="ml-auto text-xs text-slate-500 max-md:text-[10px]">
+            <span className="ml-auto text-xs text-muted-foreground max-md:text-[10px]">
               {t('loadingMore')}
             </span>
           )}
@@ -582,23 +535,30 @@ export function MessageList({
       </div>
       <div className="flex-1 overflow-hidden">
         {isLoading ? (
-          <div className="flex flex-col h-full p-3 gap-3">
+          <div className="flex h-full flex-col">
             {Array.from({ length: 5 }).map((_, i) => (
               <div
                 key={i}
-                className="flex items-start gap-3 rounded-2xl border border-border/70 bg-background/70 p-3"
+                className={cn(
+                  'flex items-center gap-2.5 border-b border-border/70 px-3',
+                  density === 'compact' && 'min-h-12 py-1.5',
+                  density === 'comfortable' && 'min-h-16 py-2.5',
+                  density === 'spacious' && 'min-h-20 py-3.5'
+                )}
               >
-                <Skeleton className="h-5 w-5 rounded mt-1" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
-                  <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-4 w-4 rounded" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="flex justify-between gap-3">
+                    <Skeleton className="h-3.5 w-2/5" />
+                    <Skeleton className="h-3 w-12" />
+                  </div>
+                  <Skeleton className="h-3 w-4/5" />
                 </div>
               </div>
             ))}
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-slate-500">
+          <div className="flex h-full items-center justify-center text-muted-foreground">
             <div className="text-center">
               <Mail className="mx-auto h-12 w-12 mb-4 opacity-50" />
               <p>{isSearching ? t('noResults') : t('empty')}</p>
@@ -617,6 +577,7 @@ export function MessageList({
                 onDragStart={onDragStart}
                 isExpanded={expandedThreads.has(thread.threadId)}
                 onToggleExpand={toggleThreadExpand}
+                density={density}
               />
             ))}
             {hasMore && onLoadMore && (
@@ -644,7 +605,7 @@ export function MessageList({
                 return (
                   <div
                     key={`group-${item.groupHeader}-${index}`}
-                    className="sticky top-0 z-10 border-b border-white/80 bg-[hsl(var(--surface-panel-muted)/0.92)] px-4 py-2 text-sm font-semibold text-slate-500 backdrop-blur-sm"
+                    className="sticky top-0 z-10 border-b border-border bg-[hsl(var(--surface-panel-muted)/0.92)] px-3 py-2 text-xs font-medium text-muted-foreground backdrop-blur-sm"
                   >
                     {item.groupHeader}
                   </div>
