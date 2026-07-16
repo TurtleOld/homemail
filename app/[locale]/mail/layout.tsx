@@ -121,8 +121,10 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     subject: string;
     from: { email: string; name?: string };
     body: string;
+    recipients?: string[];
   } | null>(null);
   const [forwardFrom, setForwardFrom] = useState<{ subject: string; body: string } | null>(null);
+  const [composerMode, setComposerMode] = useState<'floating' | 'inline'>('floating');
   const [searchQuery, setSearchQuery] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilterType | undefined>();
   const [filterGroup, setFilterGroup] = useState<FilterGroup | undefined>();
@@ -759,18 +761,47 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
 
   const handleReply = () => {
     if (!selectedMessage) return;
+    const replyRecipient = selectedMessage.replyTo?.[0] || selectedMessage.from;
     setReplyTo({
       subject: selectedMessage.subject,
-      from: selectedMessage.from,
+      from: replyRecipient,
       body: selectedMessage.body.html || selectedMessage.body.text || '',
     });
     setForwardFrom(null);
     setLoadedDraft(null);
     setActiveDraftId(null);
+    setComposerMode('inline');
     setComposeOpen(true);
   };
 
-  const handleReplyAll = () => handleReply();
+  const handleReplyAll = () => {
+    if (!selectedMessage) return;
+    const ownEmail = account?.email?.toLowerCase();
+    const replyRecipients = selectedMessage.replyTo?.length
+      ? selectedMessage.replyTo
+      : [selectedMessage.from];
+    const recipients = [...replyRecipients, ...selectedMessage.to, ...(selectedMessage.cc || [])]
+      .filter((recipient) => recipient.email.toLowerCase() !== ownEmail)
+      .filter(
+        (recipient, index, values) =>
+          values.findIndex((item) => item.email.toLowerCase() === recipient.email.toLowerCase()) ===
+          index
+      )
+      .map((recipient) =>
+        recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email
+      );
+    setReplyTo({
+      subject: selectedMessage.subject,
+      from: replyRecipients[0] || selectedMessage.from,
+      body: selectedMessage.body.html || selectedMessage.body.text || '',
+      recipients,
+    });
+    setForwardFrom(null);
+    setLoadedDraft(null);
+    setActiveDraftId(null);
+    setComposerMode('inline');
+    setComposeOpen(true);
+  };
 
   const handleForward = () => {
     if (!selectedMessage) return;
@@ -781,7 +812,14 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     setReplyTo(null);
     setLoadedDraft(null);
     setActiveDraftId(null);
+    setComposerMode('inline');
     setComposeOpen(true);
+  };
+
+  const handleArchive = async () => {
+    if (!selectedMessage) return;
+    await handleBulkAction('archive');
+    setSelectedMessageId(null);
   };
 
   const handleDelete = async () => {
@@ -809,6 +847,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         setActiveDraftId(draftId);
         setReplyTo(null);
         setForwardFrom(null);
+        setComposerMode('floating');
         setComposeOpen(true);
       }
     },
@@ -852,6 +891,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
           setActiveDraftId(draft.id ?? null);
           setReplyTo(null);
           setForwardFrom(null);
+          setComposerMode('floating');
           setComposeOpen(true);
         } catch (error) {
           toast.error(t('draftLoadErrorTitle'));
@@ -943,6 +983,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         setForwardFrom(null);
         setLoadedDraft(null);
         setActiveDraftId(null);
+        setComposerMode('floating');
         setComposeOpen(true);
       }
     },
@@ -1062,6 +1103,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               setForwardFrom(null);
               setLoadedDraft(null);
               setActiveDraftId(null);
+              setComposerMode('floating');
               setComposeOpen(true);
             }}
             className="min-h-[44px] min-w-[44px] rounded-2xl bg-white/70 text-slate-700 shadow-sm touch-manipulation hover:mail-hover-surface"
@@ -1096,6 +1138,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   setForwardFrom(null);
                   setLoadedDraft(null);
                   setActiveDraftId(null);
+                  setComposerMode('floating');
                   setComposeOpen(true);
                   if (isMobile) setSidebarOpen(false);
                 }}
@@ -1453,6 +1496,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   onReply={handleReply}
                   onReplyAll={handleReplyAll}
                   onForward={handleForward}
+                  onArchive={handleArchive}
                   onDelete={handleDelete}
                   onStar={(starred) => {
                     if (!selectedMessageId) return;
@@ -1500,6 +1544,18 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   hasSelection={!!selectedMessageId}
                   error={messageError}
                   isMobile={isMobile}
+                  inlineComposer={
+                    composeOpen && composerMode === 'inline' ? (
+                      <Compose
+                        open
+                        mode="inline"
+                        onClose={handleComposeClose}
+                        replyTo={replyTo || undefined}
+                        forwardFrom={forwardFrom || undefined}
+                        signatures={settings?.signatures || []}
+                      />
+                    ) : null
+                  }
                 />
               </div>
             )}
@@ -1507,7 +1563,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         </section>
       </div>
       <Compose
-        open={composeOpen}
+        open={composeOpen && composerMode === 'floating'}
+        mode="floating"
         onClose={handleComposeClose}
         onMinimize={handleMinimizeDraft}
         replyTo={replyTo || undefined}

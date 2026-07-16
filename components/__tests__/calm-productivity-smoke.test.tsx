@@ -57,6 +57,10 @@ vi.mock('next-intl', () => ({
         reply: 'Reply',
         replyAll: 'Reply all',
         forward: 'Forward',
+        archive: 'Archive',
+        delete: 'Delete',
+        markUnread: 'Mark as unread',
+        moreActions: 'More actions',
       },
       common: {
         unknown: 'Unknown',
@@ -182,6 +186,39 @@ describe('Mail foundation smoke coverage', () => {
     renderWithQueryClient(<MessageViewer message={mockDetailMessage} />);
 
     expect(screen.getByTitle('Message content')).toHaveStyle({ height: '300px' });
+  });
+
+  it('keeps reader actions persistent and only shows reply all when relevant', () => {
+    const { rerender } = renderWithQueryClient(<MessageViewer message={mockDetailMessage} />);
+
+    expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark as unread' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reply all' })).not.toBeInTheDocument();
+
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <MessageViewer
+          message={{
+            ...mockDetailMessage,
+            cc: [{ email: 'reviewer@example.com', name: 'Reviewer' }],
+          }}
+        />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByRole('button', { name: 'Reply all' })).toBeInTheDocument();
+  });
+
+  it('places an inline composer below the message and hides the reply launcher', () => {
+    renderWithQueryClient(
+      <MessageViewer
+        message={mockDetailMessage}
+        inlineComposer={<div data-testid="inline-composer">Inline reply editor</div>}
+      />
+    );
+
+    expect(screen.getByTestId('inline-composer')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument();
   });
 
   it('supports an explicit system theme preference on the document root', () => {

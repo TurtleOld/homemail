@@ -8,7 +8,26 @@ import CodeBlock from '@tiptap/extension-code-block';
 import Underline from '@tiptap/extension-underline';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Code, Link as LinkIcon, X, Paperclip, File, Clock, ChevronDown, FileText, Lock, Mail, Maximize2, Minimize2 } from 'lucide-react';
+import {
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  List,
+  ListOrdered,
+  Quote,
+  Code,
+  Link as LinkIcon,
+  X,
+  Paperclip,
+  File,
+  Clock,
+  ChevronDown,
+  FileText,
+  Lock,
+  Mail,
+  Maximize2,
+  Minimize2,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { validateEmail, parseEmailList } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -66,12 +85,27 @@ interface ComposeProps {
   onClose: () => void;
   onMinimize?: (draft: MinimizedDraft) => void;
   initialDraft?: Draft | null;
-  replyTo?: { subject: string; from: { email: string; name?: string }; body: string };
+  replyTo?: {
+    subject: string;
+    from: { email: string; name?: string };
+    body: string;
+    recipients?: string[];
+  };
   forwardFrom?: { subject: string; body: string };
   signatures?: Signature[];
+  mode?: 'floating' | 'inline';
 }
 
-export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forwardFrom, signatures = [] }: ComposeProps) {
+export function Compose({
+  open,
+  onClose,
+  onMinimize,
+  initialDraft,
+  replyTo,
+  forwardFrom,
+  signatures = [],
+  mode = 'floating',
+}: ComposeProps) {
   const t = useTranslations('compose');
   const tCommon = useTranslations('common');
   const [to, setTo] = useState('');
@@ -92,7 +126,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   const [requestReadReceipt, setRequestReadReceipt] = useState(false);
   const [encryptMessage, setEncryptMessage] = useState(false);
   const [selectedSignatureId, setSelectedSignatureId] = useState<string | null>(() => {
-    const defaultSig = signatures.find(s => s.isDefault);
+    const defaultSig = signatures.find((s) => s.isDefault);
     return defaultSig?.id || (signatures.length > 0 ? signatures[0]!.id : null);
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -101,7 +135,8 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
   const getCsrfToken = useCallback(async (): Promise<string> => {
@@ -146,7 +181,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
   useEffect(() => {
     if (signatures.length > 0) {
-      const defaultSig = signatures.find(s => s.isDefault);
+      const defaultSig = signatures.find((s) => s.isDefault);
       setSelectedSignatureId(defaultSig?.id || signatures[0]!.id);
     } else {
       setSelectedSignatureId(null);
@@ -159,7 +194,8 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none min-h-[300px] max-md:min-h-[200px] p-4 max-md:p-2 focus:outline-none',
+        class:
+          'prose prose-sm max-w-none min-h-[300px] max-md:min-h-[200px] p-4 max-md:p-2 focus:outline-none',
       },
     },
   });
@@ -184,7 +220,7 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       setIsDirty(false);
     } else if (replyTo) {
       suppressDirtyRef.current = true;
-      setTo(replyTo.from.email);
+      setTo((replyTo.recipients?.length ? replyTo.recipients : [replyTo.from.email]).join(', '));
       setSubject(replyTo.subject.startsWith('Re:') ? replyTo.subject : `Re: ${replyTo.subject}`);
       editor.commands.setContent(`<blockquote>${replyTo.body}</blockquote>`);
       requestAnimationFrame(() => {
@@ -193,7 +229,9 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       setIsDirty(false);
     } else if (forwardFrom) {
       suppressDirtyRef.current = true;
-      setSubject(forwardFrom.subject.startsWith('Fwd:') ? forwardFrom.subject : `Fwd: ${forwardFrom.subject}`);
+      setSubject(
+        forwardFrom.subject.startsWith('Fwd:') ? forwardFrom.subject : `Fwd: ${forwardFrom.subject}`
+      );
       editor.commands.setContent(`<blockquote>${forwardFrom.body}</blockquote>`);
       requestAnimationFrame(() => {
         suppressDirtyRef.current = false;
@@ -318,14 +356,17 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
     setSending(true);
     try {
       let html = editor.getHTML();
-      const selectedSignature = selectedSignatureId ? signatures.find(s => s.id === selectedSignatureId) : null;
+      const selectedSignature = selectedSignatureId
+        ? signatures.find((s) => s.id === selectedSignatureId)
+        : null;
       if (selectedSignature) {
         const signatureValue = selectedSignature.content.trim();
         if (signatureValue) {
           const signatureHtml = signatureValue.replace(/\n/g, '<br>');
           const signatureDiv = `<div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">${signatureHtml}</div>`;
           const trimmedHtml = html.trim();
-          const hasContent = trimmedHtml && trimmedHtml !== '<p></p>' && !trimmedHtml.match(/^<p>\s*<\/p>$/i);
+          const hasContent =
+            trimmedHtml && trimmedHtml !== '<p></p>' && !trimmedHtml.match(/^<p>\s*<\/p>$/i);
           if (!html.includes(signatureDiv)) {
             html += hasContent ? `<br><br>${signatureDiv}` : signatureDiv;
           }
@@ -334,7 +375,11 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
       if (encryptMessage) {
         try {
-          const allRecipients = [...toList, ...(showCc ? parseEmailList(cc) : []), ...(showBcc ? parseEmailList(bcc) : [])];
+          const allRecipients = [
+            ...toList,
+            ...(showCc ? parseEmailList(cc) : []),
+            ...(showBcc ? parseEmailList(bcc) : []),
+          ];
           const res = await fetch('/api/pgp/encrypt', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -349,9 +394,9 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
           } else {
             const errorData = await res.json().catch(() => ({}));
             const missingRecipients = errorData.missingRecipients || allRecipients;
-            
+
             let description = '';
-            
+
             if (missingRecipients.length > 0) {
               description = t('missingKeys', { recipients: missingRecipients.join(', ') });
             }
@@ -371,13 +416,14 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         }
       }
 
-      const attachmentsData = attachments.length > 0
-        ? attachments.map((att) => ({
-            filename: att.file.name,
-            mime: att.mime,
-            data: att.data,
-          }))
-        : undefined;
+      const attachmentsData =
+        attachments.length > 0
+          ? attachments.map((att) => ({
+              filename: att.file.name,
+              mime: att.mime,
+              data: att.data,
+            }))
+          : undefined;
 
       const body: any = {
         to: toList,
@@ -407,7 +453,10 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
       const csrfToken = await getCsrfToken();
       const res = await fetch('/api/mail/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}) },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+        },
         body: JSON.stringify(body),
       });
 
@@ -422,25 +471,46 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
       const responseData = await res.json();
       if (responseData.scheduled) {
-        toast.success(t('scheduledSuccess', { date: new Date(responseData.sendAt).toLocaleString() }));
+        toast.success(
+          t('scheduledSuccess', { date: new Date(responseData.sendAt).toLocaleString() })
+        );
         onClose();
         setSending(false);
         return;
       }
 
-      const allEmails = [...toList, ...(showCc ? parseEmailList(cc) : []), ...(showBcc ? parseEmailList(bcc) : [])];
-      const allEmailStrings = [
-        ...(to ? to.split(',').map((e) => e.trim()).filter(Boolean) : []),
-        ...(showCc && cc ? cc.split(',').map((e) => e.trim()).filter(Boolean) : []),
-        ...(showBcc && bcc ? bcc.split(',').map((e) => e.trim()).filter(Boolean) : []),
+      const allEmails = [
+        ...toList,
+        ...(showCc ? parseEmailList(cc) : []),
+        ...(showBcc ? parseEmailList(bcc) : []),
       ];
-      
+      const allEmailStrings = [
+        ...(to
+          ? to
+              .split(',')
+              .map((e) => e.trim())
+              .filter(Boolean)
+          : []),
+        ...(showCc && cc
+          ? cc
+              .split(',')
+              .map((e) => e.trim())
+              .filter(Boolean)
+          : []),
+        ...(showBcc && bcc
+          ? bcc
+              .split(',')
+              .map((e) => e.trim())
+              .filter(Boolean)
+          : []),
+      ];
+
       for (const emailString of allEmailStrings) {
         try {
           const emailMatch = emailString.match(/^(.+?)\s*<([^\s@]+@[^\s@]+\.[^\s@]+)>$/);
           const emailAddress = emailMatch ? emailMatch[2]!.trim() : emailString.trim();
           const emailName = emailMatch ? emailMatch[1]!.trim() : undefined;
-          
+
           if (emailAddress && validateEmail(emailAddress)) {
             await fetch('/api/contacts', {
               method: 'POST',
@@ -487,9 +557,11 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      
+
       if (file.size > MAX_FILE_SIZE) {
-        toast.error(t('fileTooLarge', { filename: file.name, size: (MAX_FILE_SIZE / 1024 / 1024).toFixed(0) }));
+        toast.error(
+          t('fileTooLarge', { filename: file.name, size: (MAX_FILE_SIZE / 1024 / 1024).toFixed(0) })
+        );
         continue;
       }
 
@@ -572,15 +644,20 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
   return (
     <div
       className={cn(
-        'fixed z-50 flex flex-col bg-background border rounded-xl shadow-2xl transition-all duration-200',
-        isExpanded
-          ? 'inset-4 max-md:inset-0 max-md:rounded-none'
-          : isMinimized
-          ? 'bottom-4 right-4 w-80 h-12 overflow-hidden max-md:bottom-0 max-md:right-0 max-md:left-0 max-md:w-full max-md:rounded-none'
-          : 'bottom-4 right-4 w-[520px] max-h-[calc(100dvh-2rem)] max-md:inset-0 max-md:rounded-none'
+        'flex flex-col border-border bg-background transition-[transform,opacity] duration-200',
+        mode === 'inline'
+          ? 'mx-4 mb-4 min-h-[420px] rounded-xl border shadow-[0_18px_40px_-28px_hsl(var(--shadow-soft)/0.35)] max-md:mx-3'
+          : cn(
+              'fixed z-50 rounded-xl border shadow-[0_24px_56px_-28px_hsl(var(--shadow-soft)/0.55)]',
+              isExpanded
+                ? 'inset-4 max-md:inset-0 max-md:rounded-none'
+                : isMinimized
+                  ? 'bottom-4 right-4 h-12 w-80 overflow-hidden max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:w-full max-md:rounded-none'
+                  : 'bottom-4 right-4 max-h-[calc(100dvh-2rem)] w-[min(560px,calc(100vw-2rem))] max-md:inset-0 max-md:w-auto max-md:rounded-none'
+            )
       )}
-      role="dialog"
-      aria-modal="true"
+      role={mode === 'floating' ? 'dialog' : 'region'}
+      aria-modal={mode === 'floating' ? 'true' : undefined}
       aria-label={replyTo ? t('replyTitle') : forwardFrom ? t('forwardTitle') : t('newMessage')}
     >
       {/* Floating panel header */}
@@ -588,20 +665,24 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         <span className="flex-1 text-sm font-semibold truncate">
           {replyTo ? t('replyTitle') : forwardFrom ? t('forwardTitle') : t('newMessage')}
         </span>
-        <button
-          onClick={() => setIsMinimized(!isMinimized)}
-          className="p-1 rounded hover:bg-muted transition-colors"
-          aria-label={isMinimized ? 'Expand' : 'Minimize'}
-        >
-          <Minimize2 className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="p-1 rounded hover:bg-muted transition-colors max-md:hidden"
-          aria-label={isExpanded ? 'Restore' : 'Expand to fullscreen'}
-        >
-          <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
+        {mode === 'floating' && (
+          <button
+            onClick={() => setIsMinimized(!isMinimized)}
+            className="p-1 rounded hover:bg-muted transition-colors"
+            aria-label={isMinimized ? 'Expand' : 'Minimize'}
+          >
+            <Minimize2 className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        )}
+        {mode === 'floating' && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-1 rounded hover:bg-muted transition-colors max-md:hidden"
+            aria-label={isExpanded ? 'Restore' : 'Expand to fullscreen'}
+          >
+            <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        )}
         <button
           onClick={handleClose}
           className="p-1 rounded hover:bg-muted transition-colors"
@@ -611,289 +692,357 @@ export function Compose({ open, onClose, onMinimize, initialDraft, replyTo, forw
         </button>
       </div>
       <div className="flex-1 overflow-auto space-y-4 p-4 max-md:space-y-2 max-md:p-3">
-          <div>
+        <div>
+          <ContactAutocomplete
+            value={to}
+            onChange={setTo}
+            placeholder={t('toPlaceholder')}
+            className="mb-2"
+            multiple
+          />
+          {showCc && (
             <ContactAutocomplete
-              value={to}
-              onChange={setTo}
-              placeholder={t('toPlaceholder')}
+              value={cc}
+              onChange={setCc}
+              placeholder={t('ccPlaceholder')}
               className="mb-2"
               multiple
             />
-            {showCc && (
-              <ContactAutocomplete
-                value={cc}
-                onChange={setCc}
-                placeholder={t('ccPlaceholder')}
-                className="mb-2"
-                multiple
-              />
-            )}
-            {showBcc && (
-              <ContactAutocomplete
-                value={bcc}
-                onChange={setBcc}
-                placeholder={t('bccPlaceholder')}
-                className="mb-2"
-                multiple
-              />
-            )}
-            <div className="flex gap-2 text-sm max-md:text-xs">
-              <button
-                type="button"
-                onClick={() => setShowCc(!showCc)}
-                className="text-primary hover:underline"
-              >
-                {showCc ? t('hide') : t('cc')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowBcc(!showBcc)}
-                className="text-primary hover:underline"
-              >
-                {showBcc ? t('hide') : t('bcc')}
-              </button>
-            </div>
-          </div>
-          <Input
-            placeholder={t('subjectPlaceholder')}
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            className="max-md:text-sm"
-          />
-          {signatures.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">{t('signatureLabel')}</span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="max-md:text-xs">
-                    {selectedSignatureId ? signatures.find(s => s.id === selectedSignatureId)?.name || t('noSignature') : t('noSignature')}
-                    <ChevronDown className="ml-2 h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => setSelectedSignatureId(null)}>
-                    {t('noSignature')}
-                  </DropdownMenuItem>
-                  {signatures.map((sig) => (
-                    <DropdownMenuItem
-                      key={sig.id}
-                      onClick={() => setSelectedSignatureId(sig.id)}
-                      className={selectedSignatureId === sig.id ? 'bg-accent' : ''}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{sig.name}</span>
-                        {sig.isDefault && (
-                          <span className="text-xs text-muted-foreground">{t('defaultBadge')}</span>
-                        )}
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
           )}
-          {attachments.length > 0 && (
-            <div className="border rounded-md p-2 max-md:p-1.5 bg-muted/30">
-              <div className="text-sm font-medium mb-2 max-md:text-xs">{t('attachments', { count: attachments.length })}</div>
-              <div className="space-y-1">
-                {attachments.map((att) => (
-                  <div
-                    key={att.id}
-                    className="flex items-center justify-between rounded border bg-background p-2 max-md:p-1.5"
+          {showBcc && (
+            <ContactAutocomplete
+              value={bcc}
+              onChange={setBcc}
+              placeholder={t('bccPlaceholder')}
+              className="mb-2"
+              multiple
+            />
+          )}
+          <div className="flex gap-2 text-sm max-md:text-xs">
+            <button
+              type="button"
+              onClick={() => setShowCc(!showCc)}
+              className="text-primary hover:underline"
+            >
+              {showCc ? t('hide') : t('cc')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBcc(!showBcc)}
+              className="text-primary hover:underline"
+            >
+              {showBcc ? t('hide') : t('bcc')}
+            </button>
+          </div>
+        </div>
+        <Input
+          placeholder={t('subjectPlaceholder')}
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          className="max-md:text-sm"
+        />
+        {signatures.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">{t('signatureLabel')}</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="max-md:text-xs">
+                  {selectedSignatureId
+                    ? signatures.find((s) => s.id === selectedSignatureId)?.name || t('noSignature')
+                    : t('noSignature')}
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => setSelectedSignatureId(null)}>
+                  {t('noSignature')}
+                </DropdownMenuItem>
+                {signatures.map((sig) => (
+                  <DropdownMenuItem
+                    key={sig.id}
+                    onClick={() => setSelectedSignatureId(sig.id)}
+                    className={selectedSignatureId === sig.id ? 'bg-accent' : ''}
                   >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <File className="h-4 w-4 max-md:h-3 max-md:w-3 flex-shrink-0 text-muted-foreground" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium max-md:text-xs truncate">{att.file.name}</div>
-                        <div className="text-xs text-muted-foreground max-md:text-[10px]">
-                          {formatFileSize(att.file.size)} • {att.mime}
-                        </div>
+                    <div className="flex items-center gap-2">
+                      <span>{sig.name}</span>
+                      {sig.isDefault && (
+                        <span className="text-xs text-muted-foreground">{t('defaultBadge')}</span>
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+        {attachments.length > 0 && (
+          <div className="border rounded-md p-2 max-md:p-1.5 bg-muted/30">
+            <div className="text-sm font-medium mb-2 max-md:text-xs">
+              {t('attachments', { count: attachments.length })}
+            </div>
+            <div className="space-y-1">
+              {attachments.map((att) => (
+                <div
+                  key={att.id}
+                  className="flex items-center justify-between rounded border bg-background p-2 max-md:p-1.5"
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <File className="h-4 w-4 max-md:h-3 max-md:w-3 flex-shrink-0 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium max-md:text-xs truncate">
+                        {att.file.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground max-md:text-[10px]">
+                        {formatFileSize(att.file.size)} • {att.mime}
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeAttachment(att.id)}
-                      className="h-7 w-7 max-md:h-6 max-md:w-6 p-0 flex-shrink-0"
-                      aria-label={t('removeAttachment', { filename: att.file.name })}
-                    >
-                      <X className="h-4 w-4 max-md:h-3 max-md:w-3" />
-                    </Button>
                   </div>
-                ))}
-              </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeAttachment(att.id)}
+                    className="h-7 w-7 max-md:h-6 max-md:w-6 p-0 flex-shrink-0"
+                    aria-label={t('removeAttachment', { filename: att.file.name })}
+                  >
+                    <X className="h-4 w-4 max-md:h-3 max-md:w-3" />
+                  </Button>
+                </div>
+              ))}
             </div>
+          </div>
+        )}
+        <div
+          className={cn(
+            'border-2 border-dashed rounded-md p-4 max-md:p-2 transition-colors',
+            isDragging
+              ? 'border-primary bg-primary/10'
+              : 'border-muted-foreground/25 hover:border-primary/50'
           )}
-          <div
-            className={cn(
-              'border-2 border-dashed rounded-md p-4 max-md:p-2 transition-colors',
-              isDragging ? 'border-primary bg-primary/10' : 'border-muted-foreground/25 hover:border-primary/50'
-            )}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            onChange={handleFileInputChange}
+            className="hidden"
+            id="file-upload"
+          />
+          <label
+            htmlFor="file-upload"
+            className="flex flex-col items-center justify-center cursor-pointer"
           >
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              onChange={handleFileInputChange}
-              className="hidden"
-              id="file-upload"
-            />
-            <label
-              htmlFor="file-upload"
-              className="flex flex-col items-center justify-center cursor-pointer"
+            <Paperclip className="h-6 w-6 max-md:h-5 max-md:w-5 text-muted-foreground mb-2" />
+            <span className="text-sm text-muted-foreground max-md:text-xs text-center">
+              {t('dropzone')}
+            </span>
+            <span className="text-xs text-muted-foreground/70 max-md:text-[10px] mt-1">
+              {t('maxFileSize', { size: (MAX_FILE_SIZE / 1024 / 1024).toFixed(0) })}
+            </span>
+          </label>
+        </div>
+        <div className="border rounded-md">
+          <div className="border-b p-2 max-md:p-1 flex gap-2 max-md:gap-1 flex-wrap">
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              className={cn(
+                editor.isActive('bold') ? 'bg-muted' : '',
+                'max-md:h-7 max-md:w-7 max-md:p-0'
+              )}
             >
-              <Paperclip className="h-6 w-6 max-md:h-5 max-md:w-5 text-muted-foreground mb-2" />
-              <span className="text-sm text-muted-foreground max-md:text-xs text-center">
-                {t('dropzone')}
-              </span>
-              <span className="text-xs text-muted-foreground/70 max-md:text-[10px] mt-1">
-                {t('maxFileSize', { size: (MAX_FILE_SIZE / 1024 / 1024).toFixed(0) })}
-              </span>
-            </label>
+              <Bold className="h-4 w-4 max-md:h-3 max-md:w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              className={cn(
+                editor.isActive('italic') ? 'bg-muted' : '',
+                'max-md:h-7 max-md:w-7 max-md:p-0'
+              )}
+            >
+              <Italic className="h-4 w-4 max-md:h-3 max-md:w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => editor.chain().focus().toggleUnderline().run()}
+              className={cn(
+                editor.isActive('underline') ? 'bg-muted' : '',
+                'max-md:h-7 max-md:w-7 max-md:p-0'
+              )}
+            >
+              <UnderlineIcon className="h-4 w-4 max-md:h-3 max-md:w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              className={cn(
+                editor.isActive('bulletList') ? 'bg-muted' : '',
+                'max-md:h-7 max-md:w-7 max-md:p-0'
+              )}
+            >
+              <List className="h-4 w-4 max-md:h-3 max-md:w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              className={cn(
+                editor.isActive('orderedList') ? 'bg-muted' : '',
+                'max-md:h-7 max-md:w-7 max-md:p-0'
+              )}
+            >
+              <ListOrdered className="h-4 w-4 max-md:h-3 max-md:w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => editor.chain().focus().toggleBlockquote().run()}
+              className={cn(
+                editor.isActive('blockquote') ? 'bg-muted' : '',
+                'max-md:h-7 max-md:w-7 max-md:p-0'
+              )}
+            >
+              <Quote className="h-4 w-4 max-md:h-3 max-md:w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+              className={cn(
+                editor.isActive('codeBlock') ? 'bg-muted' : '',
+                'max-md:h-7 max-md:w-7 max-md:p-0'
+              )}
+            >
+              <Code className="h-4 w-4 max-md:h-3 max-md:w-3" />
+            </Button>
           </div>
-          <div className="border rounded-md">
-            <div className="border-b p-2 max-md:p-1 flex gap-2 max-md:gap-1 flex-wrap">
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => editor.chain().focus().toggleBold().run()}
-                className={cn(editor.isActive('bold') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
-              >
-                <Bold className="h-4 w-4 max-md:h-3 max-md:w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-                className={cn(editor.isActive('italic') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
-              >
-                <Italic className="h-4 w-4 max-md:h-3 max-md:w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => editor.chain().focus().toggleUnderline().run()}
-                className={cn(editor.isActive('underline') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
-              >
-                <UnderlineIcon className="h-4 w-4 max-md:h-3 max-md:w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
-                className={cn(editor.isActive('bulletList') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
-              >
-                <List className="h-4 w-4 max-md:h-3 max-md:w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                className={cn(editor.isActive('orderedList') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
-              >
-                <ListOrdered className="h-4 w-4 max-md:h-3 max-md:w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => editor.chain().focus().toggleBlockquote().run()}
-                className={cn(editor.isActive('blockquote') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
-              >
-                <Quote className="h-4 w-4 max-md:h-3 max-md:w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                className={cn(editor.isActive('codeBlock') ? 'bg-muted' : '', 'max-md:h-7 max-md:w-7 max-md:p-0')}
-              >
-                <Code className="h-4 w-4 max-md:h-3 max-md:w-3" />
-              </Button>
-            </div>
-            <EditorContent editor={editor} />
-          </div>
+          <EditorContent editor={editor} />
         </div>
-        <div className="border-t p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="scheduledSend"
-              checked={scheduledSend}
-              onChange={(e) => setScheduledSend(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            <label htmlFor="scheduledSend" className="text-sm font-medium flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              {t('scheduleSend')}
-            </label>
-          </div>
-          {scheduledSend && (
-            <div className="grid grid-cols-2 gap-3 pl-6">
-              <div className="space-y-1">
-                <label htmlFor="scheduledDate" className="text-xs text-muted-foreground">{t('dateLabel')}</label>
-                <Input
-                  id="scheduledDate"
-                  type="date"
-                  value={scheduledDate}
-                  onChange={(e) => setScheduledDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                />
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="scheduledTime" className="text-xs text-muted-foreground">{t('timeLabel')}</label>
-                <Input
-                  id="scheduledTime"
-                  type="time"
-                  value={scheduledTime}
-                  onChange={(e) => setScheduledTime(e.target.value)}
-                />
-              </div>
+      </div>
+      <div className="border-t border-border px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((value) => !value)}
+          className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-expanded={showAdvanced}
+        >
+          {t('advancedOptions')}
+          <ChevronDown
+            className={cn('h-4 w-4 transition-transform', showAdvanced && 'rotate-180')}
+          />
+        </button>
+        {showAdvanced && (
+          <div className="mt-3 space-y-3 border-t border-border pt-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="scheduledSend"
+                checked={scheduledSend}
+                onChange={(e) => setScheduledSend(e.target.checked)}
+                className="h-4 w-4 rounded border-[hsl(var(--border-strong))] accent-primary"
+              />
+              <label
+                htmlFor="scheduledSend"
+                className="text-sm font-medium flex items-center gap-2"
+              >
+                <Clock className="h-4 w-4" />
+                {t('scheduleSend')}
+              </label>
             </div>
-          )}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="requestReadReceipt"
-              checked={requestReadReceipt}
-              onChange={(e) => setRequestReadReceipt(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            <label htmlFor="requestReadReceipt" className="text-sm font-medium flex items-center gap-2">
-              <Mail className="h-4 w-4" />
-              {t('readReceipt')}
-            </label>
+            {scheduledSend && (
+              <div className="grid grid-cols-2 gap-3 pl-6">
+                <div className="space-y-1">
+                  <label htmlFor="scheduledDate" className="text-xs text-muted-foreground">
+                    {t('dateLabel')}
+                  </label>
+                  <Input
+                    id="scheduledDate"
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="scheduledTime" className="text-xs text-muted-foreground">
+                    {t('timeLabel')}
+                  </label>
+                  <Input
+                    id="scheduledTime"
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="requestReadReceipt"
+                checked={requestReadReceipt}
+                onChange={(e) => setRequestReadReceipt(e.target.checked)}
+                className="h-4 w-4 rounded border-[hsl(var(--border-strong))] accent-primary"
+              />
+              <label
+                htmlFor="requestReadReceipt"
+                className="text-sm font-medium flex items-center gap-2"
+              >
+                <Mail className="h-4 w-4" />
+                {t('readReceipt')}
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="encryptMessage"
+                checked={encryptMessage}
+                onChange={(e) => setEncryptMessage(e.target.checked)}
+                className="h-4 w-4 rounded border-[hsl(var(--border-strong))] accent-primary"
+              />
+              <label
+                htmlFor="encryptMessage"
+                className="text-sm font-medium flex items-center gap-2"
+              >
+                <Lock className="h-4 w-4" />
+                {t('encryptPgp')}
+              </label>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="encryptMessage"
-              checked={encryptMessage}
-              onChange={(e) => setEncryptMessage(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            <label htmlFor="encryptMessage" className="text-sm font-medium flex items-center gap-2">
-              <Lock className="h-4 w-4" />
-              {t('encryptPgp')}
-            </label>
-          </div>
-        </div>
-      <div className="flex items-center gap-2 border-t px-4 py-3 flex-shrink-0">
+        )}
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-2 border-t border-border px-4 py-3">
         <Button variant="ghost" size="sm" onClick={handleClose} className="text-muted-foreground">
           {tCommon('cancel')}
         </Button>
         <div className="flex-1" />
-        <Button onClick={handleSend} disabled={sending || saving} size="sm" className="font-semibold px-5">
-          {sending ? t('sending') : saving ? tCommon('saving') : scheduledSend ? t('scheduledSend') : t('send')}
+        <Button
+          onClick={handleSend}
+          disabled={sending || saving}
+          size="sm"
+          className="px-5 font-medium"
+        >
+          {sending
+            ? t('sending')
+            : saving
+              ? tCommon('saving')
+              : scheduledSend
+                ? t('scheduledSend')
+                : t('send')}
         </Button>
       </div>
     </div>

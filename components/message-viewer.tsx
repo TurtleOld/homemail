@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState, type ReactNode } from 'react';
 import type { MessageDetail, Label } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
@@ -25,6 +25,7 @@ import {
   Lock,
   MoreHorizontal,
   ChevronLeft,
+  Archive,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -45,6 +46,7 @@ interface MessageViewerProps {
   onReply?: () => void;
   onReplyAll?: () => void;
   onForward?: () => void;
+  onArchive?: () => void;
   onDelete?: () => void;
   onStar?: (starred: boolean) => void;
   onMarkRead?: (read: boolean) => void;
@@ -55,6 +57,7 @@ interface MessageViewerProps {
   isMobile?: boolean;
   onBack?: () => void;
   error?: Error | null;
+  inlineComposer?: ReactNode;
 }
 
 async function getLabels(): Promise<Label[]> {
@@ -82,6 +85,7 @@ export function MessageViewer({
   onReply,
   onReplyAll,
   onForward,
+  onArchive,
   onDelete,
   onStar,
   onMarkRead,
@@ -92,6 +96,7 @@ export function MessageViewer({
   isMobile = false,
   onBack,
   error,
+  inlineComposer,
 }: MessageViewerProps) {
   const localeSettings = useLocaleSettings();
   const t = useTranslations('messageViewer');
@@ -305,6 +310,21 @@ export function MessageViewer({
     }
   }, [message, onMarkRead]);
 
+  const handleMarkUnread = useCallback(async () => {
+    if (!message) return;
+    try {
+      const response = await fetch(`/api/mail/messages/${message.id}/flags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unread: true }),
+      });
+      if (!response.ok) throw new Error(t('markUnreadError'));
+      onMarkRead?.(false);
+    } catch {
+      toast.error(t('markUnreadError'));
+    }
+  }, [message, onMarkRead, t]);
+
   useEffect(() => {
     if (!message || !message.flags) return;
     if (message.flags.unread && !markedAsReadRef.current.has(message.id)) {
@@ -351,7 +371,7 @@ export function MessageViewer({
 
   if (error) {
     return (
-      <div className="mail-panel-surface flex h-full items-center justify-center text-slate-500">
+      <div className="mail-panel-surface flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 mb-4 opacity-50 text-destructive" />
           <p className="text-destructive font-medium mb-2">{t('loadError')}</p>
@@ -363,7 +383,7 @@ export function MessageViewer({
 
   if (!message) {
     return (
-      <div className="mail-panel-surface flex h-full items-center justify-center text-slate-500">
+      <div className="mail-panel-surface flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
           <Mail className="mx-auto h-12 w-12 mb-4 opacity-50" />
           <p>{t('selectToView')}</p>
@@ -437,7 +457,7 @@ export function MessageViewer({
       aria-label={t('viewerLabel')}
     >
       {/* Header — subject, from/to, auth badges, secondary actions */}
-      <div className="mail-panel-muted border-b border-white/80 px-5 pb-4 pt-5 dark:bg-slate-800/55 max-md:px-3 max-md:pb-2 max-md:pt-3 flex-shrink-0">
+      <div className="mail-panel-muted flex-shrink-0 border-b border-border px-5 pb-4 pt-5 max-md:px-3 max-md:pb-2 max-md:pt-3">
         <div className="flex items-start gap-2">
           {isMobile && onBack && (
             <Button
@@ -454,17 +474,17 @@ export function MessageViewer({
             <h2 className="text-xl font-semibold max-md:text-base break-words leading-tight">
               {message.subject || tCommon('noSubject')}
             </h2>
-            <div className="mt-2 space-y-1 text-sm text-slate-500 max-md:text-xs">
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground max-md:text-xs">
               <div className="break-words">
                 <span className="font-medium text-foreground">
                   {message.from?.name || message.from?.email}
                 </span>
                 {message.from?.name && (
-                  <span className="ml-1 text-slate-500">&lt;{message.from.email}&gt;</span>
+                  <span className="ml-1 text-muted-foreground">&lt;{message.from.email}&gt;</span>
                 )}
               </div>
               {message.to && message.to.length > 0 && (
-                <div className="break-words text-xs text-slate-500">
+                <div className="break-words text-xs text-muted-foreground">
                   {t('to')}{' '}
                   {message.to
                     .map((r) => (r?.name ? `${r.name} <${r.email || ''}>` : r?.email || ''))
@@ -472,14 +492,14 @@ export function MessageViewer({
                 </div>
               )}
               {message.cc && message.cc.length > 0 && (
-                <div className="break-words text-xs text-slate-500">
+                <div className="break-words text-xs text-muted-foreground">
                   {t('cc')}{' '}
                   {message.cc
                     .map((c) => (c?.name ? `${c.name} <${c.email || ''}>` : c?.email || ''))
                     .join(', ')}
                 </div>
               )}
-              <div className="text-xs tabular-nums text-slate-500">
+              <div className="font-mono text-xs tabular-nums text-muted-foreground">
                 {message.date ? formatDate(message.date, localeSettings) : tCommon('unknown')}
               </div>
             </div>
@@ -495,8 +515,8 @@ export function MessageViewer({
                       key={key}
                       className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-mono font-semibold ${
                         isPass
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
-                          : 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+                          ? 'border border-[hsl(var(--status-success)/0.3)] bg-[hsl(var(--status-success)/0.1)] text-[hsl(var(--status-success))]'
+                          : 'border border-destructive/30 bg-destructive/10 text-destructive'
                       }`}
                       title={`${key.toUpperCase()}: ${result}`}
                     >
@@ -535,15 +555,45 @@ export function MessageViewer({
               </div>
             )}
           </div>
-          {/* Top-right: star, important, overflow menu */}
-          <div className="flex items-center gap-1 rounded-2xl border border-white/70 bg-white/75 p-1 shadow-sm backdrop-blur-sm flex-shrink-0">
+          {/* Persistent reader actions */}
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onArchive}
+              className="h-9 w-9"
+              aria-label={t('archive')}
+              title={t('archive')}
+            >
+              <Archive className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              className="h-9 w-9 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              aria-label={t('delete')}
+              title={t('delete')}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleMarkUnread}
+              className="h-9 w-9"
+              aria-label={t('markUnread')}
+              title={t('markUnread')}
+            >
+              <Mail className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={handleStar}
               title={message.flags?.starred ? t('removeFromFavorites') : t('addToFavorites')}
               aria-label={message.flags?.starred ? t('removeFromFavorites') : t('addToFavorites')}
-              className="h-8 w-8 rounded-xl"
+              className="h-9 w-9"
             >
               {message.flags?.starred ? (
                 <Star className="h-4 w-4 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" />
@@ -557,29 +607,29 @@ export function MessageViewer({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-xl"
-                  aria-label="More actions"
+                  className="h-9 w-9"
+                  aria-label={t('moreActions')}
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="w-56 rounded-2xl border-white/80 bg-white/95 p-1 shadow-[0_24px_48px_-24px_hsl(var(--shadow-soft)/0.35)]"
+                className="w-56 rounded-xl border-border bg-popover p-1"
               >
                 <DropdownMenuItem
                   onClick={handleToggleImportant}
-                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                  className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                 >
                   <AlertCircle
-                    className={`mr-2 h-4 w-4 ${message.flags?.important ? 'fill-orange-500 text-orange-500' : ''}`}
+                    className={`mr-2 h-4 w-4 ${message.flags?.important ? 'fill-[hsl(var(--status-warning))] text-[hsl(var(--status-warning))]' : ''}`}
                   />
                   {message.flags?.important ? t('removeImportance') : t('markImportant')}
                 </DropdownMenuItem>
                 {message.flags?.unread && (
                   <DropdownMenuItem
                     onClick={handleMarkRead}
-                    className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                    className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                   >
                     <Mail className="mr-2 h-4 w-4" />
                     {t('markRead')}
@@ -587,7 +637,7 @@ export function MessageViewer({
                 )}
                 <DropdownMenuItem
                   onClick={() => setShowTranslator(!showTranslator)}
-                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                  className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                 >
                   <Languages className="mr-2 h-4 w-4" />
                   {t('translate')}
@@ -597,7 +647,7 @@ export function MessageViewer({
                   <DropdownMenuTrigger asChild>
                     <DropdownMenuItem
                       onSelect={(e) => e.preventDefault()}
-                      className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                      className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                     >
                       <Tag className="mr-2 h-4 w-4" />
                       {t('labels')}
@@ -605,10 +655,10 @@ export function MessageViewer({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     side="left"
-                    className="w-48 rounded-2xl border-white/80 bg-white/95 p-1 shadow-[0_24px_48px_-24px_hsl(var(--shadow-soft)/0.35)]"
+                    className="w-48 rounded-xl border-border bg-popover p-1"
                   >
                     {labels.length === 0 ? (
-                      <div className="p-3 text-sm text-slate-500">{t('noLabels')}</div>
+                      <div className="p-3 text-sm text-muted-foreground">{t('noLabels')}</div>
                     ) : (
                       labels.map((label) => {
                         const isSelected = message?.labels?.includes(label.id) || false;
@@ -616,7 +666,7 @@ export function MessageViewer({
                           <DropdownMenuItem
                             key={label.id}
                             onClick={() => handleToggleLabel(label.id)}
-                            className="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                            className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                           >
                             <div
                               className="w-3 h-3 rounded-full flex-shrink-0"
@@ -661,7 +711,7 @@ export function MessageViewer({
                           toast.error(t('decryptError'));
                         }
                       }}
-                      className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                      className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                     >
                       <Lock className="mr-2 h-4 w-4" />
                       {t('decrypt')}
@@ -672,7 +722,7 @@ export function MessageViewer({
                     if (!message) return;
                     window.open(`/api/mail/messages/${message.id}/export?format=eml`, '_blank');
                   }}
-                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                  className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                 >
                   <Download className="mr-2 h-4 w-4" />
                   {t('exportEml')}
@@ -682,14 +732,14 @@ export function MessageViewer({
                     if (!message) return;
                     window.open(`/api/mail/messages/${message.id}/export?format=pdf`, '_blank');
                   }}
-                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                  className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                 >
                   <FileDown className="mr-2 h-4 w-4" />
                   {t('exportPdf')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handlePrint}
-                  className="cursor-pointer rounded-xl px-3 py-2 text-slate-700 focus:bg-[hsl(var(--surface-selected))]"
+                  className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                 >
                   <Printer className="mr-2 h-4 w-4" />
                   {t('print')}
@@ -703,15 +753,15 @@ export function MessageViewer({
       {/* Scrollable body */}
       <div className="flex-1 overflow-auto flex flex-col">
         {message.attachments && message.attachments.length > 0 && (
-          <div className="border-b border-white/70 bg-[hsl(var(--surface-panel-muted)/0.7)] px-4 py-3 max-md:px-3 max-md:py-2 flex-shrink-0">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="mail-panel-muted flex-shrink-0 border-b border-border px-4 py-3 max-md:px-3 max-md:py-2">
+            <h3 className="mb-2 text-xs font-medium text-muted-foreground">
               {t('attachments', { count: message.attachments.length })}
             </h3>
             <div className="flex flex-wrap gap-2">
               {message.attachments.map((att) => (
                 <div
                   key={att.id}
-                  className="flex items-center gap-2 rounded-2xl border border-white/80 bg-background/90 px-3 py-2 text-sm shadow-sm transition-colors hover:mail-hover-surface"
+                  className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm transition-colors hover:mail-hover-surface"
                 >
                   <div className="min-w-0">
                     <div className="font-medium truncate max-w-[160px]">{att.filename}</div>
@@ -800,12 +850,12 @@ export function MessageViewer({
             title="Message content"
           />
         ) : (
-          <div className="flex min-h-[300px] w-full flex-1 items-center justify-center text-slate-500">
+          <div className="flex min-h-[300px] w-full flex-1 items-center justify-center text-muted-foreground">
             <p>{t('noBody')}</p>
           </div>
         )}
         {showTranslator && message && message.body && (
-          <div className="border-t border-white/70 p-4">
+          <div className="border-t border-border p-4">
             <MessageTranslator
               originalText={message.body.text || message.body.html?.replace(/<[^>]*>/g, '') || ''}
               originalHtml={message.body.html}
@@ -813,58 +863,52 @@ export function MessageViewer({
           </div>
         )}
         {message && (
-          <div className="border-t border-white/70 p-4">
+          <div className="border-t border-border p-4">
             <DeliveryTracking messageId={message.id} />
           </div>
         )}
+        {inlineComposer}
       </div>
 
-      {/* Sticky bottom toolbar — primary actions */}
-      <div className="mail-panel-muted flex-shrink-0 border-t border-white/80 px-4 py-3 max-md:px-3 max-md:pb-safe-bottom">
-        <div className="flex items-center gap-2 max-md:gap-1.5 max-md:justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onReply}
-            className="gap-1.5 rounded-2xl bg-white/75 px-4 font-medium text-slate-700 shadow-sm hover:mail-hover-surface max-md:min-h-[44px] max-md:flex-1 touch-manipulation"
-            aria-label={t('reply')}
-          >
-            <Reply className="h-4 w-4" />
-            <span className="max-md:hidden">{t('reply')}</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onReplyAll}
-            className="gap-1.5 rounded-2xl bg-white/75 px-4 font-medium text-slate-700 shadow-sm hover:mail-hover-surface max-md:min-h-[44px] max-md:flex-1 touch-manipulation"
-            aria-label={t('replyAll')}
-          >
-            <ReplyAll className="h-4 w-4" />
-            <span className="max-md:hidden">{t('replyAll')}</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onForward}
-            className="gap-1.5 rounded-2xl bg-white/75 px-4 font-medium text-slate-700 shadow-sm hover:mail-hover-surface max-md:min-h-[44px] max-md:flex-1 touch-manipulation"
-            aria-label={t('forward')}
-          >
-            <Forward className="h-4 w-4" />
-            <span className="max-md:hidden">{t('forward')}</span>
-          </Button>
-          <div className="flex-1" />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            className="gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 max-md:min-h-[44px] touch-manipulation"
-            aria-label={tCommon('delete')}
-          >
-            <Trash2 className="h-4 w-4" />
-            <span className="max-md:hidden">{tCommon('delete')}</span>
-          </Button>
+      {/* Reply hierarchy */}
+      {!inlineComposer && (
+        <div className="mail-panel-muted flex-shrink-0 border-t border-border px-4 py-3 max-md:px-3 max-md:pb-safe-bottom">
+          <div className="flex items-center gap-2 max-md:gap-1.5 max-md:justify-between">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={onReply}
+              className="gap-1.5 px-4 font-medium max-md:min-h-[44px] max-md:flex-1 touch-manipulation"
+              aria-label={t('reply')}
+            >
+              <Reply className="h-4 w-4" />
+              <span className="max-md:hidden">{t('reply')}</span>
+            </Button>
+            {message.to.length + (message.cc?.length || 0) > 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onReplyAll}
+                className="gap-1.5 px-3 font-medium max-md:min-h-[44px] max-md:flex-1 touch-manipulation"
+                aria-label={t('replyAll')}
+              >
+                <ReplyAll className="h-4 w-4" />
+                <span className="max-md:hidden">{t('replyAll')}</span>
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onForward}
+              className="gap-1.5 px-3 font-medium text-muted-foreground max-md:min-h-[44px] max-md:flex-1 touch-manipulation"
+              aria-label={t('forward')}
+            >
+              <Forward className="h-4 w-4" />
+              <span className="max-md:hidden">{t('forward')}</span>
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {previewAttachment && (
         <AttachmentPreview
