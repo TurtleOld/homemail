@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Sidebar } from '../sidebar';
 import { SearchBar } from '../search-bar';
@@ -24,6 +25,12 @@ vi.mock('next-intl', () => ({
       quickAttachments: 'With attachments',
       settingsLabel: 'Settings',
       defaultAccount: 'Account',
+      accountMenu: 'Account menu',
+      currentMailbox: 'Current mailbox',
+      switchMailbox: 'Switch mailbox',
+      mailSettings: 'Mail settings',
+      manageInStalwart: 'Manage in Stalwart',
+      logout: 'Sign out',
     })[key] || key,
 }));
 
@@ -36,6 +43,7 @@ function renderWithQueryClient(ui: React.ReactNode) {
 
 describe('Workspace shell', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({ ok: true, json: async () => ({ accounts: [] }) }))
@@ -83,5 +91,44 @@ describe('Workspace shell', () => {
 
     fireEvent.change(input, { target: { value: 'from:anna@example.com' } });
     expect(onChange).toHaveBeenCalledWith('from:anna@example.com');
+  });
+
+  it('shows the current mailbox once and routes account management to Stalwart', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          accounts: [
+            {
+              id: 'account-1',
+              email: 'alexander@example.com',
+              displayName: 'Alexander',
+              isActive: true,
+            },
+          ],
+        }),
+      }))
+    );
+
+    renderWithQueryClient(
+      <Sidebar
+        folders={[]}
+        account={{ id: 'account-1', email: 'alexander@example.com', displayName: 'Alexander' }}
+        selectedFolderId={null}
+        onFolderSelect={vi.fn()}
+        onCompose={vi.fn()}
+        onQuickFilterChange={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }));
+
+    expect(screen.getAllByText('alexander@example.com')).toHaveLength(1);
+    expect(screen.queryByText('Add account')).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole('menuitem', { name: 'Manage in Stalwart' }));
+    expect(push).toHaveBeenCalledWith('/en/settings/stalwart');
   });
 });

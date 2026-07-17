@@ -24,12 +24,12 @@ import {
   ChevronRight,
   X,
   User,
-  UserPlus,
-  Check,
   RefreshCw,
   Mail,
   Star,
   Paperclip,
+  ChevronsUpDown,
+  ServerCog,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -120,26 +120,6 @@ export function Sidebar({
     },
   });
 
-  const deleteAccountMutation = useMutation({
-    mutationFn: async (accountId: string) => {
-      const res = await fetch(`/api/accounts?accountId=${encodeURIComponent(accountId)}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to delete account');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
-      toast.success(t('accountDeleted'));
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || t('accountDeleteError'));
-    },
-  });
-
   const handleSwitchAccount = (accountId: string) => {
     if (accountId === account?.id) {
       return;
@@ -147,25 +127,23 @@ export function Sidebar({
     switchAccountMutation.mutate(accountId);
   };
 
-  const handleDeleteAccount = (accountId: string, accountEmail: string) => {
-    if (confirm(t('deleteAccountConfirm', { email: accountEmail }))) {
-      deleteAccountMutation.mutate(accountId);
-    }
-  };
-
-  const handleAddAccount = () => {
-    router.push('/login?addAccount=true');
-  };
-
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
+    router.push(`/${locale}/login`);
     router.refresh();
   };
 
   const handleSettings = () => {
     router.push(`/${locale}/settings`);
   };
+
+  const handleStalwartManagement = () => {
+    router.push(`/${locale}/settings/stalwart`);
+  };
+
+  const otherAccounts = (accountsData?.accounts || []).filter(
+    (availableAccount) => availableAccount.id !== account?.id
+  );
 
   const organizedFolders = useMemo(() => {
     const folderMap = new Map<string, Folder & { children: Folder[] }>();
@@ -452,79 +430,72 @@ export function Sidebar({
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="w-full justify-start gap-3 rounded-2xl px-3 py-2.5 max-md:min-h-[44px] touch-manipulation hover:mail-hover-surface"
-              aria-label={t('settingsLabel')}
+              className="h-auto min-h-12 w-full justify-start gap-3 rounded-xl px-2.5 py-2 text-left touch-manipulation hover:mail-hover-surface"
+              aria-label={t('accountMenu')}
             >
               {account ? (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground shadow-sm">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-semibold text-primary-foreground shadow-sm">
                   {(account.displayName || account.email || '?')[0].toUpperCase()}
                 </div>
               ) : (
                 <Settings className="h-4 w-4 flex-shrink-0" />
               )}
-              <span className="flex-1 truncate text-left text-xs text-muted-foreground">
-                {account?.email || t('settingsLabel')}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-foreground">
+                  {account?.displayName || account?.email || t('defaultAccount')}
+                </span>
+                <span className="block truncate text-[11px] leading-4 text-muted-foreground">
+                  {account?.displayName && account.displayName !== account.email
+                    ? account.email
+                    : t('currentMailbox')}
+                </span>
               </span>
-              <Settings className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+              <ChevronsUpDown
+                className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel>{account?.email || t('defaultAccount')}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {accountsData && accountsData.accounts.length > 0 && (
+          <DropdownMenuContent
+            align="end"
+            sideOffset={8}
+            className="w-64 rounded-xl border-border p-1.5 shadow-[0_18px_44px_-24px_hsl(var(--shadow-soft)/0.55)]"
+          >
+            {otherAccounts.length > 0 && (
               <>
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  {t('accountsSection')}
+                <DropdownMenuLabel className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground">
+                  {t('switchMailbox')}
                 </DropdownMenuLabel>
-                {accountsData.accounts.map((acc) => (
+                {otherAccounts.map((availableAccount) => (
                   <DropdownMenuItem
-                    key={acc.id}
-                    onClick={() => handleSwitchAccount(acc.id)}
-                    className="flex items-center justify-between"
+                    key={availableAccount.id}
+                    onClick={() => handleSwitchAccount(availableAccount.id)}
+                    disabled={switchAccountMutation.isPending}
+                    className="min-h-10 rounded-lg px-2"
                   >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <User className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{acc.displayName || acc.email}</span>
-                    </div>
-                    {acc.id === account?.id && (
-                      <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                    )}
+                    <User className="mr-2 h-4 w-4 flex-shrink-0" strokeWidth={1.8} />
+                    <span className="truncate">
+                      {availableAccount.displayName || availableAccount.email}
+                    </span>
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem onClick={handleAddAccount}>
-              <UserPlus className="mr-2 h-4 w-4" />
-              {t('addAccount')}
+            <DropdownMenuItem onClick={handleSettings} className="min-h-10 rounded-lg px-2">
+              <Settings className="mr-2 h-4 w-4" strokeWidth={1.8} />
+              {t('mailSettings')}
             </DropdownMenuItem>
-            {accountsData && accountsData.accounts.length > 1 && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  {t('manageSection')}
-                </DropdownMenuLabel>
-                {accountsData.accounts
-                  .filter((acc) => acc.id !== account?.id)
-                  .map((acc) => (
-                    <DropdownMenuItem
-                      key={acc.id}
-                      onClick={() => handleDeleteAccount(acc.id, acc.email)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {t('deleteAccount', { email: acc.email })}
-                    </DropdownMenuItem>
-                  ))}
-              </>
-            )}
+            <DropdownMenuItem
+              onClick={handleStalwartManagement}
+              className="min-h-10 rounded-lg px-2"
+            >
+              <ServerCog className="mr-2 h-4 w-4" strokeWidth={1.8} />
+              {t('manageInStalwart')}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSettings}>
-              <Settings className="mr-2 h-4 w-4" />
-              {t('settingsLabel')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" />
+            <DropdownMenuItem onClick={handleLogout} className="min-h-10 rounded-lg px-2">
+              <LogOut className="mr-2 h-4 w-4" strokeWidth={1.8} />
               {t('logout')}
             </DropdownMenuItem>
           </DropdownMenuContent>
