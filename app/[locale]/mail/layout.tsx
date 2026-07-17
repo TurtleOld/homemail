@@ -193,7 +193,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const { data: settings } = useQuery<UserSettings>({
     queryKey: ['settings'],
     queryFn: async () => {
-      const res = await fetch('/api/settings');
+      const res = await fetch('/api/settings', { cache: 'no-store' });
       if (res.status === 401) {
         router.push(`/${locale}/login?redirect=/${locale}/mail`);
         throw new Error('Unauthorized');
@@ -340,7 +340,14 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     messages: MessageListItem[];
     nextCursor?: string;
   }>({
-    queryKey: ['messages', selectedFolderId, debouncedSearch, quickFilter, filterGroup],
+    queryKey: [
+      'messages',
+      selectedFolderId,
+      debouncedSearch,
+      quickFilter,
+      filterGroup,
+      settings?.ui?.messagesPerPage,
+    ],
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
       params.set('folderId', selectedFolderId || 'inbox');
@@ -385,7 +392,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         groupBy: 'none' as const,
       }
     );
-  }, [settings?.ui?.sortBy, settings?.ui?.sortOrder, settings?.ui?.groupBy]);
+  }, [settings?.ui]);
 
   const messages = useMemo(() => {
     let allMessages = messagesData?.pages.flatMap((p) => p.messages) || [];

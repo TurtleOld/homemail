@@ -92,14 +92,14 @@ interface UserSettings {
 }
 
 async function getSettings(): Promise<UserSettings> {
-  const res = await fetch('/api/settings');
+  const res = await fetch('/api/settings', { cache: 'no-store' });
   if (!res.ok) {
     throw new Error('Failed to load settings');
   }
   return res.json();
 }
 
-async function saveSettings(settings: UserSettings): Promise<void> {
+async function saveSettings(settings: UserSettings): Promise<UserSettings> {
   const res = await fetch('/api/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -108,6 +108,7 @@ async function saveSettings(settings: UserSettings): Promise<void> {
   if (!res.ok) {
     throw new Error('Failed to save settings');
   }
+  return res.json();
 }
 
 async function getFolders(): Promise<Folder[]> {
@@ -1263,18 +1264,20 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
   const [groupBy, setGroupBy] = useState<'none' | 'date' | 'sender'>(() => initialSettings.ui?.groupBy || 'none');
 
   const saveMutation = useMutation({
-    mutationFn: () => saveSettings({
-      ...initialSettings,
-      ui: {
-        density,
-        messagesPerPage,
-        sortBy,
-        sortOrder,
-        groupBy,
-      },
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    mutationFn: () =>
+      saveSettings({
+        ...initialSettings,
+        ui: {
+          density,
+          messagesPerPage,
+          sortBy,
+          sortOrder,
+          groupBy,
+        },
+      }),
+    onSuccess: (savedSettings) => {
+      queryClient.setQueryData<UserSettings>(['settings'], savedSettings);
+      window.localStorage.setItem('homemail-settings-updated-at', Date.now().toString());
       toast.success('Настройки интерфейса сохранены');
     },
     onError: () => {

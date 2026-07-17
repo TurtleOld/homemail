@@ -501,6 +501,7 @@ export function MessageList({
   return (
     <div
       id="message-list"
+      data-density={density}
       className="mail-panel-surface flex h-full w-full flex-col border-r border-border max-md:border-r-0"
       role="region"
       aria-label={t('regionLabel')}

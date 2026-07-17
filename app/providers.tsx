@@ -23,6 +23,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    const handleSettingsChange = (event: StorageEvent) => {
+      if (event.key === 'homemail-settings-updated-at') {
+        queryClient.invalidateQueries({ queryKey: ['settings'] });
+      }
+    };
+
+    window.addEventListener('storage', handleSettingsChange);
+    return () => window.removeEventListener('storage', handleSettingsChange);
+  }, [queryClient]);
+
+  useEffect(() => {
     const root = document.documentElement;
 
     type ThemePreference = 'light' | 'dark' | 'system';

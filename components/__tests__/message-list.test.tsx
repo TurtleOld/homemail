@@ -176,4 +176,37 @@ describe('MessageList', () => {
     const expandButton = screen.getByRole('button', { name: 'Expand conversation' });
     expect(expandButton.closest('article')).toHaveClass('min-h-12');
   });
+
+  it('updates message rows when density changes', () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const props = {
+      messages: mockMessages,
+      selectedIds: new Set<string>(),
+      onSelect: vi.fn(),
+      onSelectAll: vi.fn(),
+      onMessageClick: vi.fn(),
+    };
+
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <MessageList {...props} density="compact" />
+      </QueryClientProvider>
+    );
+
+    expect(document.querySelector('#message-list')).toHaveAttribute('data-density', 'compact');
+    expect(screen.getByText('Test Subject').closest('article')).toHaveClass('min-h-12');
+    expect(screen.queryByText('Test snippet')).not.toBeInTheDocument();
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <MessageList {...props} density="spacious" />
+      </QueryClientProvider>
+    );
+
+    expect(document.querySelector('#message-list')).toHaveAttribute('data-density', 'spacious');
+    expect(screen.getByText('Test Subject').closest('article')).toHaveClass('min-h-20');
+    expect(screen.getByText('Test snippet')).toBeInTheDocument();
+  });
 });

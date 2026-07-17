@@ -219,7 +219,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    // Return the canonical value that was actually persisted. Clients can update
+    // their shared settings cache immediately instead of waiting for a second GET.
+    return NextResponse.json(updatedSettings);
   } catch (error) {
     if (error instanceof z.ZodError) {
       logger.error('Settings validation error:', error.errors);
