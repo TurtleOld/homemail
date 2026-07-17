@@ -1177,9 +1177,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 placeholder={t('searchPlaceholder')}
                 className="mx-auto w-full max-w-2xl"
               />
-              <span className="flex-shrink-0 rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-muted-foreground max-md:hidden">
-                /
-              </span>
             </header>
           )}
           {hasConnectionProblem && (

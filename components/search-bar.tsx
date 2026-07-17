@@ -140,6 +140,14 @@ export function SearchBar({
             </Button>
           </>
         )}
+        {!value && (
+          <kbd
+            className="pointer-events-none absolute right-10 hidden min-w-6 rounded border border-border bg-muted/50 px-1.5 py-0.5 text-center font-mono text-[11px] text-muted-foreground sm:inline-block"
+            aria-label="Нажмите слэш, чтобы перейти к поиску"
+          >
+            /
+          </kbd>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

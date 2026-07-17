@@ -74,7 +74,11 @@ describe('Workspace shell', () => {
     renderWithQueryClient(<SearchBar value="" onChange={onChange} placeholder="Search mail" />);
 
     const input = screen.getByPlaceholderText('Search mail');
-    expect(screen.getByRole('search')).toContainElement(input);
+    const searchRegion = screen.getByRole('search');
+    expect(searchRegion).toContainElement(input);
+    expect(searchRegion).toContainElement(
+      screen.getByLabelText('Нажмите слэш, чтобы перейти к поиску')
+    );
     expect(input).toHaveAttribute('data-mail-search');
 
     fireEvent.change(input, { target: { value: 'from:anna@example.com' } });

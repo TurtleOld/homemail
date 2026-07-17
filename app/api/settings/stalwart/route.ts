@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { logger } from '@/lib/logger';
-
-const STALWART_BASE_URL = process.env.STALWART_MANAGEMENT_URL || process.env.STALWART_BASE_URL || 'http://stalwart:8080';
+import { getPublicStalwartManagementUrl } from '@/lib/stalwart-management-url';
 
 /**
  * OAuth-only mode: Stalwart admin panel proxy is disabled.
@@ -19,16 +18,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // OAuth-only mode: admin panel requires Basic Auth with admin credentials
+    // OAuth-only mode: admin panel requires separate administrator credentials.
     return NextResponse.json(
       {
+        available: false,
         error: 'Stalwart admin panel is not available in OAuth mode',
-        message: 'Please access Stalwart admin panel directly using admin credentials',
-        adminUrl: STALWART_BASE_URL
+        code: 'STALWART_ADMIN_REQUIRES_DIRECT_LOGIN',
+        message:
+          'Open the Stalwart management interface and sign in with administrator credentials',
+        adminUrl: getPublicStalwartManagementUrl(),
       },
-      { status: 503 }
+      { status: 200 }
     );
-
   } catch (error) {
     logger.error('Failed to proxy Stalwart Management:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
