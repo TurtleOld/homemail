@@ -26,6 +26,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const root = document.documentElement;
 
     type ThemePreference = 'light' | 'dark' | 'system';
+    type ThemeColors = { primary?: string; secondary?: string; accent?: string };
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
     let removeSystemListener: (() => void) | undefined;
 
@@ -46,10 +47,56 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const applyTheme = async () => {
+    const hexToHsl = (hex: string): string => {
+      const r = parseInt(hex.slice(1, 3), 16) / 255;
+      const g = parseInt(hex.slice(3, 5), 16) / 255;
+      const b = parseInt(hex.slice(5, 7), 16) / 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      let h = 0;
+      let s = 0;
+      const l = (max + min) / 2;
+      if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r:
+            h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+            break;
+          case g:
+            h = ((b - r) / d + 2) / 6;
+            break;
+          case b:
+            h = ((r - g) / d + 4) / 6;
+            break;
+        }
+      }
+      return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+    };
+
+    const applyThemeColors = (colors?: ThemeColors) => {
       root.style.removeProperty('--primary');
       root.style.removeProperty('--secondary');
       root.style.removeProperty('--accent');
+      if (colors?.primary) root.style.setProperty('--primary', hexToHsl(colors.primary));
+      if (colors?.secondary) root.style.setProperty('--secondary', hexToHsl(colors.secondary));
+      if (colors?.accent) root.style.setProperty('--accent', hexToHsl(colors.accent));
+    };
+
+    const handleThemeChange = (event: Event) => {
+      const { preference, colors } = (
+        event as CustomEvent<{ preference: ThemePreference; colors?: ThemeColors }>
+      ).detail;
+      if (['light', 'dark', 'system'].includes(preference)) {
+        applyThemePreference(preference);
+        applyThemeColors(colors);
+      }
+    };
+
+    window.addEventListener('homemail-theme-change', handleThemeChange);
+
+    const applyTheme = async () => {
+      applyThemeColors();
 
       if (/\/(?:(?:ru|en)\/)?login$/.test(pathname)) {
         applyThemePreference('light');
@@ -66,43 +113,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           applyThemePreference(theme);
 
           if (settings.customTheme?.colors) {
-            const colors = settings.customTheme.colors;
-            const hexToHsl = (hex: string): string => {
-              const r = parseInt(hex.slice(1, 3), 16) / 255;
-              const g = parseInt(hex.slice(3, 5), 16) / 255;
-              const b = parseInt(hex.slice(5, 7), 16) / 255;
-              const max = Math.max(r, g, b);
-              const min = Math.min(r, g, b);
-              let h = 0;
-              let s = 0;
-              const l = (max + min) / 2;
-              if (max !== min) {
-                const d = max - min;
-                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-                switch (max) {
-                  case r:
-                    h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-                    break;
-                  case g:
-                    h = ((b - r) / d + 2) / 6;
-                    break;
-                  case b:
-                    h = ((r - g) / d + 4) / 6;
-                    break;
-                }
-              }
-              return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
-            };
-
-            if (colors.primary) {
-              root.style.setProperty('--primary', hexToHsl(colors.primary));
-            }
-            if (colors.secondary) {
-              root.style.setProperty('--secondary', hexToHsl(colors.secondary));
-            }
-            if (colors.accent) {
-              root.style.setProperty('--accent', hexToHsl(colors.accent));
-            }
+            applyThemeColors(settings.customTheme.colors);
           }
         } else {
           applyThemePreference('system');
@@ -114,7 +125,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     applyTheme();
 
-    return () => removeSystemListener?.();
+    return () => {
+      removeSystemListener?.();
+      window.removeEventListener('homemail-theme-change', handleThemeChange);
+    };
   }, [pathname]);
 
   return (

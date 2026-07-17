@@ -5,72 +5,104 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '@/lib/logger';
 import { getMailProviderForAccount } from '@/lib/get-provider';
+import { withMigrationDefaults } from '@/lib/settings-defaults';
 
 const settingsSchema = z.object({
   signature: z.string().optional(),
-  signatures: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    content: z.string(),
-    isDefault: z.boolean().optional(),
-    context: z.enum(['work', 'personal', 'autoReply', 'general']).optional(),
-  })).optional(),
-  theme: z.enum(['light', 'dark']).optional(),
-  autoReply: z.object({
-    enabled: z.boolean(),
-    subject: z.string().optional(),
-    message: z.string().optional(),
-    schedule: z.object({
+  signatures: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        content: z.string(),
+        isDefault: z.boolean().optional(),
+        context: z.enum(['work', 'personal', 'autoReply', 'general']).optional(),
+      })
+    )
+    .optional(),
+  theme: z.enum(['light', 'dark', 'system']).optional(),
+  autoReply: z
+    .object({
+      enabled: z.boolean(),
+      subject: z.string().optional(),
+      message: z.string().optional(),
+      schedule: z
+        .object({
+          enabled: z.boolean().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          startTime: z.string().optional(),
+          endTime: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  forwarding: z
+    .object({
       enabled: z.boolean().optional(),
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      startTime: z.string().optional(),
-      endTime: z.string().optional(),
-    }).optional(),
-  }).optional(),
-  forwarding: z.object({
-    enabled: z.boolean().optional(),
-    email: z.string().optional().refine((val) => {
-      if (val === undefined || val === '') return true;
-      return z.string().email().safeParse(val).success;
-    }, { message: 'Invalid email' }),
-    keepCopy: z.boolean().optional(),
-  }).optional(),
-  aliases: z.array(z.object({
-    id: z.string(),
-    email: z.string().email(),
-    name: z.string().optional(),
-  })).optional(),
-  locale: z.object({
-    language: z.enum(['ru', 'en']).optional(),
-    dateFormat: z.enum(['DD.MM.YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD']).optional(),
-    timeFormat: z.enum(['24h', '12h']).optional(),
-    timezone: z.string().optional(),
-  }).optional(),
-  ui: z.object({
-    density: z.enum(['compact', 'comfortable', 'spacious']).optional(),
-    messagesPerPage: z.number().int().min(10).max(100).optional(),
-    sortBy: z.enum(['date', 'from', 'subject', 'size']).optional(),
-    sortOrder: z.enum(['asc', 'desc']).optional(),
-    groupBy: z.enum(['none', 'date', 'sender']).optional(),
-  }).optional(),
-  customTheme: z.object({
-    name: z.string(),
-    colors: z.object({
-      primary: z.string().optional(),
-      secondary: z.string().optional(),
-      accent: z.string().optional(),
-    }).optional(),
-  }).optional(),
-  notifications: z.object({
-    enabled: z.boolean().optional(),
-    browser: z.boolean().optional(),
-    onlyImportant: z.boolean().optional(),
-    sound: z.boolean().optional(),
-  }).optional(),
+      email: z
+        .string()
+        .optional()
+        .refine(
+          (val) => {
+            if (val === undefined || val === '') return true;
+            return z.string().email().safeParse(val).success;
+          },
+          { message: 'Invalid email' }
+        ),
+      keepCopy: z.boolean().optional(),
+    })
+    .optional(),
+  aliases: z
+    .array(
+      z.object({
+        id: z.string(),
+        email: z.string().email(),
+        name: z.string().optional(),
+      })
+    )
+    .optional(),
+  locale: z
+    .object({
+      language: z.enum(['ru', 'en']).optional(),
+      dateFormat: z.enum(['DD.MM.YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD']).optional(),
+      timeFormat: z.enum(['24h', '12h']).optional(),
+      timezone: z.string().optional(),
+    })
+    .optional(),
+  ui: z
+    .object({
+      density: z.enum(['compact', 'comfortable', 'spacious']).optional(),
+      messagesPerPage: z.number().int().min(10).max(100).optional(),
+      sortBy: z.enum(['date', 'from', 'subject', 'size']).optional(),
+      sortOrder: z.enum(['asc', 'desc']).optional(),
+      groupBy: z.enum(['none', 'date', 'sender']).optional(),
+    })
+    .optional(),
+  customTheme: z
+    .object({
+      name: z.string(),
+      colors: z
+        .object({
+          primary: z.string().optional(),
+          secondary: z.string().optional(),
+          accent: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  notifications: z
+    .object({
+      enabled: z.boolean().optional(),
+      browser: z.boolean().optional(),
+      onlyImportant: z.boolean().optional(),
+      sound: z.boolean().optional(),
+    })
+    .optional(),
 });
 
-const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : process.cwd());
+const DATA_DIR =
+  process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : process.cwd());
 const SETTINGS_FILE = path.join(DATA_DIR, '.settings.json');
 const settingsStore = new Map<string, any>();
 
@@ -83,7 +115,7 @@ async function loadSettings(): Promise<void> {
     }
     const loaded = JSON.parse(trimmed) as Record<string, any>;
     for (const [accountId, settings] of Object.entries(loaded)) {
-      settingsStore.set(accountId, settings);
+      settingsStore.set(accountId, withMigrationDefaults(settings));
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -111,41 +143,7 @@ export async function GET(request: NextRequest) {
     }
 
     logger.info(`[Settings] GET request from accountId: ${session.accountId}`);
-    const settings = settingsStore.get(session.accountId) || {
-      signature: '',
-      theme: 'light',
-      autoReply: {
-        enabled: false,
-        subject: '',
-        message: '',
-        schedule: {
-          enabled: false,
-          startDate: '',
-          endDate: '',
-          startTime: '',
-          endTime: '',
-        },
-      },
-      forwarding: {
-        enabled: false,
-        email: '',
-        keepCopy: true,
-      },
-      aliases: [],
-      locale: {
-        language: 'ru',
-        dateFormat: 'DD.MM.YYYY',
-        timeFormat: '24h',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
-      ui: {
-        density: 'comfortable',
-        messagesPerPage: 50,
-        sortBy: 'date',
-        sortOrder: 'desc',
-        groupBy: 'none',
-      },
-    };
+    const settings = withMigrationDefaults(settingsStore.get(session.accountId));
 
     logger.info(`[Settings] Returning for accountId ${session.accountId}:`, {
       theme: settings.theme,
@@ -170,54 +168,31 @@ export async function POST(request: NextRequest) {
     const data = settingsSchema.parse(body);
     logger.info(`[Settings] Saving theme: ${data.theme}, customTheme:`, data.customTheme);
 
-    const currentSettings = settingsStore.get(session.accountId) || {
-      signature: '',
-      signatures: [],
-      theme: 'light',
-      autoReply: {
-        enabled: false,
-        subject: '',
-        message: '',
-        schedule: {
-          enabled: false,
-          startDate: '',
-          endDate: '',
-          startTime: '',
-          endTime: '',
-        },
-      },
-      forwarding: {
-        enabled: false,
-        email: '',
-        keepCopy: true,
-      },
-      aliases: [],
-      locale: {
-        language: 'ru',
-        dateFormat: 'DD.MM.YYYY',
-        timeFormat: '24h',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
-      ui: {
-        density: 'comfortable',
-        messagesPerPage: 50,
-        sortBy: 'date',
-        sortOrder: 'desc',
-        groupBy: 'none',
-      },
-    };
-    
+    const currentSettings = withMigrationDefaults(settingsStore.get(session.accountId));
+
     const updatedSettings = {
       signature: data.signature !== undefined ? data.signature : currentSettings.signature,
       signatures: data.signatures !== undefined ? data.signatures : currentSettings.signatures,
       theme: data.theme !== undefined ? data.theme : currentSettings.theme,
       customTheme: data.customTheme !== undefined ? data.customTheme : currentSettings.customTheme,
-      autoReply: data.autoReply ? { ...currentSettings.autoReply, ...data.autoReply, schedule: data.autoReply.schedule ? { ...currentSettings.autoReply.schedule, ...data.autoReply.schedule } : currentSettings.autoReply.schedule } : currentSettings.autoReply,
-      forwarding: data.forwarding ? { ...currentSettings.forwarding, ...data.forwarding } : currentSettings.forwarding,
+      autoReply: data.autoReply
+        ? {
+            ...currentSettings.autoReply,
+            ...data.autoReply,
+            schedule: data.autoReply.schedule
+              ? { ...currentSettings.autoReply.schedule, ...data.autoReply.schedule }
+              : currentSettings.autoReply.schedule,
+          }
+        : currentSettings.autoReply,
+      forwarding: data.forwarding
+        ? { ...currentSettings.forwarding, ...data.forwarding }
+        : currentSettings.forwarding,
       aliases: data.aliases !== undefined ? data.aliases : currentSettings.aliases,
       locale: data.locale ? { ...currentSettings.locale, ...data.locale } : currentSettings.locale,
       ui: data.ui ? { ...currentSettings.ui, ...data.ui } : currentSettings.ui,
-      notifications: data.notifications ? { ...currentSettings.notifications, ...data.notifications } : currentSettings.notifications,
+      notifications: data.notifications
+        ? { ...currentSettings.notifications, ...data.notifications }
+        : currentSettings.notifications,
     };
 
     settingsStore.set(session.accountId, updatedSettings);
@@ -235,7 +210,7 @@ export async function POST(request: NextRequest) {
             email: alias.email,
             name: alias.name,
           }));
-          
+
           await (provider as any).syncAliases(session.accountId, identities);
           logger.info(`Synchronized ${data.aliases.length} aliases with server`);
         }

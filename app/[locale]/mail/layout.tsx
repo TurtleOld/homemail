@@ -76,7 +76,7 @@ interface Signature {
 interface UserSettings {
   signature?: string;
   signatures?: Signature[];
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'system';
   ui?: {
     density: 'compact' | 'comfortable' | 'spacious';
     messagesPerPage: number;

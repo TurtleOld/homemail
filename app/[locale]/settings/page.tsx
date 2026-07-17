@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -36,7 +37,7 @@ interface Signature {
 interface UserSettings {
   signature: string;
   signatures?: Signature[];
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'system';
   autoReply: {
     enabled: boolean;
     subject: string;
@@ -140,7 +141,7 @@ async function deleteFolder(folderId: string): Promise<void> {
   }
 }
 
-type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'sieve' | 'contacts' | 'interface' | 'advanced' | 'monitoring' | 'labels' | 'import' | 'templates' | 'notifications' | 'statistics' | 'backup' | 'archive' | 'accessibility' | 'hotkeys' | 'subscriptions' | 'pgp' | 'language';
+type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'sieve' | 'contacts' | 'interface' | 'advanced' | 'monitoring' | 'labels' | 'import' | 'templates' | 'notifications' | 'statistics' | 'backup' | 'archive' | 'accessibility' | 'hotkeys' | 'subscriptions' | 'pgp' | 'language' | 'stalwart';
 
 interface Tab {
   id: TabId;
@@ -148,81 +149,58 @@ interface Tab {
   icon: React.ReactNode;
 }
 
-function getTabs(theme: 'light' | 'dark'): Tab[] {
+interface TabGroup {
+  id: 'mail' | 'organization' | 'interface' | 'data' | 'security' | 'system';
+  label: string;
+  tabs: Tab[];
+}
+
+function getTabGroups(theme: UserSettings['theme'], locale: string): TabGroup[] {
+  const ru = locale === 'ru';
+  const label = (ruLabel: string, enLabel: string) => (ru ? ruLabel : enLabel);
+  const themeIcon = theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />;
+
   return [
-    { id: 'signature', label: 'Подпись письма', icon: <Mail className="h-4 w-4" /> },
-    { id: 'theme', label: 'Тема', icon: theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" /> },
-    { id: 'autoReply', label: 'Автоответ', icon: <Mail className="h-4 w-4" /> },
-    { id: 'interface', label: 'Интерфейс', icon: <Layout className="h-4 w-4" /> },
-    { id: 'notifications', label: 'Уведомления', icon: <Bell className="h-4 w-4" /> },
-    { id: 'accessibility', label: 'Доступность', icon: <Accessibility className="h-4 w-4" /> },
-    { id: 'hotkeys', label: 'Горячие клавиши', icon: <Keyboard className="h-4 w-4" /> },
-    { id: 'subscriptions', label: 'Подписки', icon: <Rss className="h-4 w-4" /> },
-    { id: 'pgp', label: 'PGP/GPG', icon: <Key className="h-4 w-4" /> },
-    { id: 'advanced', label: 'Расширенные', icon: <Globe className="h-4 w-4" /> },
-    { id: 'folders', label: 'Папки', icon: <FolderPlus className="h-4 w-4" /> },
-    { id: 'labels', label: 'Метки', icon: <Tag className="h-4 w-4" /> },
-    { id: 'filters', label: 'Фильтры', icon: <Filter className="h-4 w-4" /> },
-    { id: 'sieve', label: 'Sieve-скрипты', icon: <Code2 className="h-4 w-4" /> },
-    { id: 'contacts', label: 'Контакты', icon: <Users className="h-4 w-4" /> },
-    { id: 'templates', label: 'Шаблоны', icon: <FileText className="h-4 w-4" /> },
-    { id: 'import', label: 'Импорт', icon: <Upload className="h-4 w-4" /> },
-    { id: 'statistics', label: 'Статистика', icon: <BarChart3 className="h-4 w-4" /> },
-    { id: 'backup', label: 'Резервное копирование', icon: <Database className="h-4 w-4" /> },
-    { id: 'archive', label: 'Архивация', icon: <Archive className="h-4 w-4" /> },
-    { id: 'monitoring', label: 'Мониторинг', icon: <Activity className="h-4 w-4" /> },
-    { id: 'language', label: 'Язык', icon: <Globe className="h-4 w-4" /> },
+    { id: 'mail', label: label('Почта', 'Mail'), tabs: [
+      { id: 'signature', label: label('Подписи', 'Signatures'), icon: <Mail className="h-4 w-4" /> },
+      { id: 'autoReply', label: label('Автоответ', 'Auto-reply'), icon: <RotateCcw className="h-4 w-4" /> },
+      { id: 'advanced', label: label('Пересылка и алиасы', 'Forwarding and aliases'), icon: <Forward className="h-4 w-4" /> },
+      { id: 'templates', label: label('Шаблоны', 'Templates'), icon: <FileText className="h-4 w-4" /> },
+    ] },
+    { id: 'organization', label: label('Организация', 'Organization'), tabs: [
+      { id: 'folders', label: label('Папки', 'Folders'), icon: <FolderPlus className="h-4 w-4" /> },
+      { id: 'labels', label: label('Метки', 'Labels'), icon: <Tag className="h-4 w-4" /> },
+      { id: 'filters', label: label('Фильтры', 'Filters'), icon: <Filter className="h-4 w-4" /> },
+      { id: 'subscriptions', label: label('Подписки', 'Subscriptions'), icon: <Rss className="h-4 w-4" /> },
+      { id: 'archive', label: label('Автоархивация', 'Auto-archive'), icon: <Archive className="h-4 w-4" /> },
+    ] },
+    { id: 'interface', label: label('Интерфейс', 'Interface'), tabs: [
+      { id: 'theme', label: label('Тема', 'Theme'), icon: themeIcon },
+      { id: 'interface', label: label('Вид списка', 'List appearance'), icon: <Layout className="h-4 w-4" /> },
+      { id: 'language', label: label('Язык и регион', 'Language and region'), icon: <Globe className="h-4 w-4" /> },
+      { id: 'notifications', label: label('Уведомления', 'Notifications'), icon: <Bell className="h-4 w-4" /> },
+      { id: 'accessibility', label: label('Доступность', 'Accessibility'), icon: <Accessibility className="h-4 w-4" /> },
+      { id: 'hotkeys', label: label('Сочетания клавиш', 'Keyboard shortcuts'), icon: <Keyboard className="h-4 w-4" /> },
+    ] },
+    { id: 'data', label: label('Контакты и данные', 'Contacts and data'), tabs: [
+      { id: 'contacts', label: label('Контакты', 'Contacts'), icon: <Users className="h-4 w-4" /> },
+      { id: 'import', label: label('Импорт', 'Import'), icon: <Upload className="h-4 w-4" /> },
+      { id: 'backup', label: label('Резервные копии', 'Backup and restore'), icon: <Database className="h-4 w-4" /> },
+    ] },
+    { id: 'security', label: label('Безопасность', 'Security'), tabs: [
+      { id: 'pgp', label: 'PGP/GPG', icon: <Key className="h-4 w-4" /> },
+    ] },
+    { id: 'system', label: label('Система', 'System'), tabs: [
+      { id: 'stalwart', label: label('Подключение Stalwart', 'Stalwart connection'), icon: <Database className="h-4 w-4" /> },
+      { id: 'sieve', label: label('Sieve-скрипты', 'Sieve scripts'), icon: <Code2 className="h-4 w-4" /> },
+      { id: 'monitoring', label: label('Мониторинг', 'Monitoring'), icon: <Activity className="h-4 w-4" /> },
+      { id: 'statistics', label: label('Статистика', 'Statistics'), icon: <BarChart3 className="h-4 w-4" /> },
+    ] },
   ];
 }
 
 function LanguageTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const [language, setLanguage] = useState<'ru' | 'en'>(() => initialSettings.locale?.language || 'ru');
-  const prevLanguage = initialSettings.locale?.language || 'ru';
-
-  const saveMutation = useMutation({
-    mutationFn: () => saveSettings({
-      ...initialSettings,
-      locale: {
-        language,
-        dateFormat: initialSettings.locale?.dateFormat || 'DD.MM.YYYY',
-        timeFormat: initialSettings.locale?.timeFormat || '24h',
-        timezone: initialSettings.locale?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Язык изменён');
-      if (language !== prevLanguage) {
-        router.push(`/${language}/settings`);
-      }
-    },
-    onError: () => {
-      toast.error('Ошибка сохранения языка');
-    },
-  });
-
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Язык интерфейса</h2>
-      <div className="space-y-4">
-        <label htmlFor="lang-select" className="text-sm font-medium">Выберите язык</label>
-        <select
-          id="lang-select"
-          value={language}
-          onChange={(e) => setLanguage(e.target.value as 'ru' | 'en')}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        >
-          <option value="ru">Русский</option>
-          <option value="en">English</option>
-        </select>
-        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
-        </Button>
-      </div>
-    </div>
-  );
+  return <AdvancedTab initialSettings={initialSettings} section="locale" />;
 }
 
 function SignatureTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
@@ -550,7 +528,7 @@ const PRESET_THEMES = [
 
 function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => initialSettings.theme || 'light');
+  const [theme, setTheme] = useState<UserSettings['theme']>(() => initialSettings.theme || 'system');
   const [selectedPreset, setSelectedPreset] = useState<string>(() => {
     // If custom theme is saved, use its name, otherwise use the base theme
     if (initialSettings.customTheme?.name) {
@@ -561,101 +539,14 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
   const [customColors, setCustomColors] = useState(() => initialSettings.customTheme?.colors || {});
   const [showCustom, setShowCustom] = useState(false);
 
-  // Sync state with initialSettings when they change
-  useEffect(() => {
-    console.log('[ThemeTab] Loading settings:', {
-      theme: initialSettings.theme,
-      customTheme: initialSettings.customTheme,
-    });
-    setTheme(initialSettings.theme || 'light');
-    if (initialSettings.customTheme?.name) {
-      setSelectedPreset(initialSettings.customTheme.name);
-      setCustomColors(initialSettings.customTheme.colors || {});
-    } else {
-      setSelectedPreset(initialSettings.theme || 'light');
-      setCustomColors({});
-    }
-  }, [initialSettings.theme, initialSettings.customTheme]);
-
-  const hexToHsl = (hex: string): string => {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
-
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    let h = 0;
-    let s = 0;
-    const l = (max + min) / 2;
-
-    if (max !== min) {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      switch (max) {
-        case r:
-          h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-          break;
-        case g:
-          h = ((b - r) / d + 2) / 6;
-          break;
-        case b:
-          h = ((r - g) / d + 4) / 6;
-          break;
-      }
-    }
-
-    return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+  const applyTheme = (themeId: UserSettings['theme'], colors?: { primary?: string; secondary?: string; accent?: string }) => {
+    window.dispatchEvent(new CustomEvent('homemail-theme-change', {
+      detail: { preference: themeId, colors },
+    }));
   };
-
-  const applyTheme = (themeId: string, colors?: { primary?: string; secondary?: string; accent?: string }) => {
-    const root = document.documentElement;
-    
-    if (themeId === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-
-    if (colors) {
-      if (colors.primary) {
-        const hsl = hexToHsl(colors.primary);
-        root.style.setProperty('--primary', hsl);
-      }
-      if (colors.secondary) {
-        const hsl = hexToHsl(colors.secondary);
-        root.style.setProperty('--secondary', hsl);
-      }
-      if (colors.accent) {
-        const hsl = hexToHsl(colors.accent);
-        root.style.setProperty('--accent', hsl);
-      }
-    } else {
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--secondary');
-      root.style.removeProperty('--accent');
-    }
-  };
-
-  // Apply saved theme and colors on mount
-  useEffect(() => {
-    const savedTheme = initialSettings.theme || 'light';
-    const savedCustomTheme = initialSettings.customTheme;
-
-    if (savedCustomTheme?.colors) {
-      applyTheme(savedTheme, savedCustomTheme.colors);
-    } else {
-      applyTheme(savedTheme);
-    }
-  }, []); // Run only on mount
 
   const saveMutation = useMutation({
-    mutationFn: (settings: UserSettings) => {
-      console.log('[ThemeTab] Saving settings:', {
-        theme: settings.theme,
-        customTheme: settings.customTheme,
-      });
-      return saveSettings(settings);
-    },
+    mutationFn: (settings: UserSettings) => saveSettings(settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast.success('Тема сохранена');
@@ -690,11 +581,11 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
     });
   };
 
-  const handleThemeChange = (newTheme: 'light' | 'dark') => {
+  const handleThemeChange = (newTheme: UserSettings['theme']) => {
     setTheme(newTheme);
 
     // Check if we have a color scheme active
-    const hasColorScheme = selectedPreset !== 'light' && selectedPreset !== 'dark';
+    const hasColorScheme = !['light', 'dark', 'system'].includes(selectedPreset);
 
     if (hasColorScheme) {
       // Keep the color scheme when changing base theme
@@ -739,7 +630,7 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-medium mb-3">Базовые темы</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <button
                 onClick={() => handleThemeChange('light')}
                 className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
@@ -764,6 +655,19 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
                 <Moon className={`h-8 w-8 ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`} />
                 <span className={`font-medium ${theme === 'dark' ? 'text-primary' : 'text-foreground'}`}>
                   Темная
+                </span>
+              </button>
+              <button
+                onClick={() => handleThemeChange('system')}
+                className={`flex flex-col items-center gap-3 rounded-lg border-2 p-6 transition-all ${
+                  theme === 'system'
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <Layout className={`h-8 w-8 ${theme === 'system' ? 'text-primary' : 'text-muted-foreground'}`} />
+                <span className={`font-medium ${theme === 'system' ? 'text-primary' : 'text-foreground'}`}>
+                  Системная
                 </span>
               </button>
             </div>
@@ -1149,7 +1053,7 @@ function FiltersTab() {
                       <li><code className="bg-muted px-1 rounded">*</code> - подстановочный знак (любые символы)</li>
                       <li><code className="bg-muted px-1 rounded">OR</code> - логическое ИЛИ</li>
                       <li><code className="bg-muted px-1 rounded">-</code> - отрицание (исключить)</li>
-                      <li><code className="bg-muted px-1 rounded">"точная фраза"</code> - точное совпадение</li>
+                      <li><code className="bg-muted px-1 rounded">&quot;точная фраза&quot;</code> - точное совпадение</li>
                     </ul>
                   </div>
 
@@ -1158,7 +1062,7 @@ function FiltersTab() {
                     <div className="space-y-2 text-muted-foreground">
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">from:amazon</code>
-                        <p className="text-xs pl-2">Все письма от адресов, содержащих "amazon"</p>
+                        <p className="text-xs pl-2">Все письма от адресов, содержащих &quot;amazon&quot;</p>
                       </div>
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">from:*@amazon.com</code>
@@ -1178,10 +1082,10 @@ function FiltersTab() {
                       </div>
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">subject:invoice -from:spam</code>
-                        <p className="text-xs pl-2">Письма с "invoice" в теме, но не от spam</p>
+                        <p className="text-xs pl-2">Письма с &quot;invoice&quot; в теме, но не от spam</p>
                       </div>
                       <div>
-                        <code className="bg-muted px-2 py-1 rounded block mb-1">from:*@company.com subject:"quarterly report"</code>
+                        <code className="bg-muted px-2 py-1 rounded block mb-1">from:*@company.com subject:&quot;quarterly report&quot;</code>
                         <p className="text-xs pl-2">Письма от домена company.com с точной фразой в теме</p>
                       </div>
                     </div>
@@ -1653,7 +1557,7 @@ function NotificationsTab({ initialSettings }: { readonly initialSettings: UserS
   );
 }
 
-function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
+function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSettings: UserSettings; readonly section?: 'mail' | 'locale' }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [forwardingEnabled, setForwardingEnabled] = useState(() => initialSettings.forwarding?.enabled || false);
@@ -1700,7 +1604,7 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
   });
 
   const handleSave = () => {
-    if (forwardingEnabled && !forwardingEmail) {
+    if (section === 'mail' && forwardingEnabled && !forwardingEmail) {
       toast.error('Введите email для пересылки');
       return;
     }
@@ -1711,8 +1615,11 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Расширенные настройки</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          {section === 'mail' ? 'Пересылка и алиасы' : 'Язык и региональные настройки'}
+        </h2>
         <div className="space-y-8">
+          {section === 'mail' && <>
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Forward className="h-5 w-5" />
@@ -1766,12 +1673,13 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
               <AtSign className="h-5 w-5" />
               <h3 className="text-lg font-semibold">Алиасы email</h3>
             </div>
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <div className="rounded-md border border-[hsl(var(--status-warning)/0.35)] bg-[hsl(var(--status-warning)/0.1)] p-3 text-sm text-foreground">
               Алиасы могут быть созданы в административном интерфейсе почтового сервера.
             </div>
           </div>
+          </>}
 
-          <div className="space-y-4">
+          {section === 'locale' && <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Globe className="h-5 w-5" />
               <h3 className="text-lg font-semibold">Язык и региональные настройки</h3>
@@ -1853,7 +1761,7 @@ function AdvancedTab({ initialSettings }: { readonly initialSettings: UserSettin
                 </p>
               </div>
             </div>
-          </div>
+          </div>}
         </div>
       </div>
       <div className="flex justify-end">
@@ -2224,51 +2132,67 @@ export default function SettingsPage() {
     queryFn: getSettings,
   });
   
-  const currentTheme = settings?.theme || 'light';
-  const tabs = getTabs(currentTheme);
+  const currentTheme = settings?.theme || 'system';
+  const tabGroups = getTabGroups(currentTheme, locale);
+  const activeTabLabel = tabGroups.flatMap((group) => group.tabs).find((tab) => tab.id === activeTab)?.label;
 
   if (isLoading || !settings) {
     return (
-      <div className="flex min-h-dvh items-center justify-center">
-        <div className="text-center">
-          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-          <p className="text-muted-foreground">Загрузка настроек...</p>
+      <div className="mail-app-shell min-h-dvh p-6" aria-busy="true" aria-label="Загрузка настроек">
+        <div className="mx-auto grid max-w-6xl grid-cols-[17rem_minmax(0,1fr)] gap-8">
+          <div className="space-y-4 border-r border-border pr-6">
+            <Skeleton className="h-8 w-36" />
+            {Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-9 w-full" />)}
+          </div>
+          <div className="space-y-5">
+            <Skeleton className="h-9 w-56" />
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <div className="border-b bg-card p-4">
-        <div className="flex items-center gap-4">
+    <div className="mail-app-shell flex min-h-dvh flex-col">
+      <header className="mail-panel-muted border-b border-border px-4 py-3">
+        <div className="mx-auto flex max-w-[1440px] items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/mail`)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl font-bold">Настройки</h1>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">{locale === 'ru' ? 'Настройки' : 'Settings'}</h1>
+            <p className="text-xs text-muted-foreground">{activeTabLabel}</p>
+          </div>
         </div>
-      </div>
-      <div className="flex flex-1 overflow-hidden">
-        <div className="w-64 border-r bg-muted/30">
-          <nav className="p-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-background font-medium'
-                    : 'hover:bg-muted/50'
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
+      </header>
+      <div className="mx-auto grid min-h-0 w-full max-w-[1440px] flex-1 grid-cols-[17rem_minmax(0,1fr)] max-lg:grid-cols-1">
+        <aside className="mail-sidebar-surface overflow-y-auto border-r border-border max-lg:max-h-[42dvh] max-lg:border-b max-lg:border-r-0">
+          <nav className="space-y-5 p-4" aria-label={locale === 'ru' ? 'Разделы настроек' : 'Settings sections'}>
+            {tabGroups.map((group) => (
+              <section key={group.id} aria-labelledby={`settings-group-${group.id}`}>
+                <h2 id={`settings-group-${group.id}`} className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">
+                  {group.label}
+                </h2>
+                <div className="space-y-0.5">
+                  {group.tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      aria-current={activeTab === tab.id ? 'page' : undefined}
+                      className={`flex min-h-9 w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${activeTab === tab.id ? 'mail-selected-surface font-medium text-foreground' : 'text-muted-foreground hover:mail-hover-surface hover:text-foreground'}`}
+                    >
+                      {tab.icon}<span>{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
             ))}
           </nav>
-        </div>
-        <div className="flex-1 overflow-auto p-6">
-          <div className="mx-auto max-w-2xl">
+        </aside>
+        <main id="main-content" className="mail-panel-surface min-w-0 overflow-y-auto px-6 pb-12 pt-8 max-sm:px-4">
+          <div className="mx-auto max-w-3xl">
             {activeTab === 'signature' && <SignatureTab initialSettings={settings} />}
             {activeTab === 'theme' && <ThemeTab initialSettings={settings} />}
             {activeTab === 'autoReply' && <AutoReplyTab initialSettings={settings} />}
@@ -2291,8 +2215,22 @@ export default function SettingsPage() {
             {activeTab === 'archive' && <AutoArchiveSettings />}
             {activeTab === 'monitoring' && <MonitoringDashboard />}
             {activeTab === 'language' && <LanguageTab initialSettings={settings} />}
+            {activeTab === 'stalwart' && (
+              <section className="space-y-5">
+                <div>
+                  <h2 className="text-xl font-semibold">{locale === 'ru' ? 'Подключение Stalwart' : 'Stalwart connection'}</h2>
+                  <p className="mt-2 max-w-prose text-sm leading-6 text-muted-foreground">
+                    {locale === 'ru' ? 'Параметры сервера открываются в отдельной защищённой системной поверхности.' : 'Server controls open in a separate protected system surface.'}
+                  </p>
+                </div>
+                <Button onClick={() => router.push(`/${locale}/settings/stalwart`)}>
+                  {locale === 'ru' ? 'Открыть настройки Stalwart' : 'Open Stalwart settings'}
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </section>
+            )}
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );
