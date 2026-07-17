@@ -938,8 +938,8 @@ export class JMAPClient {
         text?: string;
         body?: string;
         hasAttachment?: boolean;
-        isUnread?: boolean;
-        isFlagged?: boolean;
+        hasKeyword?: string;
+        notKeyword?: string;
         from?: string;
         to?: string;
         cc?: string;

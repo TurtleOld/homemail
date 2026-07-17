@@ -59,6 +59,7 @@ import { FilterQueryParser } from '@/lib/filter-parser';
 import { useSwipeable } from 'react-swipeable';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { getMailViewport } from '@/lib/mail-responsive';
+import { getQuickFilterFolderRole } from '@/lib/quick-filter-utils';
 
 interface MinimizedDraft {
   id: string;
@@ -339,7 +340,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     messages: MessageListItem[];
     nextCursor?: string;
   }>({
-    queryKey: ['messages', selectedFolderId, debouncedSearch, quickFilter],
+    queryKey: ['messages', selectedFolderId, debouncedSearch, quickFilter, filterGroup],
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
       params.set('folderId', selectedFolderId || 'inbox');
@@ -955,6 +956,23 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     if (isMobile || isTablet) setSidebarOpen(false);
   };
 
+  const handleQuickFilterChange = (filter?: QuickFilterType) => {
+    const folderRole = getQuickFilterFolderRole(filter);
+    const targetFolder = folderRole
+      ? folders.find((folder) => folder.role === folderRole)
+      : undefined;
+
+    if (targetFolder && targetFolder.id !== selectedFolderId) {
+      setSelectedFolderId(targetFolder.id);
+      setSelectedMessageId(null);
+      setSelectedIds(new Set());
+    }
+
+    setQuickFilter(filter);
+    setFilterGroup(undefined);
+    if (isMobile || isTablet) setSidebarOpen(false);
+  };
+
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
     const hasStructuredSyntax =
@@ -1167,11 +1185,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   if (isNavigationOverlay) setSidebarOpen(false);
                 }}
                 activeQuickFilter={quickFilter}
-                onQuickFilterChange={(filter) => {
-                  setQuickFilter(filter);
-                  setFilterGroup(undefined);
-                  if (isNavigationOverlay) setSidebarOpen(false);
-                }}
+                onQuickFilterChange={handleQuickFilterChange}
                 isMobile={isNavigationOverlay}
                 onClose={() => setSidebarOpen(false)}
                 onDropMessage={handleMoveMessage}
@@ -1424,17 +1438,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                       </h2>
                       <QuickFilters
                         activeFilter={quickFilter}
-                        onFilterChange={(filter) => {
-                          setQuickFilter(filter);
-                          if (filter === 'drafts') {
-                            const draftsFolder = folders.find((f) => f.role === 'drafts');
-                            if (draftsFolder) setSelectedFolderId(draftsFolder.id);
-                          } else if (filter === 'sent') {
-                            const sentFolder = folders.find((f) => f.role === 'sent');
-                            if (sentFolder) setSelectedFolderId(sentFolder.id);
-                          }
-                          queryClient.invalidateQueries({ queryKey: ['messages'] });
-                        }}
+                        onFilterChange={handleQuickFilterChange}
                       />
                       <Button
                         variant={conversationView ? 'secondary' : 'ghost'}

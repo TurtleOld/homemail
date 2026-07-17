@@ -352,9 +352,9 @@ export class StalwartJMAPProvider implements MailProvider {
       const isSimpleTextSearch = options.q && !options.messageFilter && !options.filter;
 
       if (options.filter === 'unread') {
-        filter.isUnread = true;
+        filter.notKeyword = '$seen';
       } else if (options.filter === 'starred') {
-        filter.isFlagged = true;
+        filter.hasKeyword = '$flagged';
       } else if (options.filter === 'attachments') {
         filter.hasAttachment = true;
       }
@@ -383,8 +383,8 @@ export class StalwartJMAPProvider implements MailProvider {
         };
         if (filter.text) cleanFilter.text = filter.text;
         if (filter.hasAttachment !== undefined) cleanFilter.hasAttachment = filter.hasAttachment;
-        if (filter.isUnread !== undefined) cleanFilter.isUnread = filter.isUnread;
-        if (filter.isFlagged !== undefined) cleanFilter.isFlagged = filter.isFlagged;
+        if (filter.hasKeyword) cleanFilter.hasKeyword = filter.hasKeyword;
+        if (filter.notKeyword) cleanFilter.notKeyword = filter.notKeyword;
         if (filter.from) cleanFilter.from = filter.from;
         if (filter.to) cleanFilter.to = filter.to;
         if (filter.cc) cleanFilter.cc = filter.cc;
@@ -437,16 +437,16 @@ export class StalwartJMAPProvider implements MailProvider {
 
       const hasQuickFilter =
         cleanFilter.hasAttachment !== undefined ||
-        cleanFilter.isUnread !== undefined ||
-        cleanFilter.isFlagged !== undefined ||
+        cleanFilter.hasKeyword !== undefined ||
+        cleanFilter.notKeyword !== undefined ||
         (parsedMessageFilter && parsedMessageFilter.quickFilter);
 
       console.error('[StalwartProvider] Checking fallback:', {
         emailIdsCount: emailIds.length,
         hasQuickFilter,
         cleanFilterHasAttachment: cleanFilter.hasAttachment,
-        cleanFilterIsUnread: cleanFilter.isUnread,
-        cleanFilterIsFlagged: cleanFilter.isFlagged,
+        cleanFilterHasKeyword: cleanFilter.hasKeyword,
+        cleanFilterNotKeyword: cleanFilter.notKeyword,
         messageFilterQuickFilter: parsedMessageFilter?.quickFilter,
       });
 
@@ -522,17 +522,15 @@ export class StalwartJMAPProvider implements MailProvider {
             });
           }
 
-          if (cleanFilter.isUnread !== undefined) {
+          if (cleanFilter.hasKeyword) {
             filteredEmails = filteredEmails.filter((email) => {
-              const isUnread = !email.keywords?.['$seen'];
-              return cleanFilter.isUnread === true ? isUnread : !isUnread;
+              return email.keywords?.[cleanFilter.hasKeyword] === true;
             });
           }
 
-          if (cleanFilter.isFlagged !== undefined) {
+          if (cleanFilter.notKeyword) {
             filteredEmails = filteredEmails.filter((email) => {
-              const isFlagged = email.keywords?.['$flagged'] === true;
-              return cleanFilter.isFlagged === true ? isFlagged : !isFlagged;
+              return email.keywords?.[cleanFilter.notKeyword] !== true;
             });
           }
 

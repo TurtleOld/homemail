@@ -4,8 +4,8 @@ export interface JMAPEmailFilter {
   inMailbox?: string;
   text?: string;
   hasAttachment?: boolean;
-  isUnread?: boolean;
-  isFlagged?: boolean;
+  hasKeyword?: string;
+  notKeyword?: string;
   from?: string;
   to?: string;
   cc?: string;
@@ -52,13 +52,17 @@ export function convertFilterToJMAP(
   return jmapFilter;
 }
 
-function applyQuickFilter(filter: JMAPEmailFilter, quickFilter: QuickFilterType, folderId?: string): void {
+function applyQuickFilter(
+  filter: JMAPEmailFilter,
+  quickFilter: QuickFilterType,
+  folderId?: string
+): void {
   switch (quickFilter) {
     case 'unread':
-      filter.isUnread = true;
+      filter.notKeyword = '$seen';
       break;
     case 'read':
-      filter.isUnread = false;
+      filter.hasKeyword = '$seen';
       break;
     case 'hasAttachments':
       filter.hasAttachment = true;
@@ -73,10 +77,10 @@ function applyQuickFilter(filter: JMAPEmailFilter, quickFilter: QuickFilterType,
       filter.hasAttachment = true;
       break;
     case 'starred':
-      filter.isFlagged = true;
+      filter.hasKeyword = '$flagged';
       break;
     case 'important':
-      filter.isFlagged = true;
+      filter.hasKeyword = '$important';
       break;
     case 'drafts':
       break;
@@ -171,8 +175,14 @@ function applyCondition(filter: JMAPEmailFilter, condition: FilterCondition): vo
         filter.minSize = typeof value === 'number' ? value : parseInt(String(value), 10);
       } else if (operator === 'lt' || operator === 'lte') {
         filter.maxSize = typeof value === 'number' ? value : parseInt(String(value), 10);
-      } else if (operator === 'between' && typeof value === 'object' && 'from' in value && 'to' in value) {
-        filter.minSize = typeof value.from === 'number' ? value.from : parseInt(String(value.from), 10);
+      } else if (
+        operator === 'between' &&
+        typeof value === 'object' &&
+        'from' in value &&
+        'to' in value
+      ) {
+        filter.minSize =
+          typeof value.from === 'number' ? value.from : parseInt(String(value.from), 10);
         filter.maxSize = typeof value.to === 'number' ? value.to : parseInt(String(value.to), 10);
       }
       break;
