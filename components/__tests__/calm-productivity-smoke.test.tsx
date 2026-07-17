@@ -53,7 +53,9 @@ vi.mock('next-intl', () => ({
       },
       messageViewer: {
         viewerLabel: 'Message viewer',
-        selectToView: 'Select a message to view',
+        emptyTitle: 'No message selected',
+        selectToView: 'Choose a message from the list to read it here.',
+        keyboardHint: 'Move through the list with',
         loadError: 'Load error',
         loadErrorDesc: 'Failed to load message',
         noBody: 'No content',
@@ -168,7 +170,8 @@ describe('Mail foundation smoke coverage', () => {
   it('renders message viewer empty state', () => {
     renderWithQueryClient(<MessageViewer message={null} />);
 
-    expect(screen.getByText('Select a message to view')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No message selected' })).toBeInTheDocument();
+    expect(screen.getByText('Choose a message from the list to read it here.')).toBeInTheDocument();
   });
 
   it('renders selected and unread message states', () => {

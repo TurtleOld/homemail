@@ -104,7 +104,9 @@
   },
   "messageViewer": {
     "viewerLabel": "Message viewer",
-    "selectToView": "Select a message to view",
+    "emptyTitle": "No message selected",
+    "selectToView": "Choose a message from the list to read it here.",
+    "keyboardHint": "Move through the list with",
     "loadError": "Failed to load message",
     "loadErrorDesc": "Could not load the message",
     "from": "From:",

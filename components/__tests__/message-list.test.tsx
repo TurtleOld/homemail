@@ -76,6 +76,37 @@ describe('MessageList', () => {
     expect(screen.getByText('Test Subject 2')).toBeInTheDocument();
   });
 
+  it('opens a message without enabling bulk selection', () => {
+    const onSelect = vi.fn();
+    const onMessageClick = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageList
+          messages={mockMessages}
+          activeMessageId="1"
+          selectedIds={new Set()}
+          onSelect={onSelect}
+          onSelectAll={vi.fn()}
+          onMessageClick={onMessageClick}
+        />
+      </QueryClientProvider>
+    );
+
+    const activeMessage = screen.getByText('Test Subject').closest('article');
+    expect(activeMessage).toHaveAttribute('aria-current', 'true');
+    expect(
+      screen.getByRole('checkbox', { name: 'Select message from Test User' })
+    ).not.toBeChecked();
+
+    fireEvent.click(activeMessage!);
+    expect(onMessageClick).toHaveBeenCalledWith(mockMessages[0]);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it('should show selected count', () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },

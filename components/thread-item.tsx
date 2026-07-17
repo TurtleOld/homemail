@@ -13,6 +13,7 @@ import { useTranslations } from 'next-intl';
 interface ThreadItemProps {
   thread: ThreadGroup;
   selectedIds: Set<string>;
+  activeMessageId?: string | null;
   onSelect: (id: string, multi: boolean) => void;
   onMessageClick: (message: MessageListItem) => void;
   onMessageDoubleClick?: (message: MessageListItem) => void;
@@ -25,6 +26,7 @@ interface ThreadItemProps {
 export const ThreadItem = memo(function ThreadItem({
   thread,
   selectedIds,
+  activeMessageId,
   onSelect,
   onMessageClick,
   onMessageDoubleClick,
@@ -45,6 +47,7 @@ export const ThreadItem = memo(function ThreadItem({
   const latestMessage = thread.messages[0]!;
   const allSelected = thread.messages.every((m) => selectedIds.has(m.id));
   const someSelected = thread.messages.some((m) => selectedIds.has(m.id));
+  const hasActiveMessage = thread.messages.some((message) => message.id === activeMessageId);
 
   const handleThreadClick = (e: React.MouseEvent) => {
     if (e.shiftKey || e.metaKey || e.ctrlKey) {
@@ -75,8 +78,10 @@ export const ThreadItem = memo(function ThreadItem({
           density === 'comfortable' && 'min-h-16 py-2.5',
           density === 'spacious' && 'min-h-20 py-3.5',
           thread.unreadCount > 0 && 'mail-unread-surface',
+          hasActiveMessage && !someSelected && 'bg-[hsl(var(--surface-selected)/0.55)]',
           someSelected && 'mail-selected-surface'
         )}
+        aria-current={hasActiveMessage || undefined}
         onClick={handleThreadClick}
         onDoubleClick={handleThreadDoubleClick}
       >
@@ -196,6 +201,7 @@ export const ThreadItem = memo(function ThreadItem({
               message={message}
               index={index}
               isSelected={selectedIds.has(message.id)}
+              isActive={activeMessageId === message.id}
               isFocused={false}
               selectedIds={selectedIds}
               isSelectionMode={selectedIds.size > 0}

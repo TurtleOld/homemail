@@ -383,12 +383,36 @@ export function MessageViewer({
 
   if (!message) {
     return (
-      <div className="mail-panel-surface flex h-full items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <Mail className="mx-auto h-12 w-12 mb-4 opacity-50" />
-          <p>{t('selectToView')}</p>
+      <section
+        className="mail-panel-surface relative flex h-full items-center justify-center overflow-hidden px-8 text-muted-foreground"
+        aria-labelledby="empty-reader-title"
+      >
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.055),transparent_42%)]"
+          aria-hidden="true"
+        />
+        <div className="relative max-w-sm text-center">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-[hsl(var(--surface-panel-muted))] text-muted-foreground shadow-[0_16px_38px_-28px_hsl(var(--shadow-soft)/0.5)]">
+            <Mail className="h-7 w-7" strokeWidth={1.6} aria-hidden="true" />
+          </div>
+          <h2
+            id="empty-reader-title"
+            className="text-balance text-base font-semibold tracking-[-0.01em] text-foreground"
+          >
+            {t('emptyTitle')}
+          </h2>
+          <p className="mx-auto mt-2 max-w-xs text-pretty text-sm leading-6">{t('selectToView')}</p>
+          <div className="mt-5 hidden items-center justify-center gap-1.5 text-xs text-muted-foreground lg:flex">
+            <span>{t('keyboardHint')}</span>
+            <kbd className="min-w-6 rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground shadow-sm">
+              J
+            </kbd>
+            <kbd className="min-w-6 rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground shadow-sm">
+              K
+            </kbd>
+          </div>
         </div>
-      </div>
+      </section>
     );
   }
 

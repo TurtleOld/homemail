@@ -631,35 +631,43 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     [queryClient]
   );
 
-  const handleBulkAction = async (action: string, payload?: { folderId?: string }) => {
-    if (selectedIds.size === 0) {
+  const handleBulkAction = async (
+    action: string,
+    payload?: { folderId?: string },
+    messageIds: ReadonlySet<string> = selectedIds
+  ): Promise<boolean> => {
+    if (messageIds.size === 0) {
       toast.error(t('selectMessages'));
-      return;
+      return false;
     }
 
     try {
       const res = await fetch('/api/mail/messages/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(selectedIds), action, payload }),
+        body: JSON.stringify({ ids: Array.from(messageIds), action, payload }),
       });
 
       if (!res.ok) {
         toast.error(t('actionError'));
-        return;
+        return false;
       }
 
       toast.success(t('actionSuccess'));
-      setAllMessagesSelected(false);
-      setSelectedIds(new Set());
+      if (messageIds === selectedIds) {
+        setAllMessagesSelected(false);
+        setSelectedIds(new Set());
+      }
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['messages'] }),
         queryClient.invalidateQueries({ queryKey: ['folders'] }),
       ]);
       refetchFolders();
+      return true;
     } catch (error) {
       toast.error(t('connectionError'));
+      return false;
     }
   };
 
@@ -851,14 +859,14 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
 
   const handleArchive = async () => {
     if (!selectedMessage) return;
-    await handleBulkAction('archive');
-    setSelectedMessageId(null);
+    const succeeded = await handleBulkAction('archive', undefined, new Set([selectedMessage.id]));
+    if (succeeded) setSelectedMessageId(null);
   };
 
   const handleDelete = async () => {
     if (selectedMessage) {
-      await handleBulkAction('delete');
-      setSelectedMessageId(null);
+      const succeeded = await handleBulkAction('delete', undefined, new Set([selectedMessage.id]));
+      if (succeeded) setSelectedMessageId(null);
     }
   };
 
@@ -931,7 +939,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         }
       } else {
         setSelectedMessageId(message.id);
-        setSelectedIds(new Set([message.id]));
       }
     },
     [selectedFolderId, folders, t]
@@ -996,24 +1003,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
 
   const handleMessageClick = (message: MessageListItem) => {
     setSelectedMessageId(message.id);
-    setSelectedIds(new Set([message.id]));
     if (isMobile) setSidebarOpen(false);
   };
-
-  useEffect(() => {
-    if (isMobile || selectedMessageId || messages.length === 0) return;
-
-    const currentFolder = folders.find((folder) => folder.id === selectedFolderId);
-    const isInbox = selectedFolderId === 'inbox' || currentFolder?.role === 'inbox';
-
-    if (!isInbox) return;
-
-    const latestMessage = messages[0];
-    if (!latestMessage) return;
-
-    setSelectedMessageId(latestMessage.id);
-    setSelectedIds(new Set([latestMessage.id]));
-  }, [isMobile, selectedMessageId, messages, folders, selectedFolderId]);
 
   const folderIcons: Record<string, React.ReactNode> = {
     inbox: <Inbox className="h-4 w-4" />,
@@ -1458,6 +1449,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   <MessageList
                     key={listScopeKey}
                     messages={messages}
+                    activeMessageId={selectedMessageId}
                     selectedIds={selectedIds}
                     conversationView={conversationView}
                     density={settings?.ui?.density || 'comfortable'}

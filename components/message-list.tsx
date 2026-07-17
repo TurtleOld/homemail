@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 
 interface MessageListProps {
   messages: MessageListItem[];
+  activeMessageId?: string | null;
   selectedIds: Set<string>;
   onSelect: (id: string, multi: boolean) => void;
   onSelectAll: () => void;
@@ -51,6 +52,7 @@ export const MessageItem = memo(function MessageItem({
   message,
   index,
   isSelected,
+  isActive = false,
   isFocused,
   selectedIds,
   isSelectionMode,
@@ -63,6 +65,7 @@ export const MessageItem = memo(function MessageItem({
   message: MessageListItem;
   index: number;
   isSelected: boolean;
+  isActive?: boolean;
   isFocused: boolean;
   selectedIds: Set<string>;
   isSelectionMode: boolean;
@@ -102,6 +105,7 @@ export const MessageItem = memo(function MessageItem({
       data-testid="message-item"
       draggable={!!onDragStart}
       role="article"
+      aria-current={isActive || undefined}
       aria-label={t('messageAriaLabel', {
         sender: message.from.name || message.from.email,
         subject: message.subject || tCommon('noSubject'),
@@ -129,6 +133,7 @@ export const MessageItem = memo(function MessageItem({
         'group relative flex cursor-pointer items-center border-b border-border/70 transition-colors duration-150 hover:mail-hover-surface active:bg-[hsl(var(--surface-hover))] touch-manipulation focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
         densityClasses[density],
         message.flags.unread && 'mail-unread-surface',
+        isActive && !isSelected && 'bg-[hsl(var(--surface-selected)/0.55)]',
         isSelected && 'mail-selected-surface',
         isFocused && 'z-[1] ring-2 ring-primary/45 ring-inset',
         onDragStart && 'cursor-grab active:cursor-grabbing'
@@ -137,7 +142,6 @@ export const MessageItem = memo(function MessageItem({
         if (e.shiftKey || e.metaKey || e.ctrlKey) {
           onSelect(message.id, true);
         } else {
-          onSelect(message.id, false);
           onMessageClick(message);
         }
       }}
@@ -158,7 +162,11 @@ export const MessageItem = memo(function MessageItem({
         aria-hidden="true"
         className={cn(
           'absolute inset-y-2 left-0 w-0.5 rounded-r transition-transform duration-150',
-          message.flags.unread ? 'scale-y-100 bg-[hsl(var(--unread))]' : 'scale-y-0 bg-transparent'
+          isActive
+            ? 'scale-y-100 bg-primary'
+            : message.flags.unread
+              ? 'scale-y-100 bg-[hsl(var(--unread))]'
+              : 'scale-y-0 bg-transparent'
         )}
       />
 
@@ -262,6 +270,7 @@ export const MessageItem = memo(function MessageItem({
 
 export function MessageList({
   messages,
+  activeMessageId,
   selectedIds,
   onSelect,
   onSelectAll,
@@ -443,6 +452,7 @@ export function MessageList({
       if (!message) return null;
 
       const isSelected = selectedIds.has(message.id);
+      const isActive = activeMessageId === message.id;
       const isFocused = focusedIndex === item.index;
 
       return (
@@ -451,6 +461,7 @@ export function MessageList({
           message={message}
           index={item.index}
           isSelected={isSelected}
+          isActive={isActive}
           isFocused={isFocused}
           selectedIds={selectedIds}
           isSelectionMode={selectedIds.size > 0}
@@ -465,6 +476,7 @@ export function MessageList({
     [
       groupedMessages,
       selectedIds,
+      activeMessageId,
       focusedIndex,
       onSelect,
       onMessageClick,
@@ -599,6 +611,7 @@ export function MessageList({
                 key={thread.threadId}
                 thread={thread}
                 selectedIds={selectedIds}
+                activeMessageId={activeMessageId}
                 onSelect={onSelect}
                 onMessageClick={onMessageClick}
                 onMessageDoubleClick={onMessageDoubleClick}
@@ -647,6 +660,7 @@ export function MessageList({
               const message = item.message;
               if (!message) return null;
               const isSelected = selectedIds.has(message.id);
+              const isActive = activeMessageId === message.id;
               const isFocused = focusedIndex === item.index;
               return (
                 <MessageItem
@@ -654,6 +668,7 @@ export function MessageList({
                   message={message}
                   index={item.index}
                   isSelected={isSelected}
+                  isActive={isActive}
                   isFocused={isFocused}
                   selectedIds={selectedIds}
                   isSelectionMode={selectedIds.size > 0}
