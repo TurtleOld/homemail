@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,7 +41,7 @@ async function saveHotkeys(hotkeys: CustomHotkey[]): Promise<void> {
 }
 
 export function CustomHotkeysSettings() {
-  const [hotkeys, setHotkeys] = useState<CustomHotkey[]>(DEFAULT_HOTKEYS);
+  const [hotkeysOverride, setHotkeys] = useState<CustomHotkey[] | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editKeys, setEditKeys] = useState('');
   const queryClient = useQueryClient();
@@ -51,11 +51,8 @@ export function CustomHotkeysSettings() {
     queryFn: getHotkeys,
   });
 
-  useEffect(() => {
-    if (savedHotkeys && savedHotkeys.length > 0) {
-      setHotkeys(savedHotkeys);
-    }
-  }, [savedHotkeys]);
+  const hotkeys =
+    hotkeysOverride ?? (savedHotkeys && savedHotkeys.length > 0 ? savedHotkeys : DEFAULT_HOTKEYS);
 
   const saveMutation = useMutation({
     mutationFn: saveHotkeys,
@@ -78,17 +75,13 @@ export function CustomHotkeysSettings() {
   };
 
   const handleSave = (id: string) => {
-    const updated = hotkeys.map((h) =>
-      h.id === id ? { ...h, keys: editKeys } : h
-    );
+    const updated = hotkeys.map((h) => (h.id === id ? { ...h, keys: editKeys } : h));
     setHotkeys(updated);
     saveMutation.mutate(updated);
   };
 
   const handleToggle = (id: string) => {
-    const updated = hotkeys.map((h) =>
-      h.id === id ? { ...h, enabled: !h.enabled } : h
-    );
+    const updated = hotkeys.map((h) => (h.id === id ? { ...h, enabled: !h.enabled } : h));
     setHotkeys(updated);
     saveMutation.mutate(updated);
   };
@@ -106,7 +99,8 @@ export function CustomHotkeysSettings() {
       <div>
         <h2 className="text-xl font-semibold mb-4">Пользовательские горячие клавиши</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Настройте горячие клавиши для быстрого доступа к функциям. Используйте формат: <code>ctrl+k</code>, <code>cmd+k</code>, <code>r</code>, <code>delete</code> и т.д.
+          Настройте горячие клавиши для быстрого доступа к функциям. Используйте формат:{' '}
+          <code>ctrl+k</code>, <code>cmd+k</code>, <code>r</code>, <code>delete</code> и т.д.
         </p>
       </div>
 
@@ -143,34 +137,20 @@ export function CustomHotkeysSettings() {
                   <Button size="sm" onClick={() => handleSave(hotkey.id)}>
                     Сохранить
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditingId(null)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setEditingId(null)}>
                     Отмена
                   </Button>
                 </div>
               ) : (
-                <code className="text-sm bg-muted px-2 py-1 rounded">
-                  {hotkey.keys}
-                </code>
+                <code className="text-sm bg-muted px-2 py-1 rounded">{hotkey.keys}</code>
               )}
             </div>
             {editingId !== hotkey.id && (
               <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleEdit(hotkey.id)}
-                >
+                <Button variant="ghost" size="sm" onClick={() => handleEdit(hotkey.id)}>
                   <Edit2 className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(hotkey.id)}
-                >
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(hotkey.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -185,10 +165,19 @@ export function CustomHotkeysSettings() {
           <div>
             <p className="font-medium mb-1">Формат горячих клавиш:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Одиночные клавиши: <code>r</code>, <code>f</code>, <code>delete</code></li>
-              <li>Комбинации: <code>ctrl+k</code>, <code>cmd+k</code>, <code>shift+delete</code></li>
-              <li>Несколько вариантов: <code>ctrl+k,cmd+k</code> (через запятую)</li>
-              <li>Модификаторы: <code>ctrl</code>, <code>cmd</code>, <code>shift</code>, <code>alt</code></li>
+              <li>
+                Одиночные клавиши: <code>r</code>, <code>f</code>, <code>delete</code>
+              </li>
+              <li>
+                Комбинации: <code>ctrl+k</code>, <code>cmd+k</code>, <code>shift+delete</code>
+              </li>
+              <li>
+                Несколько вариантов: <code>ctrl+k,cmd+k</code> (через запятую)
+              </li>
+              <li>
+                Модификаторы: <code>ctrl</code>, <code>cmd</code>, <code>shift</code>,{' '}
+                <code>alt</code>
+              </li>
             </ul>
           </div>
         </div>

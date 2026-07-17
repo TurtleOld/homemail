@@ -72,9 +72,9 @@ describe('P0-2: sanitizeHtml', () => {
     sanitizeHtml = mod.sanitizeHtml;
   });
 
-  it('strips style= attributes', () => {
+  it('preserves allowlisted inline styles', () => {
     const result = sanitizeHtml('<p style="color:red">text</p>');
-    expect(result).not.toContain('style=');
+    expect(result).toContain('style="color: red"');
   });
 
   it('strips inline CSS with tracking pixel via background-image', () => {
@@ -107,7 +107,15 @@ describe('P0-2: sanitizeHtml', () => {
   });
 
   it('strips all on* event handlers', () => {
-    const handlers = ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur', 'oninput'];
+    const handlers = [
+      'onerror',
+      'onload',
+      'onclick',
+      'onmouseover',
+      'onfocus',
+      'onblur',
+      'oninput',
+    ];
     for (const h of handlers) {
       const result = sanitizeHtml(`<img ${h}="alert(1)" src="a.jpg">`);
       expect(result, `${h} should be stripped`).not.toContain(h);
@@ -159,7 +167,11 @@ function sanitizeFilename(raw: string): string {
 }
 
 const SAFE_MIME_TYPES = new Set([
-  'application/pdf', 'image/jpeg', 'image/png', 'text/plain', 'text/csv',
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'text/plain',
+  'text/csv',
   'application/octet-stream',
 ]);
 

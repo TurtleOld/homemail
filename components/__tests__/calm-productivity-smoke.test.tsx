@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { MessageList } from '../message-list';
@@ -47,6 +47,9 @@ vi.mock('next-intl', () => ({
         loadingMore: 'Loading more',
         empty: 'No messages',
         noResults: 'No messages',
+        loadError: 'Could not load messages',
+        loadErrorDesc: 'Check your connection and try again.',
+        retry: 'Try again',
       },
       messageViewer: {
         viewerLabel: 'Message viewer',
@@ -140,6 +143,26 @@ describe('Mail foundation smoke coverage', () => {
 
     expect(screen.getByText('No messages')).toBeInTheDocument();
     expect(screen.getByText('Total: 0')).toBeInTheDocument();
+  });
+
+  it('renders a retryable message list error state', () => {
+    const onRetry = vi.fn();
+
+    renderWithQueryClient(
+      <MessageList
+        messages={[]}
+        selectedIds={new Set()}
+        onSelect={vi.fn()}
+        onSelectAll={vi.fn()}
+        onMessageClick={vi.fn()}
+        error={new Error('Network timeout')}
+        onRetry={onRetry}
+      />
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load messages');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 
   it('renders message viewer empty state', () => {

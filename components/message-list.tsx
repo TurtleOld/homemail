@@ -29,6 +29,10 @@ interface MessageListProps {
   isLoading?: boolean;
   isFetchingMore?: boolean;
   isSearching?: boolean;
+  error?: Error | null;
+  onRetry?: () => void;
+  initialTopMostItemIndex?: number;
+  onTopMostItemChange?: (index: number) => void;
   onDragStart?: (messageId: string) => void;
   conversationView?: boolean;
   density?: 'compact' | 'comfortable' | 'spacious';
@@ -272,6 +276,10 @@ export function MessageList({
   isLoading = false,
   isFetchingMore = false,
   isSearching = false,
+  error = null,
+  onRetry,
+  initialTopMostItemIndex = 0,
+  onTopMostItemChange,
   onDragStart,
   conversationView = false,
   density = 'comfortable',
@@ -557,6 +565,26 @@ export function MessageList({
               </div>
             ))}
           </div>
+        ) : error ? (
+          <div
+            className="flex h-full items-center justify-center px-6 text-muted-foreground"
+            role="alert"
+          >
+            <div className="max-w-sm text-center">
+              <AlertCircle className="mx-auto mb-4 h-10 w-10 text-destructive" />
+              <p className="font-medium text-foreground">{t('loadError')}</p>
+              <p className="mt-1 text-sm">{t('loadErrorDesc')}</p>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="mt-4 min-h-11 rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-colors hover:mail-hover-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {t('retry')}
+                </button>
+              )}
+            </div>
+          </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-muted-foreground">
             <div className="text-center">
@@ -598,6 +626,11 @@ export function MessageList({
           <Virtuoso
             data={groupedMessages}
             totalCount={groupedMessages.length}
+            initialTopMostItemIndex={Math.min(
+              initialTopMostItemIndex,
+              Math.max(groupedMessages.length - 1, 0)
+            )}
+            rangeChanged={(range) => onTopMostItemChange?.(range.startIndex)}
             itemContent={(index) => {
               const item = groupedMessages[index];
               if (!item) return null;

@@ -26,6 +26,7 @@ describe('Производительность группировки писем
       id: `msg${i}`,
       threadId: `thread${Math.floor(i / 5)}`,
       from: { email: `sender${i}@example.com`, name: `Sender ${i}` },
+      to: [{ email: 'me@example.com', name: 'Me' }],
       subject: `Subject ${i}`,
       snippet: `Snippet ${i}`,
       date: new Date(Date.now() - i * 1000),
@@ -54,6 +55,7 @@ describe('Производительность сортировки', () => {
       id: `msg${i}`,
       threadId: `thread${i}`,
       from: { email: `sender${i}@example.com` },
+      to: [{ email: 'me@example.com' }],
       subject: `Subject ${i}`,
       snippet: '',
       date: new Date(Date.now() - Math.random() * 1000000000),
@@ -72,6 +74,8 @@ describe('Производительность сортировки', () => {
 
     const duration = end - start;
     expect(duration).toBeLessThan(100);
-    expect(messages[0]!.date.getTime()).toBeGreaterThanOrEqual(messages[messages.length - 1]!.date.getTime());
+    expect(messages[0]!.date.getTime()).toBeGreaterThanOrEqual(
+      messages[messages.length - 1]!.date.getTime()
+    );
   });
 });

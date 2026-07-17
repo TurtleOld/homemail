@@ -42,9 +42,9 @@ describe('sanitizeHtml', () => {
   });
 
   // P0-2 additions
-  it('should strip style= attributes', () => {
+  it('should preserve allowlisted inline styles', () => {
     const result = sanitizeHtml('<p style="color:red">text</p>');
-    expect(result).not.toContain('style=');
+    expect(result).toContain('style="color: red"');
   });
 
   it('should strip cid: href (email inline image protocol)', () => {

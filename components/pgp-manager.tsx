@@ -24,7 +24,11 @@ async function getPGPKeys(): Promise<PGPKey[]> {
   return res.json();
 }
 
-async function generateKey(data: { email: string; name?: string; passphrase?: string }): Promise<PGPKey> {
+async function generateKey(data: {
+  email: string;
+  name?: string;
+  passphrase?: string;
+}): Promise<PGPKey> {
   const res = await fetch('/api/pgp/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -202,16 +206,30 @@ export function PGPManager() {
           <p className="font-medium">Для отправки зашифрованных писем необходимо:</p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
             <li>Получить публичный PGP ключ от получателя (файл с расширением .asc или .pub)</li>
-            <li>Импортировать публичный ключ получателя, используя кнопку "Импортировать ключ" выше</li>
-            <li>Убедиться, что email адрес в импортированном ключе точно совпадает с email адресом получателя</li>
-            <li>При создании письма отметить галочку "Зашифровать письмо (PGP)"</li>
+            <li>
+              Импортировать публичный ключ получателя, используя кнопку &quot;Импортировать
+              ключ&quot; выше
+            </li>
+            <li>
+              Убедиться, что email адрес в импортированном ключе точно совпадает с email адресом
+              получателя
+            </li>
+            <li>При создании письма отметить галочку &quot;Зашифровать письмо (PGP)&quot;</li>
           </ol>
           <p className="font-medium mt-3">Важно:</p>
           <ul className="list-disc list-inside space-y-1 ml-2">
             <li>Для каждого получателя нужен отдельный публичный ключ</li>
-            <li>Email адрес в ключе должен точно совпадать с адресом получателя (регистр не важен)</li>
-            <li>Если у получателя несколько ключей, импортируйте тот, который он использует для шифрования</li>
-            <li>Для расшифровки входящих писем нужен ваш приватный ключ (создается при генерации ключа)</li>
+            <li>
+              Email адрес в ключе должен точно совпадать с адресом получателя (регистр не важен)
+            </li>
+            <li>
+              Если у получателя несколько ключей, импортируйте тот, который он использует для
+              шифрования
+            </li>
+            <li>
+              Для расшифровки входящих писем нужен ваш приватный ключ (создается при генерации
+              ключа)
+            </li>
           </ul>
         </div>
       </div>
@@ -299,7 +317,10 @@ export function PGPManager() {
       {!isLoading && keys.length > 0 && (
         <div className="space-y-2">
           {keys.map((key) => (
-            <div key={key.id} className="flex items-center justify-between rounded-lg border bg-card p-4">
+            <div
+              key={key.id}
+              className="flex items-center justify-between rounded-lg border bg-card p-4"
+            >
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{key.name || key.email}</div>
                 <div className="text-sm text-muted-foreground truncate">{key.email}</div>
@@ -314,11 +335,7 @@ export function PGPManager() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport(key)}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleExport(key)}>
                   <Download className="h-4 w-4 mr-2" />
                   Экспорт
                 </Button>

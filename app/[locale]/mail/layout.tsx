@@ -36,6 +36,7 @@ import {
   Send,
   AlertTriangle,
   AlertCircle,
+  WifiOff,
   Archive,
   MessageSquare,
   FileDown,
@@ -57,6 +58,7 @@ import { useDebounce } from '@/lib/hooks';
 import { FilterQueryParser } from '@/lib/filter-parser';
 import { useSwipeable } from 'react-swipeable';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { getMailViewport } from '@/lib/mail-responsive';
 
 interface MinimizedDraft {
   id: string;
@@ -146,6 +148,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const resizeStartRef = useRef({ pointerX: 0, width: 400 });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const listScrollPositionsRef = useRef(new Map<string, number>());
   const [conversationView, setConversationView] = useState(() => {
     if (typeof window === 'undefined') return false;
     const saved = window.localStorage.getItem('conversationView');
@@ -160,15 +165,28 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   }, [conversationView]);
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth >= 768) {
+    const checkViewport = () => {
+      const viewport = getMailViewport(window.innerWidth);
+      setIsMobile(viewport === 'mobile');
+      setIsTablet(viewport === 'tablet');
+      if (viewport === 'desktop') {
         setSidebarOpen(false);
       }
     };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    checkViewport();
+    window.addEventListener('resize', checkViewport);
+    return () => window.removeEventListener('resize', checkViewport);
+  }, []);
+
+  useEffect(() => {
+    const updateConnectionState = () => setIsOnline(window.navigator.onLine);
+    updateConnectionState();
+    window.addEventListener('online', updateConnectionState);
+    window.addEventListener('offline', updateConnectionState);
+    return () => {
+      window.removeEventListener('online', updateConnectionState);
+      window.removeEventListener('offline', updateConnectionState);
+    };
   }, []);
 
   const { data: settings } = useQuery<UserSettings>({
@@ -314,6 +332,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     hasNextPage,
     isFetchingNextPage,
     isLoading: isMessagesLoading,
+    isError: isMessagesError,
+    error: messagesError,
+    refetch: refetchMessages,
   } = useInfiniteQuery<{
     messages: MessageListItem[];
     nextCursor?: string;
@@ -400,6 +421,17 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
 
     return allMessages;
   }, [messagesData, quickFilter, uiSettings, locale]);
+
+  const listScopeKey = useMemo(
+    () =>
+      JSON.stringify({
+        folder: selectedFolderId,
+        search: debouncedSearch,
+        quickFilter,
+        filterGroup,
+      }),
+    [selectedFolderId, debouncedSearch, quickFilter, filterGroup]
+  );
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -920,7 +952,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     setSelectedFolderId(id);
     setSelectedMessageId(null);
     setSelectedIds(new Set());
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile || isTablet) setSidebarOpen(false);
   };
 
   const handleSearchChange = useCallback((query: string) => {
@@ -1049,15 +1081,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         setSelectedIds(new Set());
       }
     },
-    onSwipedLeft: () => {
-      if (isMobile && !selectedMessageId && messages.length > 0) {
-        const firstMessage = messages[0];
-        if (firstMessage) {
-          setSelectedMessageId(firstMessage.id);
-          setSelectedIds(new Set([firstMessage.id]));
-        }
-      }
-    },
     trackMouse: false,
     trackTouch: true,
     preventScrollOnSwipe: true,
@@ -1072,6 +1095,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const isInboxFolder = currentFolder?.role === 'inbox';
   const isSpamFolder = currentFolder?.role === 'spam' || selectedFolderId === 'c';
   const inboxFolder = folders.find((folder) => folder.role === 'inbox');
+  const isNavigationOverlay = isMobile || isTablet;
 
   return (
     <div
@@ -1114,9 +1138,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         </div>
       )}
       <div className="relative flex flex-1 overflow-hidden">
-        {(!isMobile || sidebarOpen) && (
+        {(!isNavigationOverlay || sidebarOpen) && (
           <>
-            {isMobile && sidebarOpen && (
+            {isNavigationOverlay && sidebarOpen && (
               <div
                 className="fixed inset-0 z-40 bg-black/50"
                 onClick={() => setSidebarOpen(false)}
@@ -1124,8 +1148,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             )}
             <div
               className={`
-              ${isMobile ? 'fixed inset-y-0 left-0 z-50 w-60 bg-background shadow-lg' : 'relative overflow-hidden'}
-              ${isMobile && !sidebarOpen ? 'hidden' : ''}
+              ${isNavigationOverlay ? 'fixed inset-y-0 left-0 z-50 w-60 bg-background shadow-lg' : 'relative overflow-hidden'}
+              ${isNavigationOverlay && !sidebarOpen ? 'hidden' : ''}
             `}
             >
               <Sidebar
@@ -1140,14 +1164,15 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   setActiveDraftId(null);
                   setComposerMode('floating');
                   setComposeOpen(true);
-                  if (isMobile) setSidebarOpen(false);
+                  if (isNavigationOverlay) setSidebarOpen(false);
                 }}
                 activeQuickFilter={quickFilter}
                 onQuickFilterChange={(filter) => {
                   setQuickFilter(filter);
                   setFilterGroup(undefined);
+                  if (isNavigationOverlay) setSidebarOpen(false);
                 }}
-                isMobile={isMobile}
+                isMobile={isNavigationOverlay}
                 onClose={() => setSidebarOpen(false)}
                 onDropMessage={handleMoveMessage}
                 onRefreshFolders={async () => {
@@ -1161,6 +1186,17 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
         <section className="flex min-w-0 flex-1 flex-col" aria-label={t('workspaceLabel')}>
           {(!isMobile || !selectedMessageId) && (
             <header className="mail-panel-surface flex min-h-16 flex-shrink-0 items-center gap-4 border-b border-border px-4 py-2 max-md:min-h-14 max-md:px-3">
+              {isTablet && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSidebarOpen(true)}
+                  className="min-h-11 min-w-11 flex-shrink-0 rounded-lg"
+                  aria-label={t('openMenu')}
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              )}
               <div className="min-w-0 flex-shrink-0 max-md:hidden">
                 <p className="truncate text-sm font-semibold text-foreground">
                   {selectedFolder?.name || t('allMail')}
@@ -1179,7 +1215,17 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               />
             </header>
           )}
-          {hasConnectionProblem && (
+          {!isOnline && (
+            <div
+              className="flex flex-shrink-0 items-center gap-3 border-b border-border bg-muted/70 px-4 py-2 text-sm"
+              role="status"
+              aria-live="polite"
+            >
+              <WifiOff className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+              <span>{t('offline')}</span>
+            </div>
+          )}
+          {isOnline && hasConnectionProblem && (
             <div
               className="flex flex-shrink-0 items-center gap-3 border-b border-[hsl(var(--status-warning)/0.35)] bg-[hsl(var(--status-warning)/0.1)] px-4 py-2 text-sm"
               role="alert"
@@ -1200,7 +1246,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             {isMobile && selectedMessageId ? null : (
               <div
                 className={`relative flex flex-col flex-shrink-0 border-r border-border ${isMobile ? 'w-full' : 'overflow-hidden'}`}
-                style={!isMobile ? { width: `${messageListWidth}px` } : {}}
+                style={
+                  !isMobile
+                    ? { width: isTablet ? 'clamp(340px, 44vw, 400px)' : `${messageListWidth}px` }
+                    : {}
+                }
                 suppressHydrationWarning
                 {...(isMobile ? swipeHandlers : {})}
               >
@@ -1402,6 +1452,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 </div>
                 <div className="flex-1 min-h-0">
                   <MessageList
+                    key={listScopeKey}
                     messages={messages}
                     selectedIds={selectedIds}
                     conversationView={conversationView}
@@ -1446,6 +1497,12 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     isLoading={isMessagesLoading}
                     isFetchingMore={isFetchingNextPage}
                     isSearching={debouncedSearch.length > 0}
+                    error={isMessagesError ? (messagesError as Error) : null}
+                    onRetry={() => void refetchMessages()}
+                    initialTopMostItemIndex={listScrollPositionsRef.current.get(listScopeKey) || 0}
+                    onTopMostItemChange={(index) => {
+                      listScrollPositionsRef.current.set(listScopeKey, index);
+                    }}
                     onDragStart={() => {}}
                   />
                 </div>

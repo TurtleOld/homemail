@@ -41,7 +41,8 @@ export function AutoArchiveSettings() {
   });
 
   const archiveMutation = useMutation({
-    mutationFn: ({ folderId, days }: { folderId: string; days: number }) => archiveMessages(folderId, days),
+    mutationFn: ({ folderId, days }: { folderId: string; days: number }) =>
+      archiveMessages(folderId, days),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
       queryClient.invalidateQueries({ queryKey: ['folders'] });
@@ -68,7 +69,8 @@ export function AutoArchiveSettings() {
       <div>
         <h2 className="text-xl font-semibold mb-4">Автоматическая архивация</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Архивируйте старые письма из выбранной папки. Письма старше указанного количества дней будут перемещены в архив.
+          Архивируйте старые письма из выбранной папки. Письма старше указанного количества дней
+          будут перемещены в архив.
         </p>
       </div>
 
@@ -89,7 +91,9 @@ export function AutoArchiveSettings() {
         </div>
 
         <div>
-          <label className="text-sm font-medium mb-2 block">Архивировать письма старше (дней)</label>
+          <label className="text-sm font-medium mb-2 block">
+            Архивировать письма старше (дней)
+          </label>
           <Input
             type="number"
             min="1"
@@ -102,11 +106,7 @@ export function AutoArchiveSettings() {
           </p>
         </div>
 
-        <Button
-          onClick={handleArchive}
-          disabled={archiveMutation.isPending}
-          className="w-full"
-        >
+        <Button onClick={handleArchive} disabled={archiveMutation.isPending} className="w-full">
           <Archive className="h-4 w-4 mr-2" />
           {archiveMutation.isPending ? 'Архивация...' : 'Заархивировать письма'}
         </Button>
@@ -121,7 +121,10 @@ export function AutoArchiveSettings() {
               <li>Выберите папку и количество дней</li>
               <li>Все письма старше указанного возраста будут перемещены в архив</li>
               <li>Архивация выполняется вручную по запросу</li>
-              <li>Для автоматической архивации используйте правила авто-сортировки с действием "Автоархивация"</li>
+              <li>
+                Для автоматической архивации используйте правила авто-сортировки с действием
+                &quot;Автоархивация&quot;
+              </li>
             </ul>
           </div>
         </div>

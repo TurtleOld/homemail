@@ -1,5 +1,5 @@
 export function getPublicStalwartManagementUrl(
-  environment: NodeJS.ProcessEnv = process.env
+  environment: Readonly<Record<string, string | undefined>> = process.env
 ): string | null {
   const configuredUrl =
     environment.STALWART_MANAGEMENT_PUBLIC_URL || environment.STALWART_PUBLIC_URL;

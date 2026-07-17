@@ -139,7 +139,7 @@ describe('LoginPage', () => {
     });
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/mail');
+      expect(mockPush).toHaveBeenCalledWith('/ru/mail');
       expect(mockRefresh).toHaveBeenCalled();
     });
   });

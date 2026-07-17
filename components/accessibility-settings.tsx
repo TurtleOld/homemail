@@ -29,29 +29,28 @@ async function saveSettings(settings: any): Promise<void> {
 
 export function AccessibilitySettings() {
   const queryClient = useQueryClient();
-  const [fontSize, setFontSize] = useState(16);
-  const [highContrast, setHighContrast] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(false);
-  const [screenReaderMode, setScreenReaderMode] = useState(false);
+  const [draft, setDraft] = useState<{
+    fontSize?: number;
+    highContrast?: boolean;
+    reducedMotion?: boolean;
+    screenReaderMode?: boolean;
+  }>({});
 
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
   });
 
-  useEffect(() => {
-    if (settings?.accessibility) {
-      setFontSize(settings.accessibility.fontSize || 16);
-      setHighContrast(settings.accessibility.highContrast || false);
-      setReducedMotion(settings.accessibility.reducedMotion || false);
-      setScreenReaderMode(settings.accessibility.screenReaderMode || false);
-    }
-  }, [settings]);
+  const fontSize = draft.fontSize ?? settings?.accessibility?.fontSize ?? 16;
+  const highContrast = draft.highContrast ?? settings?.accessibility?.highContrast ?? false;
+  const reducedMotion = draft.reducedMotion ?? settings?.accessibility?.reducedMotion ?? false;
+  const screenReaderMode =
+    draft.screenReaderMode ?? settings?.accessibility?.screenReaderMode ?? false;
 
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--font-size-base', `${fontSize}px`);
-    
+
     if (highContrast) {
       root.classList.add('high-contrast');
     } else {
@@ -74,15 +73,16 @@ export function AccessibilitySettings() {
   }, [fontSize, highContrast, reducedMotion, screenReaderMode]);
 
   const saveMutation = useMutation({
-    mutationFn: () => saveSettings({
-      ...settings,
-      accessibility: {
-        fontSize,
-        highContrast,
-        reducedMotion,
-        screenReaderMode,
-      },
-    }),
+    mutationFn: () =>
+      saveSettings({
+        ...settings,
+        accessibility: {
+          fontSize,
+          highContrast,
+          reducedMotion,
+          screenReaderMode,
+        },
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast.success('Настройки доступности сохранены');
@@ -97,7 +97,8 @@ export function AccessibilitySettings() {
       <div>
         <h2 className="text-xl font-semibold mb-4">Доступность</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Настройки для улучшения доступности интерфейса для пользователей с ограниченными возможностями.
+          Настройки для улучшения доступности интерфейса для пользователей с ограниченными
+          возможностями.
         </p>
       </div>
 
@@ -117,7 +118,12 @@ export function AccessibilitySettings() {
                 min="12"
                 max="24"
                 value={fontSize}
-                onChange={(e) => setFontSize(parseInt(e.target.value, 10))}
+                onChange={(e) =>
+                  setDraft((current) => ({
+                    ...current,
+                    fontSize: parseInt(e.target.value, 10),
+                  }))
+                }
                 className="w-full"
               />
               <div className="flex justify-between text-xs text-muted-foreground mt-1">
@@ -128,7 +134,8 @@ export function AccessibilitySettings() {
             </div>
             <div className="p-4 rounded-md border bg-muted/30">
               <p style={{ fontSize: `${fontSize}px` }}>
-                Пример текста с выбранным размером шрифта. Это поможет вам оценить, как будет выглядеть интерфейс.
+                Пример текста с выбранным размером шрифта. Это поможет вам оценить, как будет
+                выглядеть интерфейс.
               </p>
             </div>
           </div>
@@ -145,7 +152,9 @@ export function AccessibilitySettings() {
                 type="checkbox"
                 id="highContrast"
                 checked={highContrast}
-                onChange={(e) => setHighContrast(e.target.checked)}
+                onChange={(e) =>
+                  setDraft((current) => ({ ...current, highContrast: e.target.checked }))
+                }
                 className="h-4 w-4 rounded border-gray-300"
               />
               <label htmlFor="highContrast" className="text-sm font-medium">
@@ -169,7 +178,9 @@ export function AccessibilitySettings() {
                 type="checkbox"
                 id="reducedMotion"
                 checked={reducedMotion}
-                onChange={(e) => setReducedMotion(e.target.checked)}
+                onChange={(e) =>
+                  setDraft((current) => ({ ...current, reducedMotion: e.target.checked }))
+                }
                 className="h-4 w-4 rounded border-gray-300"
               />
               <label htmlFor="reducedMotion" className="text-sm font-medium">
@@ -185,7 +196,9 @@ export function AccessibilitySettings() {
                 type="checkbox"
                 id="screenReaderMode"
                 checked={screenReaderMode}
-                onChange={(e) => setScreenReaderMode(e.target.checked)}
+                onChange={(e) =>
+                  setDraft((current) => ({ ...current, screenReaderMode: e.target.checked }))
+                }
                 className="h-4 w-4 rounded border-gray-300"
               />
               <label htmlFor="screenReaderMode" className="text-sm font-medium">
