@@ -232,7 +232,7 @@ describe('Mail foundation smoke coverage', () => {
 
     const frame = screen.getByTitle('Message content');
     expect(frame.getAttribute('srcdoc')).not.toContain('tracker.example');
-    expect(frame.getAttribute('srcdoc')).toContain("img-src 'self' data:");
+    expect(frame.getAttribute('srcdoc')).toContain(`img-src ${window.location.origin} data:`);
     expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer');
   });
 
