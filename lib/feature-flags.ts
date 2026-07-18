@@ -4,6 +4,7 @@ export const REDESIGN_FEATURE_FLAG_NAMES = [
   'oidcIdentityValidation',
   'stalwartAdministration',
   'productShell',
+  'listFirstMail',
 ] as const;
 
 export type RedesignFeatureFlagName = (typeof REDESIGN_FEATURE_FLAG_NAMES)[number];
@@ -16,6 +17,7 @@ const ENV_BY_FLAG: Record<RedesignFeatureFlagName, string> = {
   oidcIdentityValidation: 'HOMEMAIL_FEATURE_OIDC_IDENTITY_VALIDATION',
   stalwartAdministration: 'HOMEMAIL_FEATURE_STALWART_ADMINISTRATION',
   productShell: 'HOMEMAIL_FEATURE_PRODUCT_SHELL',
+  listFirstMail: 'HOMEMAIL_FEATURE_LIST_FIRST_MAIL',
 };
 
 function enabled(value: string | undefined): boolean {
@@ -35,6 +37,7 @@ export function getRedesignFeatureFlags(
     oidcIdentityValidation: enabled(environment[ENV_BY_FLAG.oidcIdentityValidation]),
     stalwartAdministration: enabled(environment[ENV_BY_FLAG.stalwartAdministration]),
     productShell: enabled(environment[ENV_BY_FLAG.productShell]),
+    listFirstMail: enabled(environment[ENV_BY_FLAG.listFirstMail]),
   });
 }
 

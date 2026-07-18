@@ -13,9 +13,11 @@ import { RouteAwareShell } from '@/components/product-shell/route-aware-shell';
 export function Providers({
   children,
   productShellEnabled = false,
+  listFirstMailEnabled = false,
 }: {
   children: React.ReactNode;
   productShellEnabled?: boolean;
+  listFirstMailEnabled?: boolean;
 }) {
   const [queryClient] = useState(
     () =>
@@ -159,7 +161,10 @@ export function Providers({
   }, [pathname, productShellEnabled]);
 
   return (
-    <ProductShellFeatureProvider enabled={productShellEnabled}>
+    <ProductShellFeatureProvider
+      enabled={productShellEnabled}
+      listFirstMailEnabled={listFirstMailEnabled}
+    >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={300}>
           <RouteAwareShell>{children}</RouteAwareShell>

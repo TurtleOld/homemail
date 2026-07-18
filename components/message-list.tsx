@@ -12,6 +12,7 @@ import { groupMessagesByThread } from '@/lib/thread-utils';
 import { ThreadItem } from './thread-item';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 
 interface MessageListProps {
   messages: MessageListItem[];
@@ -24,6 +25,7 @@ interface MessageListProps {
   isSelectingAllInFolder?: boolean;
   allMessagesSelected?: boolean;
   onMessageClick: (message: MessageListItem) => void;
+  getMessageHref?: (message: MessageListItem) => string;
   onMessageDoubleClick?: (message: MessageListItem) => void;
   onLoadMore?: () => void;
   hasMore?: boolean;
@@ -38,6 +40,7 @@ interface MessageListProps {
   conversationView?: boolean;
   density?: 'compact' | 'comfortable' | 'spacious';
   groupBy?: 'none' | 'date' | 'sender';
+  layout?: 'legacy' | 'list-first';
 }
 
 async function getLabels(): Promise<Label[]> {
@@ -58,9 +61,11 @@ export const MessageItem = memo(function MessageItem({
   isSelectionMode,
   onSelect,
   onMessageClick,
+  messageHref,
   onMessageDoubleClick,
   onDragStart,
   density = 'comfortable',
+  layout = 'legacy',
 }: {
   message: MessageListItem;
   index: number;
@@ -71,9 +76,11 @@ export const MessageItem = memo(function MessageItem({
   isSelectionMode: boolean;
   onSelect: (id: string, multi: boolean) => void;
   onMessageClick: (message: MessageListItem) => void;
+  messageHref?: string;
   onMessageDoubleClick?: (message: MessageListItem) => void;
   onDragStart?: (messageId: string) => void;
   density?: 'compact' | 'comfortable' | 'spacious';
+  layout?: 'legacy' | 'list-first';
 }) {
   const localeSettings = useLocaleSettings();
   const t = useTranslations('messageList');
@@ -131,7 +138,9 @@ export const MessageItem = memo(function MessageItem({
       }}
       className={cn(
         'group relative flex cursor-pointer items-center border-b border-border/70 transition-colors duration-150 hover:mail-hover-surface active:bg-[hsl(var(--surface-hover))] touch-manipulation focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
-        densityClasses[density],
+        layout === 'list-first'
+          ? 'min-h-message-row gap-2 px-3 py-1.5 max-md:min-h-16 max-md:py-2'
+          : densityClasses[density],
         message.flags.unread && 'mail-unread-surface',
         isActive && !isSelected && 'bg-[hsl(var(--surface-selected)/0.55)]',
         isSelected && 'mail-selected-surface',
@@ -191,79 +200,76 @@ export const MessageItem = memo(function MessageItem({
         />
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <span
-            className={cn(
-              'min-w-0 flex-1 truncate text-sm',
-              message.flags.unread ? 'font-semibold text-foreground' : 'font-normal text-foreground'
-            )}
-          >
-            {message.from.name || message.from.email}
-          </span>
-          <div className="flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
-            {message.flags.hasAttachments && (
-              <Paperclip className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} />
-            )}
-            {message.flags.important && (
-              <AlertCircle
-                className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]"
-                strokeWidth={1.8}
-              />
-            )}
+      {layout === 'list-first' ? (
+        <>
+          <div className="hidden h-5 w-5 flex-shrink-0 items-center justify-center md:flex" aria-hidden="true">
             {message.flags.starred && (
-              <Star
-                className="h-3.5 w-3.5 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]"
-                strokeWidth={1.8}
-              />
+              <Star className="h-4 w-4 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" strokeWidth={1.8} />
             )}
           </div>
-          <time
-            dateTime={new Date(message.date).toISOString()}
-            className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
-          >
-            {formatDate(message.date, localeSettings)}
-          </time>
-        </div>
-        <div
-          className={cn('mt-0.5 flex min-w-0 items-baseline gap-1.5', subjectSizeClasses[density])}
-        >
-          <span
-            className={cn(
-              'min-w-0 truncate',
-              message.flags.unread ? 'font-medium text-foreground' : 'font-normal text-foreground'
-            )}
-          >
-            {message.subject || tCommon('noSubject')}
-          </span>
-          {density !== 'compact' && message.snippet && (
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-              <span aria-hidden="true">— </span>
-              {message.snippet}
+          <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
+            <span className={cn('min-w-0 truncate text-sm', message.flags.unread ? 'font-semibold' : 'font-normal')}>
+              {message.from.name || message.from.email}
             </span>
-          )}
-          {messageLabels.length > 0 && (
-            <span
-              className="ml-auto flex flex-shrink-0 items-center gap-1"
-              aria-label={messageLabels.map((label) => label.name).join(', ')}
-            >
-              {messageLabels.slice(0, 3).map((label) => (
-                <span
-                  key={label.id}
-                  className="h-1.5 w-1.5 rounded-full border border-border"
-                  style={{ backgroundColor: label.color || 'hsl(var(--primary))' }}
-                  title={label.name}
-                />
-              ))}
-              {messageLabels.length > 3 && (
-                <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-                  +{messageLabels.length - 3}
+            <div className="flex min-w-0 items-baseline gap-1.5 max-md:col-span-2 max-md:row-start-2">
+              {messageHref ? (
+                <Link href={messageHref} onClick={(event) => event.stopPropagation()} className={cn('min-w-0 truncate text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', message.flags.unread && 'font-medium')}>
+                  {message.subject || tCommon('noSubject')}
+                </Link>
+              ) : (
+                <span className={cn('min-w-0 truncate text-[13px]', message.flags.unread && 'font-medium')}>{message.subject || tCommon('noSubject')}</span>
+              )}
+              {message.snippet && (
+                <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
+                  <span aria-hidden="true">- </span>{message.snippet}
                 </span>
               )}
+              <span className="ml-auto flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
+                {message.flags.hasAttachments && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} />}
+                {message.flags.important && <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />}
+                {messageLabels.slice(0, 2).map((label) => (
+                  <span key={label.id} className="h-1.5 w-1.5 rounded-full border border-border" style={{ backgroundColor: label.color || 'hsl(var(--primary))' }} title={label.name} />
+                ))}
+              </span>
+            </div>
+            <time dateTime={new Date(message.date).toISOString()} className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1">
+              {formatDate(message.date, localeSettings)}
+            </time>
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 min-w-0">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className={cn('min-w-0 flex-1 truncate text-sm', message.flags.unread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
+              {message.from.name || message.from.email}
             </span>
-          )}
+            <div className="flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
+              {message.flags.hasAttachments && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} />}
+              {message.flags.important && <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />}
+              {message.flags.starred && <Star className="h-3.5 w-3.5 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" strokeWidth={1.8} />}
+            </div>
+            <time dateTime={new Date(message.date).toISOString()} className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+              {formatDate(message.date, localeSettings)}
+            </time>
+          </div>
+          <div className={cn('mt-0.5 flex min-w-0 items-baseline gap-1.5', subjectSizeClasses[density])}>
+            <span className={cn('min-w-0 truncate', message.flags.unread ? 'font-medium text-foreground' : 'font-normal text-foreground')}>
+              {message.subject || tCommon('noSubject')}
+            </span>
+            {density !== 'compact' && message.snippet && (
+              <span className="min-w-0 flex-1 truncate text-muted-foreground"><span aria-hidden="true">- </span>{message.snippet}</span>
+            )}
+            {messageLabels.length > 0 && (
+              <span className="ml-auto flex flex-shrink-0 items-center gap-1" aria-label={messageLabels.map((label) => label.name).join(', ')}>
+                {messageLabels.slice(0, 3).map((label) => (
+                  <span key={label.id} className="h-1.5 w-1.5 rounded-full border border-border" style={{ backgroundColor: label.color || 'hsl(var(--primary))' }} title={label.name} />
+                ))}
+                {messageLabels.length > 3 && <span className="font-mono text-[10px] tabular-nums text-muted-foreground">+{messageLabels.length - 3}</span>}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </article>
   );
 });
@@ -279,6 +285,7 @@ export function MessageList({
   isSelectingAllInFolder = false,
   allMessagesSelected = false,
   onMessageClick,
+  getMessageHref,
   onMessageDoubleClick,
   onLoadMore,
   hasMore,
@@ -293,6 +300,7 @@ export function MessageList({
   conversationView = false,
   density = 'comfortable',
   groupBy = 'none',
+  layout = 'legacy',
 }: MessageListProps) {
   const t = useTranslations('messageList');
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
@@ -467,9 +475,11 @@ export function MessageList({
           isSelectionMode={selectedIds.size > 0}
           onSelect={onSelect}
           onMessageClick={onMessageClick}
+          messageHref={getMessageHref?.(message)}
           onMessageDoubleClick={onMessageDoubleClick}
           onDragStart={onDragStart}
           density={density}
+          layout={layout}
         />
       );
     },
@@ -480,9 +490,11 @@ export function MessageList({
       focusedIndex,
       onSelect,
       onMessageClick,
+      getMessageHref,
       onMessageDoubleClick,
       onDragStart,
       density,
+      layout,
     ]
   );
 
@@ -502,7 +514,11 @@ export function MessageList({
     <div
       id="message-list"
       data-density={density}
-      className="mail-panel-surface flex h-full w-full flex-col border-r border-border max-md:border-r-0"
+      data-layout={layout}
+      className={cn(
+        'mail-panel-surface flex h-full w-full flex-col max-md:border-r-0',
+        layout === 'legacy' && 'border-r border-border'
+      )}
       role="region"
       aria-label={t('regionLabel')}
     >
@@ -615,11 +631,13 @@ export function MessageList({
                 activeMessageId={activeMessageId}
                 onSelect={onSelect}
                 onMessageClick={onMessageClick}
+                getMessageHref={getMessageHref}
                 onMessageDoubleClick={onMessageDoubleClick}
                 onDragStart={onDragStart}
                 isExpanded={expandedThreads.has(thread.threadId)}
                 onToggleExpand={toggleThreadExpand}
                 density={density}
+                layout={layout}
               />
             ))}
             {hasMore && onLoadMore && (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useLocale } from 'next-intl';
 
 export function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -18,6 +19,7 @@ export function useDebounce<T>(value: T, delay: number): T {
 }
 
 export function useLocaleSettings() {
+  const activeLocale = useLocale();
   const { data: settings } = useQuery<{
     locale?: {
       language?: 'ru' | 'en';
@@ -36,8 +38,8 @@ export function useLocaleSettings() {
   });
 
   return settings?.locale || {
-    language: 'ru' as const,
-    dateFormat: 'DD.MM.YYYY' as const,
+    language: activeLocale === 'ru' ? 'ru' as const : 'en' as const,
+    dateFormat: activeLocale === 'ru' ? 'DD.MM.YYYY' as const : 'MM/DD/YYYY' as const,
     timeFormat: '24h' as const,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   };

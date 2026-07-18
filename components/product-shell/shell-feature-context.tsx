@@ -2,22 +2,36 @@
 
 import { createContext, useContext } from 'react';
 
-const ProductShellFeatureContext = createContext(false);
+interface RedesignFeatureContextValue {
+  productShell: boolean;
+  listFirstMail: boolean;
+}
+
+const RedesignFeatureContext = createContext<RedesignFeatureContextValue>({
+  productShell: false,
+  listFirstMail: false,
+});
 
 export function ProductShellFeatureProvider({
   enabled,
+  listFirstMailEnabled = false,
   children,
 }: {
   enabled: boolean;
+  listFirstMailEnabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <ProductShellFeatureContext.Provider value={enabled}>
+    <RedesignFeatureContext.Provider value={{ productShell: enabled, listFirstMail: listFirstMailEnabled }}>
       {children}
-    </ProductShellFeatureContext.Provider>
+    </RedesignFeatureContext.Provider>
   );
 }
 
 export function useProductShellEnabled(): boolean {
-  return useContext(ProductShellFeatureContext);
+  return useContext(RedesignFeatureContext).productShell;
+}
+
+export function useListFirstMailEnabled(): boolean {
+  return useContext(RedesignFeatureContext).listFirstMail;
 }

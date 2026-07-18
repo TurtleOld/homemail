@@ -5,6 +5,7 @@ import { MessageList } from '../message-list';
 import type { MessageListItem } from '@/lib/types';
 
 vi.mock('next-intl', () => ({
+  useLocale: () => 'en',
   useTranslations: () => (key: string, values?: Record<string, string | number>) => {
     const translations: Record<string, string> = {
       messageAriaLabel: `Message from ${values?.sender}: ${values?.subject}`,
@@ -208,5 +209,27 @@ describe('MessageList', () => {
     expect(document.querySelector('#message-list')).toHaveAttribute('data-density', 'spacious');
     expect(screen.getByText('Test Subject').closest('article')).toHaveClass('min-h-20');
     expect(screen.getByText('Test snippet')).toBeInTheDocument();
+  });
+
+  it('renders the list-first row layout with a durable reader link', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageList
+          messages={mockMessages}
+          selectedIds={new Set()}
+          onSelect={vi.fn()}
+          onSelectAll={vi.fn()}
+          onMessageClick={vi.fn()}
+          getMessageHref={(message) => `/en/mail/messages/${message.id}?folder=inbox`}
+          layout="list-first"
+        />
+      </QueryClientProvider>
+    );
+
+    expect(document.querySelector('#message-list')).toHaveAttribute('data-layout', 'list-first');
+    expect(screen.getByRole('link', { name: 'Test Subject' }))
+      .toHaveAttribute('href', '/en/mail/messages/1?folder=inbox');
+    expect(screen.getByText('Test Subject').closest('article')).toHaveClass('min-h-message-row');
   });
 });

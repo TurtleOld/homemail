@@ -9,6 +9,7 @@ describe('redesign feature flags', () => {
       oidcIdentityValidation: false,
       stalwartAdministration: false,
       productShell: false,
+      listFirstMail: false,
     });
   });
 
@@ -22,6 +23,7 @@ describe('redesign feature flags', () => {
     expect(isRedesignFeatureEnabled('identityFoundation', environment)).toBe(false);
     expect(isRedesignFeatureEnabled('oidcIdentityValidation', environment)).toBe(false);
     expect(isRedesignFeatureEnabled('productShell', environment)).toBe(false);
+    expect(isRedesignFeatureEnabled('listFirstMail', environment)).toBe(false);
   });
 
   it('fails closed for malformed and truthy-looking values', () => {
@@ -31,12 +33,14 @@ describe('redesign feature flags', () => {
       HOMEMAIL_FEATURE_OIDC_IDENTITY_VALIDATION: 'enabled',
       HOMEMAIL_FEATURE_STALWART_ADMINISTRATION: 'false',
       HOMEMAIL_FEATURE_PRODUCT_SHELL: 'on',
+      HOMEMAIL_FEATURE_LIST_FIRST_MAIL: '1',
     })).toEqual({
       identityFoundation: false,
       authorizationPolicy: false,
       oidcIdentityValidation: false,
       stalwartAdministration: false,
       productShell: false,
+      listFirstMail: false,
     });
   });
 });

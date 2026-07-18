@@ -49,6 +49,7 @@ interface SidebarProps {
   onClose?: () => void;
   onDropMessage?: (messageId: string, folderId: string) => void;
   onRefreshFolders?: () => void;
+  layout?: 'legacy' | 'list-first';
 }
 
 const folderIcons: Record<string, React.ReactNode> = {
@@ -72,6 +73,7 @@ export function Sidebar({
   onClose,
   onDropMessage,
   onRefreshFolders,
+  layout = 'legacy',
 }: SidebarProps) {
   const router = useRouter();
   const locale = useLocale();
@@ -223,9 +225,12 @@ export function Sidebar({
               }
             }}
             className={cn(
-              'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-foreground/80 transition-all duration-150 hover:mail-hover-surface hover:text-foreground active:scale-[0.995] max-md:min-h-[44px] touch-manipulation',
+              'group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground/80 transition-colors duration-150 hover:mail-hover-surface hover:text-foreground max-md:min-h-[44px] touch-manipulation',
+              layout === 'list-first' ? 'rounded-control' : 'rounded-xl active:scale-[0.995]',
               selectedFolderId === folder.id &&
-                'mail-selected-surface mail-border-strong border font-medium text-foreground shadow-sm',
+                (layout === 'list-first'
+                  ? 'mail-selected-surface font-medium text-foreground'
+                  : 'mail-selected-surface mail-border-strong border font-medium text-foreground shadow-sm'),
               draggedOverFolderId === folder.id &&
                 'bg-primary/12 ring-2 ring-primary/30 ring-offset-1',
               level > 0 && 'ml-4'
@@ -254,7 +259,7 @@ export function Sidebar({
         </div>
       );
     },
-    [selectedFolderId, draggedOverFolderId, onFolderSelect, onDropMessage]
+    [selectedFolderId, draggedOverFolderId, onFolderSelect, onDropMessage, layout]
   );
 
   if (isCollapsed && !isMobile) {
@@ -318,7 +323,7 @@ export function Sidebar({
     <aside
       className={`
       mail-sidebar-surface flex h-full flex-col border-r border-border
-      ${isMobile ? 'w-full' : 'w-60'}
+      ${isMobile ? 'w-full' : layout === 'list-first' ? 'w-[232px]' : 'w-60'}
     `}
     >
       {isMobile && (
@@ -353,7 +358,7 @@ export function Sidebar({
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-xl text-muted-foreground hover:mail-hover-surface hover:text-foreground"
+              className={cn(layout === 'list-first' ? 'rounded-control' : 'rounded-xl', 'text-muted-foreground hover:mail-hover-surface hover:text-foreground')}
               onClick={() => setIsCollapsed(true)}
               title={t('closeMenu')}
             >
@@ -362,7 +367,7 @@ export function Sidebar({
           )}
         </div>
         <Button
-          className="w-full rounded-lg max-md:min-h-[44px] touch-manipulation font-semibold"
+          className="w-full rounded-control max-md:min-h-[44px] touch-manipulation font-semibold shadow-none hover:shadow-none"
           onClick={onCompose}
           aria-label={t('compose')}
         >
@@ -384,7 +389,7 @@ export function Sidebar({
                   onQuickFilterChange(activeQuickFilter === view.type ? undefined : view.type)
                 }
                 className={cn(
-                  'flex min-h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground/80 hover:mail-hover-surface hover:text-foreground',
+                  'flex min-h-9 w-full items-center gap-3 rounded-control px-2 text-left text-sm text-foreground/80 hover:mail-hover-surface hover:text-foreground',
                   activeQuickFilter === view.type &&
                     'mail-selected-surface font-medium text-foreground'
                 )}
@@ -430,7 +435,7 @@ export function Sidebar({
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="h-auto min-h-12 w-full justify-start gap-3 rounded-xl px-2.5 py-2 text-left touch-manipulation hover:mail-hover-surface"
+              className={cn('h-auto min-h-12 w-full justify-start gap-3 px-2.5 py-2 text-left touch-manipulation hover:mail-hover-surface', layout === 'list-first' ? 'rounded-control' : 'rounded-xl')}
               aria-label={t('accountMenu')}
             >
               {account ? (

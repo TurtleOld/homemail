@@ -40,6 +40,7 @@ import { AttachmentPreview } from '@/components/attachment-preview';
 import { MessageTranslator } from '@/components/message-translator';
 import { DeliveryTracking } from '@/components/delivery-tracking';
 import { useTranslations } from 'next-intl';
+import { cn } from '@/lib/utils';
 
 interface MessageViewerProps {
   message: MessageDetail | null;
@@ -58,6 +59,7 @@ interface MessageViewerProps {
   onBack?: () => void;
   error?: Error | null;
   inlineComposer?: ReactNode;
+  layout?: 'legacy' | 'list-first';
 }
 
 async function getLabels(): Promise<Label[]> {
@@ -97,6 +99,7 @@ export function MessageViewer({
   onBack,
   error,
   inlineComposer,
+  layout = 'legacy',
 }: MessageViewerProps) {
   const localeSettings = useLocaleSettings();
   const t = useTranslations('messageViewer');
@@ -210,6 +213,7 @@ export function MessageViewer({
 
   const iframeSrcDoc = useMemo(() => {
     if (!sanitizedHtml) return '';
+    const listFirst = layout === 'list-first';
     const shellBg = isDark ? 'hsl(220, 24%, 12%)' : '#f4f7fb';
     const paperBg = '#ffffff';
     const textColor = '#111827';
@@ -231,8 +235,8 @@ export function MessageViewer({
       '* { box-sizing: border-box; }',
       `html, body { margin: 0; padding: 0; background: ${shellBg}; }`,
       `body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: ${textColor}; line-height: 1.6; font-size: 15px; word-wrap: break-word; overflow-wrap: break-word; overflow-x: auto; }`,
-      '.email-shell { padding: 20px; }',
-      `.email-content { width: 100%; max-width: 920px; margin: 0 auto; padding: 24px; background: ${paperBg}; color: ${textColor}; border: 1px solid ${panelBorder}; border-radius: 18px; box-shadow: ${panelShadow}; }`,
+      `.email-shell { padding: ${listFirst ? '0' : '20px'}; }`,
+      `.email-content { width: 100%; max-width: ${listFirst ? 'none' : '920px'}; margin: 0 auto; padding: ${listFirst ? '24px 32px' : '24px'}; background: ${paperBg}; color: ${textColor}; border: ${listFirst ? '0' : `1px solid ${panelBorder}`}; border-radius: ${listFirst ? '0' : '18px'}; box-shadow: ${listFirst ? 'none' : panelShadow}; }`,
       '.email-content--table-layout { padding: 0; overflow: hidden; }',
       'p { margin: 0 0 12px 0; }',
       'p:last-child { margin-bottom: 0; }',
@@ -278,8 +282,8 @@ export function MessageViewer({
       'body, body * { max-width: 100%; }',
       '@media (max-width: 600px) {',
       '  body { font-size: 14px; }',
-      '  .email-shell { padding: 8px; }',
-      '  .email-content { padding: 14px; border-radius: 14px; }',
+      `  .email-shell { padding: ${listFirst ? '0' : '8px'}; }`,
+      `  .email-content { padding: 14px; border-radius: ${listFirst ? '0' : '14px'}; }`,
       '  img[align="left"], img[align="right"] { float: none; display: block; margin: 12px auto; }',
       '  table { font-size: 14px; max-width: 100% !important; }',
       '  table td, table th { word-wrap: break-word; }',
@@ -289,7 +293,7 @@ export function MessageViewer({
       `<body><div class="email-shell"><div class="email-content${isTableLayout ? ' email-content--table-layout' : ''}">${sanitizedHtml}</div></div></body>`,
       '</html>',
     ].join('');
-  }, [sanitizedHtml, isDark, isTableLayout]);
+  }, [sanitizedHtml, isDark, isTableLayout, layout]);
 
   const messageLabelObjects = useMemo(() => {
     if (!message?.labels) return [];
@@ -474,14 +478,94 @@ export function MessageViewer({
     }, 250);
   };
 
+  const attachmentSection = message.attachments.length > 0 ? (
+    <div className="mail-panel-muted flex-shrink-0 border-y border-border px-4 py-3 max-md:px-3 max-md:py-2">
+      <h3 className="mb-2 text-xs font-medium text-muted-foreground">
+        {t('attachments', { count: message.attachments.length })}
+      </h3>
+      <div className="flex flex-wrap gap-2">
+        {message.attachments.map((att) => (
+          <div
+            key={att.id}
+            className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm transition-colors hover:mail-hover-surface"
+          >
+            <div className="min-w-0">
+              <div className="font-medium truncate max-w-[160px]">{att.filename}</div>
+              <div className="text-xs text-muted-foreground">
+                {(att.size / 1024).toFixed(1)} KB
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              {(att.mime.startsWith('image/') ||
+                att.mime === 'application/pdf' ||
+                att.mime.startsWith('text/')) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setPreviewAttachment({
+                    id: att.id,
+                    filename: att.filename,
+                    mime: att.mime,
+                  })}
+                  title={t('preview')}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={async () => {
+                  try {
+                    const url = `/api/mail/attachments/${att.id}/download?messageId=${message.id}`;
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                      const downloadError = await response
+                        .json()
+                        .catch(() => ({ error: 'Failed to download' }));
+                      toast.error(downloadError.error || t('downloadError'));
+                      return;
+                    }
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = att.filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(downloadUrl);
+                  } catch {
+                    toast.error(t('downloadError'));
+                  }
+                }}
+                title={t('download')}
+              >
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div
-      className="mail-panel-surface flex h-full w-full flex-col overflow-hidden border-l border-border max-md:border-l-0"
+      className={cn(
+        'mail-panel-surface flex h-full w-full flex-col overflow-hidden',
+        layout === 'legacy' && 'border-l border-border max-md:border-l-0'
+      )}
       role="region"
       aria-label={t('viewerLabel')}
     >
       {/* Header — subject, from/to, auth badges, secondary actions */}
-      <div className="mail-panel-muted flex-shrink-0 border-b border-border px-5 pb-4 pt-5 max-md:px-3 max-md:pb-2 max-md:pt-3">
+      <div className={cn(
+        'mail-panel-muted flex-shrink-0 border-b border-border pb-4 pt-5 max-md:px-3 max-md:pb-2 max-md:pt-3',
+        layout === 'list-first' ? 'px-6' : 'px-5'
+      )}>
         <div className="flex items-start gap-2">
           {isMobile && onBack && (
             <Button
@@ -489,7 +573,7 @@ export function MessageViewer({
               size="icon"
               onClick={onBack}
               className="flex-shrink-0 -ml-1"
-              aria-label="Back"
+              aria-label={t('backToList')}
             >
               <ChevronLeft className="h-5 w-5" />
             </Button>
@@ -532,7 +616,7 @@ export function MessageViewer({
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {(['dkim', 'spf', 'dmarc'] as const).map((key) => {
                   const result = message.authResults![key];
-                  if (!result || result === 'none') return null;
+                  if (!result || result === 'none' || (layout === 'list-first' && result === 'pass')) return null;
                   const isPass = result === 'pass';
                   return (
                     <span
@@ -776,81 +860,7 @@ export function MessageViewer({
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-auto flex flex-col">
-        {message.attachments && message.attachments.length > 0 && (
-          <div className="mail-panel-muted flex-shrink-0 border-b border-border px-4 py-3 max-md:px-3 max-md:py-2">
-            <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-              {t('attachments', { count: message.attachments.length })}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {message.attachments.map((att) => (
-                <div
-                  key={att.id}
-                  className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm transition-colors hover:mail-hover-surface"
-                >
-                  <div className="min-w-0">
-                    <div className="font-medium truncate max-w-[160px]">{att.filename}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {(att.size / 1024).toFixed(1)} KB
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {(att.mime.startsWith('image/') ||
-                      att.mime === 'application/pdf' ||
-                      att.mime.startsWith('text/')) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() =>
-                          setPreviewAttachment({
-                            id: att.id,
-                            filename: att.filename,
-                            mime: att.mime,
-                          })
-                        }
-                        title={t('preview')}
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={async () => {
-                        try {
-                          const url = `/api/mail/attachments/${att.id}/download?messageId=${message.id}`;
-                          const response = await fetch(url);
-                          if (!response.ok) {
-                            const error = await response
-                              .json()
-                              .catch(() => ({ error: 'Failed to download' }));
-                            toast.error(error.error || t('downloadError'));
-                            return;
-                          }
-                          const blob = await response.blob();
-                          const downloadUrl = window.URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = downloadUrl;
-                          link.download = att.filename;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          window.URL.revokeObjectURL(downloadUrl);
-                        } catch {
-                          toast.error(t('downloadError'));
-                        }
-                      }}
-                      title={t('download')}
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {layout === 'legacy' && attachmentSection}
         {hasRemoteImages && !effectiveAllowImages && (
           <div className="border-b border-border/70 bg-[hsl(var(--surface-panel-muted)/0.92)] px-4 py-2 flex-shrink-0">
             <Button
@@ -871,13 +881,14 @@ export function MessageViewer({
             onLoad={syncIframeHeight}
             className="w-full border-0 min-h-[300px]"
             style={{ height: iframeHeight }}
-            title="Message content"
+            title={t('contentFrame')}
           />
         ) : (
           <div className="flex min-h-[300px] w-full flex-1 items-center justify-center text-muted-foreground">
             <p>{t('noBody')}</p>
           </div>
         )}
+        {layout === 'list-first' && attachmentSection}
         {showTranslator && message && message.body && (
           <div className="border-t border-border p-4">
             <MessageTranslator

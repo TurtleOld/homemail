@@ -104,6 +104,8 @@
   },
   "messageViewer": {
     "viewerLabel": "Message viewer",
+    "backToList": "Back to message list",
+    "contentFrame": "Message content",
     "emptyTitle": "No message selected",
     "selectToView": "Choose a message from the list to read it here.",
     "keyboardHint": "Move through the list with",
@@ -148,7 +150,20 @@
     "decryptFailed": "Decryption failed. Make sure you have the private key.",
     "decryptError": "Decryption error",
     "labelsUpdated": "Labels updated",
-    "labelsUpdateError": "Failed to update labels"
+    "labelsUpdateError": "Failed to update labels",
+    "delivery": {
+      "title": "Delivery status",
+      "loading": "Loading delivery status...",
+      "read": "Read",
+      "delivered": "Delivered",
+      "sent": "Sent",
+      "failed": "Delivery failed",
+      "pending": "Pending",
+      "sentAt": "Sent",
+      "deliveredAt": "Delivered",
+      "readAt": "Read",
+      "recipients": "Recipients"
+    }
   },
   "compose": {
     "replyTitle": "Reply",

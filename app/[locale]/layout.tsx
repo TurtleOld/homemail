@@ -72,7 +72,12 @@ export default async function LocaleLayout({
           {t('skipToMain')}
         </a>
         <NextIntlClientProvider messages={messages}>
-          <Providers productShellEnabled={redesignFeatures.productShell}>{children}</Providers>
+          <Providers
+            productShellEnabled={redesignFeatures.productShell}
+            listFirstMailEnabled={redesignFeatures.listFirstMail}
+          >
+            {children}
+          </Providers>
         </NextIntlClientProvider>
         <script
           dangerouslySetInnerHTML={{

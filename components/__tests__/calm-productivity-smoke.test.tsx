@@ -37,6 +37,7 @@ const mockDetailMessage: MessageDetail = {
 };
 
 vi.mock('next-intl', () => ({
+  useLocale: () => 'en',
   useTranslations: (namespace: string) => {
     const translations: Record<string, Record<string, string>> = {
       messageList: {
