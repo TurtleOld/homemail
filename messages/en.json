@@ -379,6 +379,26 @@
       "english": "English",
       "saveSuccess": "Language changed",
       "saveError": "Failed to save language"
+    },
+    "advanced": {
+      "mailHeading": "Forwarding and aliases",
+      "localeHeading": "Language and regional settings",
+      "forwardingHeading": "Email forwarding",
+      "forwardingEnable": "Enable email forwarding",
+      "forwardingEmail": "Forwarding email address",
+      "forwardingEmailRequired": "Enter a forwarding email address",
+      "keepCopy": "Keep a copy in the mailbox",
+      "aliasesHeading": "Email aliases",
+      "aliasesHelp": "Aliases can be created in the mail server administration interface.",
+      "interfaceLanguage": "Interface language",
+      "dateFormat": "Date format",
+      "timeFormat": "Time format",
+      "time24": "24-hour (14:30)",
+      "time12": "12-hour (2:30 PM)",
+      "timezone": "Time zone",
+      "currentTimezone": "Current time zone: {timezone}",
+      "saveSuccess": "Settings saved",
+      "saveError": "Failed to save settings"
     }
   }
 }

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -1563,6 +1563,8 @@ function NotificationsTab({ initialSettings }: { readonly initialSettings: UserS
 function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSettings: UserSettings; readonly section?: 'mail' | 'locale' }) {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const t = useTranslations('settings.advanced');
+  const common = useTranslations('common');
   const [forwardingEnabled, setForwardingEnabled] = useState(() => initialSettings.forwarding?.enabled || false);
   const [forwardingEmail, setForwardingEmail] = useState(() => initialSettings.forwarding?.email || '');
   const [keepCopy, setKeepCopy] = useState(() => initialSettings.forwarding?.keepCopy ?? true);
@@ -1594,7 +1596,7 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Настройки сохранены');
+      toast.success(t('saveSuccess'));
       // Redirect to new locale if language changed
       if (language !== prevLanguage) {
         router.push(`/${language}/settings`);
@@ -1602,13 +1604,13 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
     },
     onError: (error: Error) => {
       console.error('Settings save error:', error);
-      toast.error(error.message || 'Ошибка сохранения настроек');
+      toast.error(t('saveError'));
     },
   });
 
   const handleSave = () => {
     if (section === 'mail' && forwardingEnabled && !forwardingEmail) {
-      toast.error('Введите email для пересылки');
+      toast.error(t('forwardingEmailRequired'));
       return;
     }
     saveMutation.mutate();
@@ -1619,14 +1621,14 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold mb-4">
-          {section === 'mail' ? 'Пересылка и алиасы' : 'Язык и региональные настройки'}
+          {section === 'mail' ? t('mailHeading') : t('localeHeading')}
         </h2>
         <div className="space-y-8">
           {section === 'mail' && <>
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Forward className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">Пересылка писем</h3>
+              <h3 className="text-lg font-semibold">{t('forwardingHeading')}</h3>
             </div>
             <div className="space-y-4 pl-7">
               <div className="flex items-center gap-2">
@@ -1638,14 +1640,14 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
                   className="h-4 w-4 rounded border-gray-300"
                 />
                 <label htmlFor="forwardingEnabled" className="text-sm font-medium">
-                  Включить пересылку писем
+                  {t('forwardingEnable')}
                 </label>
               </div>
 
               {forwardingEnabled && (
                 <div className="space-y-4 pl-6">
                   <div className="space-y-2">
-                    <label htmlFor="forwardingEmail" className="text-sm font-medium">Email для пересылки</label>
+                    <label htmlFor="forwardingEmail" className="text-sm font-medium">{t('forwardingEmail')}</label>
                     <Input
                       id="forwardingEmail"
                       type="email"
@@ -1663,7 +1665,7 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
                       className="h-4 w-4 rounded border-gray-300"
                     />
                     <label htmlFor="keepCopy" className="text-sm font-medium">
-                      Сохранять копию в почтовом ящике
+                      {t('keepCopy')}
                     </label>
                   </div>
                 </div>
@@ -1674,10 +1676,10 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <AtSign className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">Алиасы email</h3>
+              <h3 className="text-lg font-semibold">{t('aliasesHeading')}</h3>
             </div>
             <div className="rounded-md border border-[hsl(var(--status-warning)/0.35)] bg-[hsl(var(--status-warning)/0.1)] p-3 text-sm text-foreground">
-              Алиасы могут быть созданы в административном интерфейсе почтового сервера.
+              {t('aliasesHelp')}
             </div>
           </div>
           </>}
@@ -1685,11 +1687,11 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
           {section === 'locale' && <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Globe className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">Язык и региональные настройки</h3>
+              <h3 className="text-lg font-semibold">{t('localeHeading')}</h3>
             </div>
             <div className="space-y-4 pl-7">
               <div className="space-y-2">
-                <label htmlFor="language" className="text-sm font-medium">Язык интерфейса</label>
+                <label htmlFor="language" className="text-sm font-medium">{t('interfaceLanguage')}</label>
                 <select
                   id="language"
                   value={language}
@@ -1702,7 +1704,7 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="dateFormat" className="text-sm font-medium">Формат даты</label>
+                <label htmlFor="dateFormat" className="text-sm font-medium">{t('dateFormat')}</label>
                 <select
                   id="dateFormat"
                   value={dateFormat}
@@ -1716,7 +1718,7 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="timeFormat" className="text-sm font-medium">Формат времени</label>
+                <label htmlFor="timeFormat" className="text-sm font-medium">{t('timeFormat')}</label>
                 <div className="flex gap-4">
                   <button
                     onClick={() => setTimeFormat('24h')}
@@ -1727,7 +1729,7 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
                     }`}
                   >
                     <span className={`font-medium ${timeFormat === '24h' ? 'text-primary' : 'text-foreground'}`}>
-                      24 часа (14:30)
+                      {t('time24')}
                     </span>
                   </button>
                   <button
@@ -1739,14 +1741,14 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
                     }`}
                   >
                     <span className={`font-medium ${timeFormat === '12h' ? 'text-primary' : 'text-foreground'}`}>
-                      12 часов (2:30 PM)
+                      {t('time12')}
                     </span>
                   </button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="timezone" className="text-sm font-medium">Часовой пояс</label>
+                <label htmlFor="timezone" className="text-sm font-medium">{t('timezone')}</label>
                 <select
                   id="timezone"
                   value={timezone}
@@ -1760,7 +1762,7 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
                   ))}
                 </select>
                 <p className="text-xs text-muted-foreground">
-                  Текущий часовой пояс: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                  {t('currentTimezone', { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })}
                 </p>
               </div>
             </div>
@@ -1769,7 +1771,7 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
       </div>
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+          {saveMutation.isPending ? common('saving') : common('save')}
         </Button>
       </div>
     </div>

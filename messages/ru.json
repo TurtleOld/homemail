@@ -379,6 +379,26 @@
       "english": "English",
       "saveSuccess": "Язык изменён",
       "saveError": "Ошибка сохранения языка"
+    },
+    "advanced": {
+      "mailHeading": "Пересылка и алиасы",
+      "localeHeading": "Язык и региональные настройки",
+      "forwardingHeading": "Пересылка писем",
+      "forwardingEnable": "Включить пересылку писем",
+      "forwardingEmail": "Email для пересылки",
+      "forwardingEmailRequired": "Введите email для пересылки",
+      "keepCopy": "Сохранять копию в почтовом ящике",
+      "aliasesHeading": "Алиасы email",
+      "aliasesHelp": "Алиасы могут быть созданы в административном интерфейсе почтового сервера.",
+      "interfaceLanguage": "Язык интерфейса",
+      "dateFormat": "Формат даты",
+      "timeFormat": "Формат времени",
+      "time24": "24 часа (14:30)",
+      "time12": "12 часов (2:30 PM)",
+      "timezone": "Часовой пояс",
+      "currentTimezone": "Текущий часовой пояс: {timezone}",
+      "saveSuccess": "Настройки сохранены",
+      "saveError": "Ошибка сохранения настроек"
     }
   }
 }
