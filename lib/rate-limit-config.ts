@@ -36,6 +36,10 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
     max: parseInt(process.env.RATE_LIMIT_SEND_MAX || '20', 10),
     window: parseInt(process.env.RATE_LIMIT_SEND_WINDOW || '60000', 10),
   },
+  image_resource: {
+    max: parseInt(process.env.RATE_LIMIT_IMAGE_RESOURCE_MAX || '120', 10),
+    window: parseInt(process.env.RATE_LIMIT_IMAGE_RESOURCE_WINDOW || '60000', 10),
+  },
   api: {
     max: parseInt(process.env.RATE_LIMIT_API_MAX || '100', 10),
     window: parseInt(process.env.RATE_LIMIT_API_WINDOW || '60000', 10),

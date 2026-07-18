@@ -41,6 +41,7 @@ import { MessageTranslator } from '@/components/message-translator';
 import { DeliveryTracking } from '@/components/delivery-tracking';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
+import { useProtectedMessageContentEnabled } from '@/components/product-shell/shell-feature-context';
 
 interface MessageViewerProps {
   message: MessageDetail | null;
@@ -110,6 +111,7 @@ export function MessageViewer({
   const localeSettings = useLocaleSettings();
   const t = useTranslations('messageViewer');
   const tCommon = useTranslations('common');
+  const protectedMessageContentEnabled = useProtectedMessageContentEnabled();
   const markedAsReadRef = useRef<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [localAllowImages, setLocalAllowImages] = useState(false);
@@ -176,7 +178,9 @@ export function MessageViewer({
     }
   }, [body]);
 
-  const effectiveAllowImages = allowRemoteImages || localAllowImages;
+  const effectiveAllowImages = protectedMessageContentEnabled
+    ? false
+    : allowRemoteImages || localAllowImages;
 
   const sanitizedHtml = useMemo(() => {
     if (!body) return '';
@@ -237,6 +241,9 @@ export function MessageViewer({
       '<head>',
       '<meta charset="utf-8">',
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
+      protectedMessageContentEnabled
+        ? '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src \'self\' data:; style-src \'unsafe-inline\'">'
+        : '',
       '<style>',
       '* { box-sizing: border-box; }',
       `html, body { margin: 0; padding: 0; background: ${shellBg}; }`,
@@ -299,7 +306,7 @@ export function MessageViewer({
       `<body><div class="email-shell"><div class="email-content${isTableLayout ? ' email-content--table-layout' : ''}">${sanitizedHtml}</div></div></body>`,
       '</html>',
     ].join('');
-  }, [sanitizedHtml, isDark, isTableLayout, layout]);
+  }, [sanitizedHtml, isDark, isTableLayout, layout, protectedMessageContentEnabled]);
 
   const messageLabelObjects = useMemo(() => {
     if (!message?.labels) return [];
@@ -886,6 +893,7 @@ export function MessageViewer({
           <iframe
             ref={iframeRef}
             sandbox="allow-same-origin allow-popups"
+            referrerPolicy="no-referrer"
             srcDoc={iframeSrcDoc}
             onLoad={syncIframeHeight}
             className="w-full border-0 min-h-[300px]"

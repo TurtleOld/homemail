@@ -3,14 +3,21 @@ import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
   featureEnabled: vi.fn(),
+  getFeatureFlags: vi.fn(),
   getSession: vi.fn(),
   getThread: vi.fn(),
   getMailProviderForAccount: vi.fn(),
   getMailProvider: vi.fn(),
+  protectMessage: vi.fn((message) => message),
 }));
 
 vi.mock('@/lib/feature-flags', () => ({
   isRedesignFeatureEnabled: mocks.featureEnabled,
+  getRedesignFeatureFlags: mocks.getFeatureFlags,
+}));
+
+vi.mock('@/lib/protected-message-content', () => ({
+  protectMessageForDelivery: mocks.protectMessage,
 }));
 
 vi.mock('@/lib/session', () => ({
@@ -33,6 +40,7 @@ describe('mail thread route', () => {
     vi.resetAllMocks();
     process.env.MAIL_PROVIDER = 'stalwart';
     mocks.featureEnabled.mockReturnValue(true);
+    mocks.getFeatureFlags.mockReturnValue({ protectedMessageContent: false, remoteImageFetching: false });
     mocks.getSession.mockResolvedValue({ accountId: 'current-account' });
     mocks.getThread.mockResolvedValue({
       id: 'thread-1',
@@ -79,5 +87,18 @@ describe('mail thread route', () => {
 
     expect(response.status).toBe(400);
     expect(mocks.getThread).not.toHaveBeenCalled();
+  });
+
+  it('protects every message only when the protected-content flag is enabled', async () => {
+    const message = { id: 'message-1', body: { html: '<img src="cid:logo">' } };
+    mocks.getThread.mockResolvedValue({ id: 'thread-1', messages: [message], total: 1, truncated: false });
+    mocks.getFeatureFlags.mockReturnValue({ protectedMessageContent: true, remoteImageFetching: false });
+
+    const response = await GET(request(), { params: Promise.resolve({ threadId: 'thread-1' }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.protectMessage).toHaveBeenCalledWith(message, 'current-account', {
+      remoteImagesEnabled: false,
+    });
   });
 });

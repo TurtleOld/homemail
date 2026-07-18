@@ -75,6 +75,7 @@ export default async function LocaleLayout({
           <Providers
             productShellEnabled={redesignFeatures.productShell}
             listFirstMailEnabled={redesignFeatures.listFirstMail}
+            protectedMessageContentEnabled={redesignFeatures.protectedMessageContent}
           >
             {children}
           </Providers>

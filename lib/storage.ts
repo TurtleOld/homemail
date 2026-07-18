@@ -275,18 +275,30 @@ export async function deleteCredentials(accountId: string): Promise<void> {
   await saveCredentials();
 }
 
-/** Whitelist pattern for storage keys: alphanumeric, hyphens, underscores, colons. */
-const STORAGE_KEY_RE = /^[a-zA-Z0-9_\-:]{1,256}$/;
+/**
+ * Whitelist pattern for storage keys: alphanumeric, hyphens, underscores, colons,
+ * `@` and `.`. The last two are required because callers key storage by account
+ * identifiers that are real email addresses (e.g. `messageLabels:admin@rem.ru`).
+ * `..` is rejected explicitly below since a lone `.` is otherwise permitted.
+ *
+ * The pre-2026-03 implementation only replaced `:` with `_` and applied no
+ * validation, so `@` and `.` were already passed through into existing
+ * on-disk filenames unescaped. Widening the whitelist (rather than changing
+ * the filename encoding below) keeps this validation compatible with any
+ * files created before that hardening.
+ */
+const STORAGE_KEY_RE = /^[a-zA-Z0-9_\-:@.]{1,256}$/;
 
 /**
  * Convert a storage key to an absolute file path that is guaranteed to stay
  * inside DATA_DIR.  Throws a SecurityError-style Error if the key is invalid.
  */
 function storageKeyToPath(key: string): string {
-  if (!STORAGE_KEY_RE.test(key)) {
+  if (!STORAGE_KEY_RE.test(key) || key.includes('..')) {
     throw Object.assign(new Error('Invalid storage key'), { code: 'SECURITY_INVALID_KEY' });
   }
-  // Colons → underscores (filesystem-safe).
+  // Colons → underscores (filesystem-safe); `@` and `.` pass through unchanged
+  // to match the on-disk filenames this validation predates.
   const filename = `${key.replace(/:/g, '_')}.json`;
   const resolved = path.resolve(DATA_DIR, filename);
   // Must stay inside DATA_DIR (path.resolve already normalises .. etc.)

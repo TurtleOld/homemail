@@ -678,13 +678,15 @@ export class StalwartJMAPProvider implements MailProvider {
       const attachments: Attachment[] = [];
       if (email.bodyStructure) {
         const extractAttachments = (part: any): void => {
-          if (part.disposition === 'attachment' || (part.disposition === 'inline' && part.name)) {
+          if (part.disposition === 'attachment' || part.disposition === 'inline') {
             if (part.blobId) {
               attachments.push({
                 id: part.blobId,
                 filename: part.name || part.filename || 'attachment',
                 mime: part.type || 'application/octet-stream',
                 size: part.size || 0,
+                contentId: typeof part.cid === 'string' ? part.cid : undefined,
+                disposition: part.disposition,
               });
             }
           }
@@ -1767,7 +1769,7 @@ export class StalwartJMAPProvider implements MailProvider {
         attachment.filename
       );
 
-      logger.info(`[StalwartProvider] Download URL obtained: ${downloadUrl}`);
+      logger.debug('[StalwartProvider] Attachment download URL obtained');
 
       const response = await fetch(downloadUrl, {
         headers: {

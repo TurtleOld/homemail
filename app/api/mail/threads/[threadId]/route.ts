@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { isRedesignFeatureEnabled } from '@/lib/feature-flags';
+import { getRedesignFeatureFlags, isRedesignFeatureEnabled } from '@/lib/feature-flags';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { getSession } from '@/lib/session';
+import { protectMessageForDelivery } from '@/lib/protected-message-content';
 
 const paramsSchema = z.object({
   threadId: z.string().min(1).max(512),
@@ -46,5 +47,13 @@ export async function GET(
     return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
   }
 
-  return NextResponse.json(thread);
+  const features = getRedesignFeatureFlags();
+  return NextResponse.json(features.protectedMessageContent ? {
+    ...thread,
+    messages: thread.messages.map((message) => protectMessageForDelivery(
+      message,
+      session.accountId,
+      { remoteImagesEnabled: features.remoteImageFetching },
+    )),
+  } : thread);
 }

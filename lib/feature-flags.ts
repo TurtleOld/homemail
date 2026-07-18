@@ -5,6 +5,8 @@ export const REDESIGN_FEATURE_FLAG_NAMES = [
   'stalwartAdministration',
   'productShell',
   'listFirstMail',
+  'protectedMessageContent',
+  'remoteImageFetching',
 ] as const;
 
 export type RedesignFeatureFlagName = (typeof REDESIGN_FEATURE_FLAG_NAMES)[number];
@@ -18,6 +20,8 @@ const ENV_BY_FLAG: Record<RedesignFeatureFlagName, string> = {
   stalwartAdministration: 'HOMEMAIL_FEATURE_STALWART_ADMINISTRATION',
   productShell: 'HOMEMAIL_FEATURE_PRODUCT_SHELL',
   listFirstMail: 'HOMEMAIL_FEATURE_LIST_FIRST_MAIL',
+  protectedMessageContent: 'HOMEMAIL_FEATURE_PROTECTED_MESSAGE_CONTENT',
+  remoteImageFetching: 'HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING',
 };
 
 function enabled(value: string | undefined): boolean {
@@ -38,6 +42,8 @@ export function getRedesignFeatureFlags(
     stalwartAdministration: enabled(environment[ENV_BY_FLAG.stalwartAdministration]),
     productShell: enabled(environment[ENV_BY_FLAG.productShell]),
     listFirstMail: enabled(environment[ENV_BY_FLAG.listFirstMail]),
+    protectedMessageContent: enabled(environment[ENV_BY_FLAG.protectedMessageContent]),
+    remoteImageFetching: enabled(environment[ENV_BY_FLAG.remoteImageFetching]),
   });
 }
 

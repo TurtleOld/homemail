@@ -3,6 +3,8 @@ import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { readStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
+import { getRedesignFeatureFlags } from '@/lib/feature-flags';
+import { protectMessageForDelivery } from '@/lib/protected-message-content';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -28,5 +30,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   message.labels = messageLabels[id] || [];
 
-  return NextResponse.json(message);
+  const features = getRedesignFeatureFlags();
+  return NextResponse.json(
+    features.protectedMessageContent
+      ? protectMessageForDelivery(message, session.accountId, {
+          remoteImagesEnabled: features.remoteImageFetching,
+        })
+      : message
+  );
 }

@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { MessageList } from '../message-list';
 import { MessageViewer } from '../message-viewer';
 import type { MessageListItem, MessageDetail } from '@/lib/types';
+import { ProductShellFeatureProvider } from '@/components/product-shell/shell-feature-context';
 
 const mockListMessage: MessageListItem = {
   id: 'msg-1',
@@ -60,6 +61,7 @@ vi.mock('next-intl', () => ({
         loadError: 'Load error',
         loadErrorDesc: 'Failed to load message',
         noBody: 'No content',
+        contentFrame: 'Message content',
         reply: 'Reply',
         replyAll: 'Reply all',
         forward: 'Forward',
@@ -213,6 +215,25 @@ describe('Mail foundation smoke coverage', () => {
     renderWithQueryClient(<MessageViewer message={mockDetailMessage} />);
 
     expect(screen.getByTitle('Message content')).toHaveStyle({ height: '300px' });
+  });
+
+  it('never leaves a sender image URL reachable in protected mode', () => {
+    renderWithQueryClient(
+      <ProductShellFeatureProvider enabled={false} protectedMessageContentEnabled>
+        <MessageViewer
+          message={{
+            ...mockDetailMessage,
+            body: { html: '<img src="https://tracker.example/open.gif">' },
+          }}
+          allowRemoteImages
+        />
+      </ProductShellFeatureProvider>
+    );
+
+    const frame = screen.getByTitle('Message content');
+    expect(frame.getAttribute('srcdoc')).not.toContain('tracker.example');
+    expect(frame.getAttribute('srcdoc')).toContain("img-src 'self' data:");
+    expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer');
   });
 
   it('keeps reader actions persistent and only shows reply all when relevant', () => {

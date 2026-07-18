@@ -14,10 +14,12 @@ export function Providers({
   children,
   productShellEnabled = false,
   listFirstMailEnabled = false,
+  protectedMessageContentEnabled = false,
 }: {
   children: React.ReactNode;
   productShellEnabled?: boolean;
   listFirstMailEnabled?: boolean;
+  protectedMessageContentEnabled?: boolean;
 }) {
   const [queryClient] = useState(
     () =>
@@ -164,6 +166,7 @@ export function Providers({
     <ProductShellFeatureProvider
       enabled={productShellEnabled}
       listFirstMailEnabled={listFirstMailEnabled}
+      protectedMessageContentEnabled={protectedMessageContentEnabled}
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={300}>

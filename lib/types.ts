@@ -102,6 +102,8 @@ export type Attachment = {
   filename: string;
   mime: string;
   size: number;
+  contentId?: string;
+  disposition?: 'attachment' | 'inline';
 };
 
 export type Draft = {
