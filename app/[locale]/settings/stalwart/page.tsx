@@ -6,6 +6,8 @@ import { useLocale } from 'next-intl';
 import { ArrowLeft, ExternalLink, ServerCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { WorkspaceLoading, WorkspaceState } from '@/components/product-shell/workspace-state';
+import { useProductShellEnabled } from '@/components/product-shell/shell-feature-context';
 
 interface StalwartUnavailableState {
   message: string;
@@ -18,6 +20,7 @@ export default function StalwartSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState<StalwartUnavailableState | null>(null);
+  const productShellEnabled = useProductShellEnabled();
 
   useEffect(() => {
     const loadStalwart = async () => {
@@ -143,6 +146,9 @@ export default function StalwartSettingsPage() {
   }, [router]);
 
   if (loading) {
+    if (productShellEnabled) {
+      return <WorkspaceLoading label={locale === 'ru' ? 'Загрузка системных настроек' : 'Loading system settings'} />;
+    }
     return (
       <div className="mail-app-shell min-h-dvh p-6" aria-busy="true">
         <div className="mx-auto max-w-2xl space-y-5 pt-16">
@@ -199,6 +205,17 @@ export default function StalwartSettingsPage() {
   }
 
   if (error) {
+    if (productShellEnabled) {
+      return (
+        <WorkspaceState
+          kind="error"
+          title={locale === 'ru' ? 'Не удалось открыть системные настройки' : 'Could not open system settings'}
+          description={error}
+          actionLabel={locale === 'ru' ? 'Вернуться к почте' : 'Back to mail'}
+          onAction={() => router.push(`/${locale}/mail`)}
+        />
+      );
+    }
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <div className="text-center">

@@ -6,6 +6,7 @@ import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { getTranslations } from 'next-intl/server';
+import { getRedesignFeatureFlags } from '@/lib/feature-flags';
 import { Providers } from '../providers';
 import '../globals.css';
 
@@ -47,6 +48,7 @@ export default async function LocaleLayout({
 
   const messages = await getMessages();
   const t = await getTranslations({ locale, namespace: 'layout' });
+  const redesignFeatures = getRedesignFeatureFlags();
 
   return (
     <html
@@ -70,7 +72,7 @@ export default async function LocaleLayout({
           {t('skipToMain')}
         </a>
         <NextIntlClientProvider messages={messages}>
-          <Providers>{children}</Providers>
+          <Providers productShellEnabled={redesignFeatures.productShell}>{children}</Providers>
         </NextIntlClientProvider>
         <script
           dangerouslySetInnerHTML={{

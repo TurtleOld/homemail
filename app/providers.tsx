@@ -7,8 +7,16 @@ import { Toaster } from '@/components/ui/toast';
 import { PerformanceReporter } from '@/components/performance-reporter';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
+import { ProductShellFeatureProvider } from '@/components/product-shell/shell-feature-context';
+import { RouteAwareShell } from '@/components/product-shell/route-aware-shell';
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  productShellEnabled = false,
+}: {
+  children: React.ReactNode;
+  productShellEnabled?: boolean;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -21,6 +29,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
   const pathname = usePathname();
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.productShell = productShellEnabled ? 'enabled' : 'legacy';
+    return () => {
+      delete root.dataset.productShell;
+    };
+  }, [productShellEnabled]);
 
   useEffect(() => {
     const handleSettingsChange = (event: StorageEvent) => {
@@ -109,7 +125,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const applyTheme = async () => {
       applyThemeColors();
 
-      if (/\/(?:(?:ru|en)\/)?login$/.test(pathname)) {
+      if (/\/(?:(?:ru|en)\/)?login$/.test(pathname) && !productShellEnabled) {
         applyThemePreference('light');
         return;
       }
@@ -140,16 +156,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
       removeSystemListener?.();
       window.removeEventListener('homemail-theme-change', handleThemeChange);
     };
-  }, [pathname]);
+  }, [pathname, productShellEnabled]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={300}>
-        {children}
-        <PerformanceReporter />
-        <PWAInstallPrompt />
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ProductShellFeatureProvider enabled={productShellEnabled}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={300}>
+          <RouteAwareShell>{children}</RouteAwareShell>
+          <PerformanceReporter />
+          <PWAInstallPrompt />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ProductShellFeatureProvider>
   );
 }

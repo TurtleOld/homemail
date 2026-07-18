@@ -27,6 +27,7 @@ const config: Config = {
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
+        overlay: 'hsl(var(--overlay-scrim))',
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
@@ -59,6 +60,7 @@ const config: Config = {
           app: 'hsl(var(--surface-app))',
           navigation: 'hsl(var(--surface-navigation))',
           panel: 'hsl(var(--surface-panel))',
+          subtle: 'hsl(var(--surface-subtle))',
           raised: 'hsl(var(--surface-raised))',
           hover: 'hsl(var(--surface-hover))',
           selected: 'hsl(var(--surface-selected))',
@@ -66,6 +68,11 @@ const config: Config = {
         },
       },
       borderRadius: {
+        data: 'var(--radius-data)',
+        control: 'var(--radius-control)',
+        small: 'var(--radius-small)',
+        overlay: 'var(--radius-overlay)',
+        pill: 'var(--radius-pill)',
         lg: 'var(--radius-dialog)',
         md: 'var(--radius-control)',
         sm: 'var(--radius-small)',
@@ -73,6 +80,24 @@ const config: Config = {
       transitionDuration: {
         fast: 'var(--motion-fast)',
         panel: 'var(--motion-panel)',
+      },
+      spacing: {
+        control: 'var(--control-height)',
+        'workspace-header': 'var(--workspace-header-height)',
+        'workspace-nav': 'var(--workspace-navigation-width)',
+        'workspace-gutter': 'var(--workspace-gutter)',
+        'mobile-gutter': 'var(--mobile-gutter)',
+        'message-row': 'var(--message-row-height)',
+      },
+      fontSize: {
+        'workspace-title': ['1.5rem', { lineHeight: '1.875rem' }],
+      },
+      zIndex: {
+        overlay: 'var(--z-overlay)',
+        drawer: 'var(--z-drawer)',
+      },
+      boxShadow: {
+        overlay: '0 18px 48px hsl(var(--shadow-color) / 0.24)',
       },
     },
   },

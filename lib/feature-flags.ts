@@ -3,6 +3,7 @@ export const REDESIGN_FEATURE_FLAG_NAMES = [
   'authorizationPolicy',
   'oidcIdentityValidation',
   'stalwartAdministration',
+  'productShell',
 ] as const;
 
 export type RedesignFeatureFlagName = (typeof REDESIGN_FEATURE_FLAG_NAMES)[number];
@@ -14,6 +15,7 @@ const ENV_BY_FLAG: Record<RedesignFeatureFlagName, string> = {
   authorizationPolicy: 'HOMEMAIL_FEATURE_AUTHORIZATION_POLICY',
   oidcIdentityValidation: 'HOMEMAIL_FEATURE_OIDC_IDENTITY_VALIDATION',
   stalwartAdministration: 'HOMEMAIL_FEATURE_STALWART_ADMINISTRATION',
+  productShell: 'HOMEMAIL_FEATURE_PRODUCT_SHELL',
 };
 
 function enabled(value: string | undefined): boolean {
@@ -32,6 +34,7 @@ export function getRedesignFeatureFlags(
     authorizationPolicy: enabled(environment[ENV_BY_FLAG.authorizationPolicy]),
     oidcIdentityValidation: enabled(environment[ENV_BY_FLAG.oidcIdentityValidation]),
     stalwartAdministration: enabled(environment[ENV_BY_FLAG.stalwartAdministration]),
+    productShell: enabled(environment[ENV_BY_FLAG.productShell]),
   });
 }
 
