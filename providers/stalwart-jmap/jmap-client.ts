@@ -101,6 +101,11 @@ interface JMAPEmail {
   htmlBody?: Array<{ partId: string; type: string }>;
 }
 
+interface JMAPThread {
+  id: string;
+  emailIds: string[];
+}
+
 const sessionCache = new Map<string, { session: JMAPSession; expiresAt: number }>();
 const SESSION_CACHE_TTL = 5 * 60 * 1000;
 
@@ -1006,6 +1011,33 @@ export class JMAPClient {
     });
 
     return result;
+  }
+
+  async getThreadEmailIds(threadId: string, accountId?: string): Promise<string[] | null> {
+    const targetAccountId = accountId || this.accountId;
+    const response = await this.request([
+      ['Thread/get', { accountId: targetAccountId, ids: [threadId] }, '0'],
+    ]);
+    const threadResponse = response.methodResponses[0];
+
+    if (!threadResponse || threadResponse[0] !== 'Thread/get') {
+      throw new Error('Invalid thread get response');
+    }
+    if ('type' in threadResponse[1] && threadResponse[1].type === 'error') {
+      const errorDesc = (threadResponse[1] as { description?: string }).description || 'Unknown error';
+      throw new Error(`JMAP thread get error: ${errorDesc}`);
+    }
+
+    const data = threadResponse[1] as {
+      accountId?: string;
+      list?: JMAPThread[];
+      notFound?: string[];
+    };
+    if (data.accountId !== targetAccountId) {
+      throw new Error('JMAP thread get returned a different account');
+    }
+    const thread = data.list?.find((item) => item.id === threadId);
+    return thread ? thread.emailIds : null;
   }
 
   async getEmails(

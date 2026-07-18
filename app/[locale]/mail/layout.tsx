@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import { Sidebar } from '@/components/sidebar';
 import { MessageList } from '@/components/message-list';
 import { MessageViewer } from '@/components/message-viewer';
+import { ConversationReader } from '@/components/conversation-reader';
 import { QuickFilters } from '@/components/quick-filters';
 import { SearchBar } from '@/components/search-bar';
 import type {
@@ -15,6 +16,7 @@ import type {
   Account,
   MessageListItem,
   MessageDetail,
+  MessageThreadDetail,
   Draft,
   QuickFilterType,
   FilterGroup,
@@ -550,6 +552,24 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       if (error instanceof Error && error.message === 'Unauthorized') return false;
       return failureCount < 2;
     },
+  });
+
+  const { data: selectedThread } = useQuery<MessageThreadDetail>({
+    queryKey: ['mail-thread', selectedMessage?.threadId],
+    queryFn: async () => {
+      if (!selectedMessage?.threadId) return null;
+      const res = await fetch(`/api/mail/threads/${encodeURIComponent(selectedMessage.threadId)}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Failed to fetch thread' }));
+        throw new Error(errorData.error || 'Failed to fetch thread');
+      }
+      return res.json();
+    },
+    enabled:
+      listFirstMailEnabled &&
+      conversationView &&
+      !!selectedMessage?.threadId,
+    retry: 1,
   });
 
   const errorShownRef = useRef<string | null>(null);
@@ -1216,6 +1236,57 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const isSpamFolder = currentFolder?.role === 'spam' || selectedFolderId === 'c';
   const inboxFolder = folders.find((folder) => folder.role === 'inbox');
   const isNavigationOverlay = isMobile || isTablet;
+  const handleReaderStar = (starred: boolean) => {
+    if (!selectedMessageId) return;
+    updateMessageInList(selectedMessageId, (message) => ({
+      ...message,
+      flags: { ...message.flags, starred },
+    }));
+    updateMessageDetail(selectedMessageId, (message) => ({
+      ...message,
+      flags: { ...message.flags, starred },
+    }));
+  };
+  const handleReaderRead = (read: boolean) => {
+    if (!selectedMessageId) return;
+    const message = messages.find((candidate) => candidate.id === selectedMessageId);
+    const wasUnread = message?.flags.unread;
+    updateMessageInList(selectedMessageId, (current) => ({
+      ...current,
+      flags: { ...current.flags, unread: !read },
+    }));
+    updateMessageDetail(selectedMessageId, (current) => ({
+      ...current,
+      flags: { ...current.flags, unread: !read },
+    }));
+    if (selectedFolderId && wasUnread !== undefined) {
+      const delta = read && wasUnread ? -1 : !read && !wasUnread ? 1 : 0;
+      if (delta !== 0) updateFolderCount(selectedFolderId, delta);
+    }
+    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    refetchFolders();
+  };
+  const handleReaderImportant = (important: boolean) => {
+    if (!selectedMessageId) return;
+    updateMessageInList(selectedMessageId, (message) => ({
+      ...message,
+      flags: { ...message.flags, important },
+    }));
+    updateMessageDetail(selectedMessageId, (message) => ({
+      ...message,
+      flags: { ...message.flags, important },
+    }));
+  };
+  const inlineReplyComposer = composeOpen && composerMode === 'inline' ? (
+    <Compose
+      open
+      mode="inline"
+      onClose={handleComposeClose}
+      replyTo={replyTo || undefined}
+      forwardFrom={forwardFrom || undefined}
+      signatures={settings?.signatures || []}
+    />
+  ) : null;
 
   return (
     <div
@@ -1684,6 +1755,26 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     </span>
                   </div>
                 )}
+                {listFirstMailEnabled && conversationView && selectedMessage && selectedThread ? (
+                  <ConversationReader
+                    thread={selectedThread}
+                    activeMessage={selectedMessage}
+                    onActivateMessage={navigateToMessage}
+                    getMessageHref={(messageId) =>
+                      buildMailMessageHref(locale, messageId, currentMailUrlState)
+                    }
+                    onReply={handleReply}
+                    onReplyAll={handleReplyAll}
+                    onForward={handleForward}
+                    onArchive={handleArchive}
+                    onDelete={handleDelete}
+                    onStar={handleReaderStar}
+                    onMarkRead={handleReaderRead}
+                    onToggleImportant={handleReaderImportant}
+                    allowRemoteImages={allowRemoteImages}
+                    inlineComposer={inlineReplyComposer}
+                  />
+                ) : (
                 <MessageViewer
                   key={selectedMessageId || 'empty-viewer'}
                   message={selectedMessage || null}
@@ -1692,47 +1783,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   onForward={handleForward}
                   onArchive={handleArchive}
                   onDelete={handleDelete}
-                  onStar={(starred) => {
-                    if (!selectedMessageId) return;
-                    updateMessageInList(selectedMessageId, (message) => ({
-                      ...message,
-                      flags: { ...message.flags, starred },
-                    }));
-                    updateMessageDetail(selectedMessageId, (message) => ({
-                      ...message,
-                      flags: { ...message.flags, starred },
-                    }));
-                  }}
-                  onMarkRead={(read) => {
-                    if (!selectedMessageId) return;
-                    const message = messages.find((m) => m.id === selectedMessageId);
-                    const wasUnread = message?.flags.unread;
-                    updateMessageInList(selectedMessageId, (message) => ({
-                      ...message,
-                      flags: { ...message.flags, unread: !read },
-                    }));
-                    updateMessageDetail(selectedMessageId, (message) => ({
-                      ...message,
-                      flags: { ...message.flags, unread: !read },
-                    }));
-                    if (selectedFolderId && wasUnread !== undefined) {
-                      const delta = read && wasUnread ? -1 : !read && !wasUnread ? 1 : 0;
-                      if (delta !== 0) updateFolderCount(selectedFolderId, delta);
-                    }
-                    queryClient.invalidateQueries({ queryKey: ['folders'] });
-                    refetchFolders();
-                  }}
-                  onToggleImportant={(important) => {
-                    if (!selectedMessageId) return;
-                    updateMessageInList(selectedMessageId, (message) => ({
-                      ...message,
-                      flags: { ...message.flags, important },
-                    }));
-                    updateMessageDetail(selectedMessageId, (message) => ({
-                      ...message,
-                      flags: { ...message.flags, important },
-                    }));
-                  }}
+                  onStar={handleReaderStar}
+                  onMarkRead={handleReaderRead}
+                  onToggleImportant={handleReaderImportant}
                   allowRemoteImages={allowRemoteImages}
                   isLoading={isMessageLoading}
                   hasSelection={!!selectedMessageId}
@@ -1740,19 +1793,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   isMobile={isMobile}
                   layout={listFirstMailEnabled ? 'list-first' : 'legacy'}
                   onBack={listFirstMailEnabled ? navigateToList : undefined}
-                  inlineComposer={
-                    composeOpen && composerMode === 'inline' ? (
-                      <Compose
-                        open
-                        mode="inline"
-                        onClose={handleComposeClose}
-                        replyTo={replyTo || undefined}
-                        forwardFrom={forwardFrom || undefined}
-                        signatures={settings?.signatures || []}
-                      />
-                    ) : null
-                  }
+                  inlineComposer={inlineReplyComposer}
                 />
+                )}
               </div>
             )}
           </div>

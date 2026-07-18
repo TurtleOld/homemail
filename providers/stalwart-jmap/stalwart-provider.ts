@@ -4,6 +4,7 @@ import type {
   Folder,
   MessageListItem,
   MessageDetail,
+  MessageThreadDetail,
   Draft,
   Attachment,
 } from '@/lib/types';
@@ -585,7 +586,7 @@ export class StalwartJMAPProvider implements MailProvider {
             email: addr.email || '',
             name: addr.name,
           })),
-          subject: email.subject || '(без темы)',
+          subject: email.subject || '',
           snippet: email.preview || '',
           date: new Date(email.receivedAt),
           flags: {
@@ -856,6 +857,7 @@ export class StalwartJMAPProvider implements MailProvider {
 
       return {
         id: email.id,
+        threadId: email.threadId,
         from: {
           email: from.email,
           name: from.name,
@@ -863,7 +865,7 @@ export class StalwartJMAPProvider implements MailProvider {
         to: (email.to || []).map((t) => ({ email: t.email, name: t.name })),
         cc: email.cc?.map((c) => ({ email: c.email, name: c.name })),
         bcc: email.bcc?.map((b) => ({ email: b.email, name: b.name })),
-        subject: email.subject || '(без темы)',
+        subject: email.subject || '',
         date: new Date(email.receivedAt),
         body: {
           text: textBody,
@@ -881,6 +883,42 @@ export class StalwartJMAPProvider implements MailProvider {
     } catch (error) {
       return null;
     }
+  }
+
+  async getThread(
+    accountId: string,
+    threadId: string,
+    limit = 50
+  ): Promise<MessageThreadDetail | null> {
+    const client = await this.getClient(accountId);
+    const session = await client.getSession();
+    const actualAccountId =
+      session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+    const emailIds = await client.getThreadEmailIds(threadId, actualAccountId);
+
+    if (!emailIds) return null;
+
+    const boundedLimit = Math.max(1, Math.min(limit, 50));
+    const selectedIds = emailIds.slice(-boundedLimit);
+    const messages: MessageDetail[] = [];
+    const batchSize = 5;
+
+    for (let index = 0; index < selectedIds.length; index += batchSize) {
+      const batch = selectedIds.slice(index, index + batchSize);
+      const batchMessages = await Promise.all(
+        batch.map((messageId) => this.getMessage(accountId, messageId))
+      );
+      messages.push(...batchMessages.filter((message): message is MessageDetail => message !== null));
+    }
+
+    if (messages.length === 0 && selectedIds.length > 0) return null;
+
+    return {
+      id: threadId,
+      messages,
+      total: emailIds.length,
+      truncated: emailIds.length > selectedIds.length,
+    };
   }
 
   async updateMessageFlags(

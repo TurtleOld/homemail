@@ -3,6 +3,7 @@ import type {
   Folder,
   MessageListItem,
   MessageDetail,
+  MessageThreadDetail,
   Draft,
   Attachment,
   MessageFilter,
@@ -23,6 +24,7 @@ export interface MailProvider {
     }
   ): Promise<{ messages: MessageListItem[]; nextCursor?: string }>;
   getMessage(accountId: string, messageId: string): Promise<MessageDetail | null>;
+  getThread(accountId: string, threadId: string, limit?: number): Promise<MessageThreadDetail | null>;
   updateMessageFlags(
     accountId: string,
     messageId: string,

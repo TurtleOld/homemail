@@ -60,6 +60,9 @@ interface MessageViewerProps {
   error?: Error | null;
   inlineComposer?: ReactNode;
   layout?: 'legacy' | 'list-first';
+  embedded?: boolean;
+  hideSubject?: boolean;
+  showReplyActions?: boolean;
 }
 
 async function getLabels(): Promise<Label[]> {
@@ -100,6 +103,9 @@ export function MessageViewer({
   error,
   inlineComposer,
   layout = 'legacy',
+  embedded = false,
+  hideSubject = false,
+  showReplyActions = true,
 }: MessageViewerProps) {
   const localeSettings = useLocaleSettings();
   const t = useTranslations('messageViewer');
@@ -555,7 +561,8 @@ export function MessageViewer({
   return (
     <div
       className={cn(
-        'mail-panel-surface flex h-full w-full flex-col overflow-hidden',
+        'mail-panel-surface flex w-full flex-col',
+        embedded ? 'h-auto overflow-visible' : 'h-full overflow-hidden',
         layout === 'legacy' && 'border-l border-border max-md:border-l-0'
       )}
       role="region"
@@ -579,9 +586,11 @@ export function MessageViewer({
             </Button>
           )}
           <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-semibold max-md:text-base break-words leading-tight">
-              {message.subject || tCommon('noSubject')}
-            </h2>
+            {!hideSubject && (
+              <h2 className="text-xl font-semibold max-md:text-base break-words leading-tight">
+                {message.subject || tCommon('noSubject')}
+              </h2>
+            )}
             <div className="mt-2 space-y-1 text-sm text-muted-foreground max-md:text-xs">
               <div className="break-words">
                 <span className="font-medium text-foreground">
@@ -859,7 +868,7 @@ export function MessageViewer({
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-auto flex flex-col">
+      <div className={cn('flex flex-1 flex-col', embedded ? 'overflow-visible' : 'overflow-auto')}>
         {layout === 'legacy' && attachmentSection}
         {hasRemoteImages && !effectiveAllowImages && (
           <div className="border-b border-border/70 bg-[hsl(var(--surface-panel-muted)/0.92)] px-4 py-2 flex-shrink-0">
@@ -906,7 +915,7 @@ export function MessageViewer({
       </div>
 
       {/* Reply hierarchy */}
-      {!inlineComposer && (
+      {showReplyActions && !inlineComposer && (
         <div className="mail-panel-muted flex-shrink-0 border-t border-border px-4 py-3 max-md:px-3 max-md:pb-safe-bottom">
           <div className="flex items-center gap-2 max-md:gap-1.5 max-md:justify-between">
             <Button

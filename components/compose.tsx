@@ -194,8 +194,10 @@ export function Compose({
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-sm max-w-none min-h-[300px] max-md:min-h-[200px] p-4 max-md:p-2 focus:outline-none',
+        class: cn(
+          'prose prose-sm max-w-none p-4 focus:outline-none max-md:p-3',
+          mode === 'inline' ? 'min-h-[180px]' : 'min-h-[300px] max-md:min-h-[220px]'
+        ),
       },
     },
   });
@@ -646,14 +648,14 @@ export function Compose({
       className={cn(
         'flex flex-col border-border bg-background transition-[transform,opacity] duration-200',
         mode === 'inline'
-          ? 'mx-4 mb-4 min-h-[420px] rounded-xl border shadow-[0_18px_40px_-28px_hsl(var(--shadow-soft)/0.35)] max-md:mx-3'
+          ? 'min-h-[360px] border-t'
           : cn(
-              'fixed z-50 rounded-xl border shadow-[0_24px_56px_-28px_hsl(var(--shadow-soft)/0.55)]',
+              'fixed z-50 rounded-overlay border shadow-overlay',
               isExpanded
                 ? 'inset-4 max-md:inset-0 max-md:rounded-none'
                 : isMinimized
                   ? 'bottom-4 right-4 h-12 w-80 overflow-hidden max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:w-full max-md:rounded-none'
-                  : 'bottom-4 right-4 max-h-[calc(100dvh-2rem)] w-[min(560px,calc(100vw-2rem))] max-md:inset-0 max-md:w-auto max-md:rounded-none'
+                  : 'bottom-4 right-4 max-h-[calc(100dvh-2rem)] w-[min(600px,calc(100vw-2rem))] max-md:inset-0 max-md:w-auto max-md:rounded-none'
             )
       )}
       role={mode === 'floating' ? 'dialog' : 'region'}
@@ -661,31 +663,37 @@ export function Compose({
       aria-label={replyTo ? t('replyTitle') : forwardFrom ? t('forwardTitle') : t('newMessage')}
     >
       {/* Floating panel header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 rounded-t-xl max-md:rounded-none flex-shrink-0">
+      <div className={cn(
+        'flex flex-shrink-0 items-center gap-2 border-b px-4 py-3',
+        mode === 'inline' ? 'bg-surface-subtle' : 'rounded-t-overlay bg-surface-subtle max-md:rounded-none'
+      )}>
         <span className="flex-1 text-sm font-semibold truncate">
           {replyTo ? t('replyTitle') : forwardFrom ? t('forwardTitle') : t('newMessage')}
         </span>
         {mode === 'floating' && (
           <button
+            type="button"
             onClick={() => setIsMinimized(!isMinimized)}
-            className="p-1 rounded hover:bg-muted transition-colors"
-            aria-label={isMinimized ? 'Expand' : 'Minimize'}
+            className="flex h-8 w-8 items-center justify-center rounded-control transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-md:h-10 max-md:w-10"
+            aria-label={isMinimized ? t('restoreSize') : t('minimize')}
           >
             <Minimize2 className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
         )}
         {mode === 'floating' && (
           <button
+            type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1 rounded hover:bg-muted transition-colors max-md:hidden"
-            aria-label={isExpanded ? 'Restore' : 'Expand to fullscreen'}
+            className="flex h-8 w-8 items-center justify-center rounded-control transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-md:hidden"
+            aria-label={isExpanded ? t('restoreSize') : t('expandFullscreen')}
           >
             <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
         )}
         <button
+          type="button"
           onClick={handleClose}
-          className="p-1 rounded hover:bg-muted transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-control transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-md:h-10 max-md:w-10"
           aria-label={tCommon('close')}
         >
           <X className="h-3.5 w-3.5 text-muted-foreground" />
@@ -776,7 +784,7 @@ export function Compose({
           </div>
         )}
         {attachments.length > 0 && (
-          <div className="border rounded-md p-2 max-md:p-1.5 bg-muted/30">
+          <div className="rounded-control border border-border bg-surface-subtle p-2 max-md:p-1.5">
             <div className="text-sm font-medium mb-2 max-md:text-xs">
               {t('attachments', { count: attachments.length })}
             </div>
@@ -784,7 +792,7 @@ export function Compose({
               {attachments.map((att) => (
                 <div
                   key={att.id}
-                  className="flex items-center justify-between rounded border bg-background p-2 max-md:p-1.5"
+                  className="flex items-center justify-between rounded-control border border-border bg-background p-2 max-md:p-1.5"
                 >
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <File className="h-4 w-4 max-md:h-3 max-md:w-3 flex-shrink-0 text-muted-foreground" />
@@ -813,7 +821,7 @@ export function Compose({
         )}
         <div
           className={cn(
-            'border-2 border-dashed rounded-md p-4 max-md:p-2 transition-colors',
+            'rounded-control border border-dashed px-3 py-2 transition-colors',
             isDragging
               ? 'border-primary bg-primary/10'
               : 'border-muted-foreground/25 hover:border-primary/50'
@@ -832,18 +840,18 @@ export function Compose({
           />
           <label
             htmlFor="file-upload"
-            className="flex flex-col items-center justify-center cursor-pointer"
+            className="flex cursor-pointer items-center gap-2"
           >
-            <Paperclip className="h-6 w-6 max-md:h-5 max-md:w-5 text-muted-foreground mb-2" />
-            <span className="text-sm text-muted-foreground max-md:text-xs text-center">
+            <Paperclip className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground max-md:text-xs">
               {t('dropzone')}
             </span>
-            <span className="text-xs text-muted-foreground/70 max-md:text-[10px] mt-1">
+            <span className="flex-shrink-0 text-xs text-muted-foreground/70 max-md:hidden">
               {t('maxFileSize', { size: (MAX_FILE_SIZE / 1024 / 1024).toFixed(0) })}
             </span>
           </label>
         </div>
-        <div className="border rounded-md">
+        <div className="rounded-control border border-border">
           <div className="border-b p-2 max-md:p-1 flex gap-2 max-md:gap-1 flex-wrap">
             <Button
               variant="ghost"

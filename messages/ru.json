@@ -58,7 +58,7 @@
     "moveAria": "Переместить письма",
     "delete": "Удалить",
     "deleteAria": "Удалить письма",
-    "hotkeysHint": "Горячие клавиши: Ctrl+K — новое письмо, Delete — удалить, R — ответить, F — переслать",
+    "hotkeysHint": "Горячие клавиши: Ctrl+K - новое письмо, Delete - удалить, R - ответить, F - переслать",
     "draftLoadError": "Не удалось загрузить черновик",
     "draftLoadErrorTitle": "Ошибка загрузки черновика",
     "selectMessages": "Выберите письма",
@@ -165,10 +165,19 @@
       "recipients": "Получатели"
     }
   },
+  "conversationReader": {
+    "regionLabel": "Переписка",
+    "messageCount": "{count, plural, one {# письмо} few {# письма} many {# писем} other {# письма}}",
+    "truncated": "Показано {count} из {total} писем.",
+    "openMessage": "Открыть письмо от {sender}"
+  },
   "compose": {
     "replyTitle": "Ответить",
     "forwardTitle": "Переслать",
     "newMessage": "Новое сообщение",
+    "minimize": "Свернуть редактор",
+    "restoreSize": "Восстановить размер редактора",
+    "expandFullscreen": "Развернуть редактор",
     "toPlaceholder": "Кому",
     "ccPlaceholder": "Копия",
     "bccPlaceholder": "Скрытая копия",

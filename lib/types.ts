@@ -72,6 +72,7 @@ export type MessageAuthResults = {
 
 export type MessageDetail = {
   id: string;
+  threadId?: string;
   from: { email: string; name?: string };
   to: Array<{ email: string; name?: string }>;
   cc?: Array<{ email: string; name?: string }>;
@@ -87,6 +88,13 @@ export type MessageDetail = {
   references?: string[];
   messageId?: string;
   authResults?: MessageAuthResults;
+};
+
+export type MessageThreadDetail = {
+  id: string;
+  messages: MessageDetail[];
+  total: number;
+  truncated: boolean;
 };
 
 export type Attachment = {

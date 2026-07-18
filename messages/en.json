@@ -58,7 +58,7 @@
     "moveAria": "Move messages",
     "delete": "Delete",
     "deleteAria": "Delete messages",
-    "hotkeysHint": "Shortcuts: Ctrl+K — new message, Delete — delete, R — reply, F — forward",
+    "hotkeysHint": "Shortcuts: Ctrl+K - new message, Delete - delete, R - reply, F - forward",
     "draftLoadError": "Failed to load draft",
     "draftLoadErrorTitle": "Draft load error",
     "selectMessages": "Select messages",
@@ -165,10 +165,19 @@
       "recipients": "Recipients"
     }
   },
+  "conversationReader": {
+    "regionLabel": "Conversation",
+    "messageCount": "{count, plural, one {# message} other {# messages}}",
+    "truncated": "Showing {count} of {total} messages.",
+    "openMessage": "Open message from {sender}"
+  },
   "compose": {
     "replyTitle": "Reply",
     "forwardTitle": "Forward",
     "newMessage": "New message",
+    "minimize": "Minimize composer",
+    "restoreSize": "Restore composer size",
+    "expandFullscreen": "Expand composer",
     "toPlaceholder": "To",
     "ccPlaceholder": "Cc",
     "bccPlaceholder": "Bcc",
