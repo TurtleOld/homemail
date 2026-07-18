@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -24,6 +25,8 @@ export function AutoSortRuleEditor({
   folders,
   existingRule,
 }: AutoSortRuleEditorProps) {
+  const t = useTranslations('settings.autoSortRule');
+  const common = useTranslations('common');
   const [name, setName] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [filterQuery, setFilterQuery] = useState('');
@@ -73,17 +76,17 @@ export function AutoSortRuleEditor({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      toast.error('Введите название правила');
+      toast.error(t('nameRequired'));
       return;
     }
 
     if (!filterQuery.trim()) {
-      toast.error('Введите условия фильтра');
+      toast.error(t('queryRequired'));
       return;
     }
 
     if (actions.length === 0) {
-      toast.error('Добавьте хотя бы одно действие');
+      toast.error(t('actionRequired'));
       return;
     }
 
@@ -93,7 +96,7 @@ export function AutoSortRuleEditor({
       parsed: JSON.stringify(parsed),
     });
     if (!parsed.filterGroup) {
-      toast.error('Неверный формат условий фильтра');
+      toast.error(t('queryInvalid'));
       return;
     }
 
@@ -113,7 +116,7 @@ export function AutoSortRuleEditor({
       setActions([{ type: 'moveToFolder', folderId: folders.find((f) => f.role === 'inbox')?.id || '' }]);
       setApplyToExisting(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Ошибка сохранения правила');
+      toast.error(error instanceof Error ? error.message : t('saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -123,32 +126,32 @@ export function AutoSortRuleEditor({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{existingRule ? 'Редактировать правило' : 'Создать правило авто-сортировки'}</DialogTitle>
+          <DialogTitle>{existingRule ? t('editTitle') : t('createTitle')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Название правила</label>
+            <label className="text-sm font-medium">{t('nameLabel')}</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Например: Переместить письма от Amazon в папку Покупки"
+              placeholder={t('namePlaceholder')}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Условия (запрос фильтра)</label>
+            <label className="text-sm font-medium">{t('queryLabel')}</label>
             <Input
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder="Например: from:amazon OR from:*@amazon.com"
+              placeholder={t('queryPlaceholder')}
             />
             <p className="text-xs text-muted-foreground">
-              Используйте синтаксис фильтров: from:, to:, subject:, has:attachment и т.д.
+              {t('queryHelp')}
             </p>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Действия</label>
+            <label className="text-sm font-medium">{t('actions')}</label>
             {actions.map((action, index) => (
               <div key={index} className="flex items-center gap-2 p-2 border rounded">
                 <select
@@ -174,13 +177,13 @@ export function AutoSortRuleEditor({
                   }}
                   className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm text-foreground dark:bg-background dark:text-foreground dark:border-border"
                 >
-                  <option value="moveToFolder">Переместить в папку</option>
-                  <option value="label">Добавить метку</option>
-                  <option value="markRead">Пометить прочитанным</option>
-                  <option value="markImportant">Пометить важным</option>
-                  <option value="autoArchive">Авто-архивировать через N дней</option>
-                  <option value="autoDelete">Авто-удалить через N дней</option>
-                  <option value="forward">Переслать на email</option>
+                  <option value="moveToFolder">{t('moveToFolder')}</option>
+                  <option value="label">{t('addLabel')}</option>
+                  <option value="markRead">{t('markRead')}</option>
+                  <option value="markImportant">{t('markImportant')}</option>
+                  <option value="autoArchive">{t('autoArchive')}</option>
+                  <option value="autoDelete">{t('autoDelete')}</option>
+                  <option value="forward">{t('forward')}</option>
                 </select>
 
                 {action.type === 'moveToFolder' && (
@@ -203,7 +206,7 @@ export function AutoSortRuleEditor({
                   <Input
                     value={action.payload?.labelIds?.[0] || ''}
                     onChange={(e) => handleActionChange(index, { ...action, payload: { labelIds: e.target.value ? [e.target.value] : [] } })}
-                    placeholder="Название метки"
+                    placeholder={t('labelPlaceholder')}
                     className="flex-1"
                   />
                 )}
@@ -215,7 +218,7 @@ export function AutoSortRuleEditor({
                     onChange={(e) =>
                       handleActionChange(index, { ...action, payload: { days: parseInt(e.target.value, 10) || 30 } })
                     }
-                    placeholder="Дней"
+                    placeholder={t('daysPlaceholder')}
                     className="w-24"
                   />
                 )}
@@ -243,7 +246,7 @@ export function AutoSortRuleEditor({
             ))}
             <Button variant="outline" size="sm" onClick={handleAddAction} className="w-full">
               <Plus className="h-4 w-4 mr-2" />
-              Добавить действие
+              {t('addAction')}
             </Button>
           </div>
 
@@ -256,7 +259,7 @@ export function AutoSortRuleEditor({
               className="h-4 w-4"
             />
             <label htmlFor="enabled" className="text-sm">
-              Правило включено
+              {t('enabled')}
             </label>
           </div>
 
@@ -269,16 +272,16 @@ export function AutoSortRuleEditor({
               className="h-4 w-4"
             />
             <label htmlFor="applyToExisting" className="text-sm">
-              Применить к существующим письмам (при сохранении)
+              {t('applyExisting')}
             </label>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Отмена
+            {common('cancel')}
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Сохранение...' : 'Сохранить'}
+            {isSaving ? common('saving') : common('save')}
           </Button>
         </DialogFooter>
       </DialogContent>

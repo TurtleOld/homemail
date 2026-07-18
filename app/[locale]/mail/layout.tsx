@@ -161,6 +161,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [minimizedDrafts, setMinimizedDrafts] = useState<MinimizedDraft[]>([]);
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [loadedDraft, setLoadedDraft] = useState<Draft | null>(null);
+  const openingDraftIdRef = useRef<string | null>(null);
   const [messageListWidth, setMessageListWidth] = useState(() => {
     if (typeof window === 'undefined') return 400;
     const saved = window.localStorage.getItem('messageListWidth');
@@ -1012,41 +1013,53 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     setLoadedDraft(null);
   }, []);
 
+  const openDraftForEditing = useCallback(
+    async (messageId: string) => {
+      if (openingDraftIdRef.current === messageId) return;
+      openingDraftIdRef.current = messageId;
+      try {
+        const res = await fetch(`/api/mail/messages/${messageId}`);
+        if (!res.ok) {
+          toast.error(t('draftLoadError'));
+          return;
+        }
+        const messageDetail: MessageDetail = await res.json();
+        const draft: Draft = {
+          id: messageDetail.id,
+          to: messageDetail.to.map((to) => to.email),
+          cc: messageDetail.cc?.map((c) => c.email),
+          bcc: messageDetail.bcc?.map((b) => b.email),
+          subject: messageDetail.subject,
+          html: messageDetail.body.html || messageDetail.body.text?.replace(/\n/g, '<br>') || '',
+        };
+        setLoadedDraft(draft);
+        setActiveDraftId(draft.id ?? null);
+        setReplyTo(null);
+        setForwardFrom(null);
+        setComposerMode('floating');
+        setComposeOpen(true);
+        navigateToList();
+      } catch {
+        toast.error(t('draftLoadErrorTitle'));
+      } finally {
+        openingDraftIdRef.current = null;
+      }
+    },
+    [navigateToList, t]
+  );
+
   const handleMessageDoubleClick = useCallback(
-    async (message: MessageListItem) => {
+    (message: MessageListItem) => {
       const selectedFolder = folders.find((f) => f.id === selectedFolderId);
       const isDraft = selectedFolder?.role === 'drafts';
 
       if (isDraft) {
-        try {
-          const res = await fetch(`/api/mail/messages/${message.id}`);
-          if (!res.ok) {
-            toast.error(t('draftLoadError'));
-            return;
-          }
-          const messageDetail: MessageDetail = await res.json();
-          const draft: Draft = {
-            id: messageDetail.id,
-            to: messageDetail.to.map((to) => to.email),
-            cc: messageDetail.cc?.map((c) => c.email),
-            bcc: messageDetail.bcc?.map((b) => b.email),
-            subject: messageDetail.subject,
-            html: messageDetail.body.html || messageDetail.body.text?.replace(/\n/g, '<br>') || '',
-          };
-          setLoadedDraft(draft);
-          setActiveDraftId(draft.id ?? null);
-          setReplyTo(null);
-          setForwardFrom(null);
-          setComposerMode('floating');
-          setComposeOpen(true);
-        } catch (error) {
-          toast.error(t('draftLoadErrorTitle'));
-        }
+        void openDraftForEditing(message.id);
       } else {
         navigateToMessage(message.id);
       }
     },
-    [selectedFolderId, folders, navigateToMessage, t]
+    [selectedFolderId, folders, navigateToMessage, openDraftForEditing]
   );
 
   const activeDraft = activeDraftId ? minimizedDrafts.find((d) => d.id === activeDraftId) : null;
@@ -1133,9 +1146,19 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   );
 
   const handleMessageClick = (message: MessageListItem) => {
+    if (selectedFolder?.role === 'drafts') {
+      void openDraftForEditing(message.id);
+      if (isMobile) setSidebarOpen(false);
+      return;
+    }
     navigateToMessage(message.id);
     if (isMobile) setSidebarOpen(false);
   };
+
+  useEffect(() => {
+    if (selectedFolder?.role !== 'drafts' || !routeMessageId || composeOpen) return;
+    void openDraftForEditing(routeMessageId);
+  }, [composeOpen, openDraftForEditing, routeMessageId, selectedFolder?.role]);
 
   const folderIcons: Record<string, React.ReactNode> = {
     inbox: <Inbox className="h-4 w-4" />,
@@ -1690,7 +1713,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     isSelectingAllInFolder={isSelectingAllInFolder}
                     allMessagesSelected={allMessagesSelected}
                     onMessageClick={handleMessageClick}
-                    getMessageHref={listFirstMailEnabled
+                    getMessageHref={listFirstMailEnabled && selectedFolder?.role !== 'drafts'
                       ? (message) => buildMailMessageHref(locale, message.id, currentMailUrlState)
                       : undefined}
                     onMessageDoubleClick={handleMessageDoubleClick}

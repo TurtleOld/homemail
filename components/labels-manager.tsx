@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,6 +74,8 @@ const DEFAULT_COLORS = [
 ];
 
 export function LabelsManager() {
+  const t = useTranslations('settings.labels');
+  const common = useTranslations('common');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLabel, setEditingLabel] = useState<Label | null>(null);
   const [labelName, setLabelName] = useState('');
@@ -91,10 +94,10 @@ export function LabelsManager() {
       queryClient.invalidateQueries({ queryKey: ['labels'] });
       setIsDialogOpen(false);
       resetForm();
-      toast.success('Метка создана');
+      toast.success(t('createSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка создания метки');
+      toast.error(error.message || t('createError'));
     },
   });
 
@@ -105,10 +108,10 @@ export function LabelsManager() {
       queryClient.invalidateQueries({ queryKey: ['labels'] });
       setIsDialogOpen(false);
       resetForm();
-      toast.success('Метка обновлена');
+      toast.success(t('updateSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка обновления метки');
+      toast.error(error.message || t('updateError'));
     },
   });
 
@@ -116,10 +119,10 @@ export function LabelsManager() {
     mutationFn: deleteLabel,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['labels'] });
-      toast.success('Метка удалена');
+      toast.success(t('deleteSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка удаления метки');
+      toast.error(error.message || t('deleteError'));
     },
   });
 
@@ -147,7 +150,7 @@ export function LabelsManager() {
 
   const handleSubmit = () => {
     if (!labelName.trim()) {
-      toast.error('Введите название метки');
+      toast.error(t('nameRequired'));
       return;
     }
 
@@ -162,7 +165,7 @@ export function LabelsManager() {
   };
 
   const handleDelete = (label: Label) => {
-    if (confirm(`Вы уверены, что хотите удалить метку "${label.name}"?`)) {
+    if (confirm(t('deleteConfirm', { name: label.name }))) {
       deleteMutation.mutate(label.id);
     }
   };
@@ -170,18 +173,18 @@ export function LabelsManager() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Метки</h2>
+        <h2 className="text-xl font-semibold">{t('heading')}</h2>
         <Button onClick={() => handleOpenDialog()} size="sm">
           <Plus className="h-4 w-4 mr-2" />
-          Добавить метку
+          {t('add')}
         </Button>
       </div>
 
       <div className="space-y-4">
-        {isLoading && <p className="text-sm text-muted-foreground">Загрузка меток...</p>}
+        {isLoading && <p className="text-sm text-muted-foreground">{t('loading')}</p>}
 
         {!isLoading && labels.length === 0 && (
-          <p className="text-sm text-muted-foreground">Нет меток. Создайте первую метку для организации писем.</p>
+          <p className="text-sm text-muted-foreground">{t('empty')}</p>
         )}
 
         {!isLoading && labels.length > 0 && (
@@ -224,20 +227,20 @@ export function LabelsManager() {
       <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingLabel ? 'Редактировать метку' : 'Новая метка'}</DialogTitle>
+            <DialogTitle>{editingLabel ? t('editTitle') : t('newTitle')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Название метки *</label>
+              <label className="text-sm font-medium">{t('nameLabel')}</label>
               <Input
                 value={labelName}
                 onChange={(e) => setLabelName(e.target.value)}
-                placeholder="Например: Важное, Работа"
+                placeholder={t('namePlaceholder')}
                 className="mt-1"
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Цвет</label>
+              <label className="text-sm font-medium">{t('color')}</label>
               <div className="mt-2 space-y-2">
                 <div className="flex items-center gap-2">
                   <input
@@ -278,17 +281,17 @@ export function LabelsManager() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>
-              Отмена
+              {common('cancel')}
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={createMutation.isPending || updateMutation.isPending}
             >
               {createMutation.isPending || updateMutation.isPending
-                ? 'Сохранение...'
+                ? common('saving')
                 : editingLabel
-                  ? 'Сохранить'
-                  : 'Создать'}
+                  ? common('save')
+                  : t('create')}
             </Button>
           </DialogFooter>
         </DialogContent>

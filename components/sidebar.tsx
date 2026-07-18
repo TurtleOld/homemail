@@ -173,7 +173,6 @@ export function Sidebar({
     label: string;
     icon: React.ReactNode;
   }> = [
-    { type: 'incoming', label: t('quickInbox'), icon: <Inbox className="h-4 w-4" /> },
     { type: 'unread', label: t('quickUnread'), icon: <Mail className="h-4 w-4" /> },
     { type: 'starred', label: t('quickStarred'), icon: <Star className="h-4 w-4" /> },
     {

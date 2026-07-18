@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -82,6 +83,8 @@ function extractVariables(text: string): string[] {
 }
 
 export function EmailTemplatesManager() {
+  const t = useTranslations('settings.templates');
+  const common = useTranslations('common');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
@@ -102,10 +105,10 @@ export function EmailTemplatesManager() {
       queryClient.invalidateQueries({ queryKey: ['email-templates'] });
       setIsDialogOpen(false);
       resetForm();
-      toast.success('Шаблон создан');
+      toast.success(t('createSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка создания шаблона');
+      toast.error(error.message || t('createError'));
     },
   });
 
@@ -116,10 +119,10 @@ export function EmailTemplatesManager() {
       queryClient.invalidateQueries({ queryKey: ['email-templates'] });
       setIsDialogOpen(false);
       resetForm();
-      toast.success('Шаблон обновлен');
+      toast.success(t('updateSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка обновления шаблона');
+      toast.error(error.message || t('updateError'));
     },
   });
 
@@ -127,10 +130,10 @@ export function EmailTemplatesManager() {
     mutationFn: deleteTemplate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-templates'] });
-      toast.success('Шаблон удален');
+      toast.success(t('deleteSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка удаления шаблона');
+      toast.error(error.message || t('deleteError'));
     },
   });
 
@@ -162,7 +165,7 @@ export function EmailTemplatesManager() {
 
   const handleSubmit = () => {
     if (!templateName.trim() || !templateSubject.trim() || !templateBody.trim()) {
-      toast.error('Заполните все обязательные поля');
+      toast.error(t('requiredError'));
       return;
     }
 
@@ -187,7 +190,7 @@ export function EmailTemplatesManager() {
   };
 
   const handleDelete = (template: EmailTemplate) => {
-    if (confirm(`Вы уверены, что хотите удалить шаблон "${template.name}"?`)) {
+    if (confirm(t('deleteConfirm', { name: template.name }))) {
       deleteMutation.mutate(template.id);
     }
   };
@@ -203,19 +206,19 @@ export function EmailTemplatesManager() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Шаблоны писем</h2>
+        <h2 className="text-xl font-semibold">{t('heading')}</h2>
         <Button onClick={() => handleOpenDialog()} size="sm">
           <Plus className="h-4 w-4 mr-2" />
-          Создать шаблон
+          {t('create')}
         </Button>
       </div>
 
       <div className="space-y-4">
-        {isLoading && <p className="text-sm text-muted-foreground">Загрузка шаблонов...</p>}
+        {isLoading && <p className="text-sm text-muted-foreground">{t('loading')}</p>}
 
         {!isLoading && templates.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Нет шаблонов. Создайте шаблон для быстрого составления писем.
+            {t('empty')}
           </p>
         )}
 
@@ -233,14 +236,14 @@ export function EmailTemplatesManager() {
                       {categoryIcons[template.category || 'general']}
                       <span className="font-medium">{template.name}</span>
                       <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                        {template.category === 'work' ? 'Рабочий' : template.category === 'personal' ? 'Личный' : 'Общий'}
+                        {template.category === 'work' ? t('categoryWork') : template.category === 'personal' ? t('categoryPersonal') : t('categoryGeneral')}
                       </span>
                     </div>
                     <div className="text-sm text-muted-foreground mt-1">
-                      <div className="truncate"><strong>Тема:</strong> {template.subject}</div>
+                      <div className="truncate"><strong>{t('subject')}:</strong> {template.subject}</div>
                       {templateVariables.length > 0 && (
                         <div className="text-xs mt-1">
-                          Переменные: {templateVariables.map((v) => `{{${v}}}`).join(', ')}
+                          {t('variables')}: {templateVariables.map((v) => `{{${v}}}`).join(', ')}
                         </div>
                       )}
                     </div>
@@ -272,52 +275,52 @@ export function EmailTemplatesManager() {
       <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
         <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>{editingTemplate ? 'Редактировать шаблон' : 'Новый шаблон'}</DialogTitle>
+            <DialogTitle>{editingTemplate ? t('editTitle') : t('newTitle')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 flex-1 overflow-auto">
             <div>
-              <label className="text-sm font-medium">Название шаблона *</label>
+              <label className="text-sm font-medium">{t('nameLabel')}</label>
               <Input
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
-                placeholder="Например: Приветствие клиента"
+                placeholder={t('namePlaceholder')}
                 className="mt-1"
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Категория</label>
+              <label className="text-sm font-medium">{t('category')}</label>
               <select
                 value={templateCategory}
                 onChange={(e) => setTemplateCategory(e.target.value as 'work' | 'personal' | 'general')}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
               >
-                <option value="general">Общая</option>
-                <option value="work">Рабочая</option>
-                <option value="personal">Личная</option>
+                <option value="general">{t('categoryGeneral')}</option>
+                <option value="work">{t('categoryWork')}</option>
+                <option value="personal">{t('categoryPersonal')}</option>
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium">Тема письма *</label>
+              <label className="text-sm font-medium">{t('subjectLabel')}</label>
               <Input
                 value={templateSubject}
                 onChange={(e) => setTemplateSubject(e.target.value)}
-                placeholder="Тема письма (можно использовать {{переменные}})"
+                placeholder={t('subjectPlaceholder')}
                 className="mt-1"
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Текст письма *</label>
+              <label className="text-sm font-medium">{t('bodyLabel')}</label>
               <textarea
                 value={templateBody}
                 onChange={(e) => setTemplateBody(e.target.value)}
-                placeholder="Текст письма (можно использовать {{переменные}})"
+                placeholder={t('bodyPlaceholder')}
                 className="min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
                 rows={10}
               />
             </div>
             {detectedVariables.length > 0 && (
               <div className="rounded-md border bg-muted/30 p-3">
-                <p className="text-sm font-medium mb-2">Обнаруженные переменные:</p>
+                <p className="text-sm font-medium mb-2">{t('detectedVariables')}</p>
                 <div className="flex flex-wrap gap-2">
                   {detectedVariables.map((variable) => (
                     <span
@@ -329,24 +332,24 @@ export function EmailTemplatesManager() {
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Используйте переменные в формате {'{{имя}}'}. При использовании шаблона вы сможете заменить их значениями.
+                  {t('variablesHelp')}
                 </p>
               </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>
-              Отмена
+              {common('cancel')}
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={createMutation.isPending || updateMutation.isPending}
             >
               {createMutation.isPending || updateMutation.isPending
-                ? 'Сохранение...'
+                ? common('saving')
                 : editingTemplate
-                  ? 'Сохранить'
-                  : 'Создать'}
+                  ? common('save')
+                  : t('create')}
             </Button>
           </DialogFooter>
         </DialogContent>

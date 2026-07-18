@@ -325,7 +325,7 @@ export function Compose({
     } finally {
       setSaving(false);
     }
-  }, [editor, to, cc, bcc, showCc, showBcc, subject, draftId, signatures]);
+  }, [editor, to, cc, bcc, showCc, showBcc, subject, draftId, signatures, getCsrfHeader, t]);
 
   useEffect(() => {
     if (!open || !editor) return;
@@ -1038,19 +1038,24 @@ export function Compose({
           {tCommon('cancel')}
         </Button>
         <div className="flex-1" />
+        <span
+          className="min-w-24 text-right text-xs text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          {saving ? tCommon('saving') : null}
+        </span>
         <Button
           onClick={handleSend}
           disabled={sending || saving}
           size="sm"
-          className="px-5 font-medium"
+          className="min-w-28 px-5 font-medium"
         >
           {sending
             ? t('sending')
-            : saving
-              ? tCommon('saving')
-              : scheduledSend
-                ? t('scheduledSend')
-                : t('send')}
+            : scheduledSend
+              ? t('scheduledSend')
+              : t('send')}
         </Button>
       </div>
     </div>

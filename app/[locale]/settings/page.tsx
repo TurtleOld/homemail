@@ -206,6 +206,8 @@ function LanguageTab({ initialSettings }: { readonly initialSettings: UserSettin
 
 function SignatureTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
+  const t = useTranslations('settings.signature');
+  const common = useTranslations('common');
   const [signatures, setSignatures] = useState<Signature[]>(() => initialSettings.signatures || []);
   const [newSignatureName, setNewSignatureName] = useState('');
   const [newSignatureContent, setNewSignatureContent] = useState('');
@@ -215,10 +217,10 @@ function SignatureTab({ initialSettings }: { readonly initialSettings: UserSetti
     mutationFn: () => saveSettings({ ...initialSettings, signatures }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Настройки сохранены');
+      toast.success(t('saveSuccess'));
     },
     onError: () => {
-      toast.error('Ошибка сохранения настроек');
+      toast.error(t('saveError'));
     },
   });
 
@@ -228,7 +230,7 @@ function SignatureTab({ initialSettings }: { readonly initialSettings: UserSetti
 
   const handleAddSignature = () => {
     if (!newSignatureName.trim() || !newSignatureContent.trim()) {
-      toast.error('Заполните название и содержимое подписи');
+      toast.error(t('emptyError'));
       return;
     }
     const newSig: Signature = {
@@ -255,51 +257,51 @@ function SignatureTab({ initialSettings }: { readonly initialSettings: UserSetti
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Подпись письма</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <div className="space-y-4">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Подписи</h3>
+              <h3 className="text-lg font-semibold">{t('subheading')}</h3>
             </div>
 
             <div className="space-y-4 p-4 border rounded-md bg-muted/30">
               <div className="space-y-2">
-                <label htmlFor="new-sig-name" className="text-sm font-medium">Название подписи</label>
+                <label htmlFor="new-sig-name" className="text-sm font-medium">{t('nameLabel')}</label>
                 <Input
                   id="new-sig-name"
                   value={newSignatureName}
                   onChange={(e) => setNewSignatureName(e.target.value)}
-                  placeholder="Например: Рабочая подпись"
+                  placeholder={t('namePlaceholder')}
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="new-sig-context" className="text-sm font-medium">Контекст использования</label>
+                <label htmlFor="new-sig-context" className="text-sm font-medium">{t('contextLabel')}</label>
                 <select
                   id="new-sig-context"
                   value={newSignatureContext}
                   onChange={(e) => setNewSignatureContext(e.target.value as 'work' | 'personal' | 'autoReply' | 'general')}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="general">Общая</option>
-                  <option value="work">Рабочая</option>
-                  <option value="personal">Личная</option>
-                  <option value="autoReply">Для автоответа</option>
+                  <option value="general">{t('contextGeneral')}</option>
+                  <option value="work">{t('contextWork')}</option>
+                  <option value="personal">{t('contextPersonal')}</option>
+                  <option value="autoReply">{t('contextAutoReply')}</option>
                 </select>
               </div>
               <div className="space-y-2">
-                <label htmlFor="new-sig-content" className="text-sm font-medium">Содержимое подписи</label>
+                <label htmlFor="new-sig-content" className="text-sm font-medium">{t('contentLabel')}</label>
                 <textarea
                   id="new-sig-content"
                   value={newSignatureContent}
                   onChange={(e) => setNewSignatureContent(e.target.value)}
-                  placeholder="Введите текст подписи..."
+                  placeholder={t('contentPlaceholder')}
                   className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   rows={4}
                 />
               </div>
               <Button onClick={handleAddSignature} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
-                Добавить подпись
+                {t('addButton')}
               </Button>
             </div>
 
@@ -314,10 +316,10 @@ function SignatureTab({ initialSettings }: { readonly initialSettings: UserSetti
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{sig.name}</span>
                         {sig.isDefault && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-primary/20 text-primary">По умолчанию</span>
+                          <span className="text-xs px-2 py-0.5 rounded bg-primary/20 text-primary">{t('defaultBadge')}</span>
                         )}
                         <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                          {sig.context === 'work' ? 'Рабочая' : sig.context === 'personal' ? 'Личная' : sig.context === 'autoReply' ? 'Автоответ' : 'Общая'}
+                          {sig.context === 'work' ? t('contextWork') : sig.context === 'personal' ? t('contextPersonal') : sig.context === 'autoReply' ? t('contextAutoReply') : t('contextGeneral')}
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{sig.content}</p>
@@ -328,7 +330,7 @@ function SignatureTab({ initialSettings }: { readonly initialSettings: UserSetti
                           variant="ghost"
                           size="sm"
                           onClick={() => handleSetDefault(sig.id)}
-                          title="Установить по умолчанию"
+                          title={t('setDefault')}
                         >
                           <Star className="h-4 w-4" />
                         </Button>
@@ -350,7 +352,7 @@ function SignatureTab({ initialSettings }: { readonly initialSettings: UserSetti
       </div>
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+          {saveMutation.isPending ? common('saving') : common('save')}
         </Button>
       </div>
     </div>
@@ -359,6 +361,9 @@ function SignatureTab({ initialSettings }: { readonly initialSettings: UserSetti
 
 function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
+  const t = useTranslations('settings.autoReply');
+  const signatureT = useTranslations('settings.signature');
+  const common = useTranslations('common');
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(() => initialSettings.autoReply?.enabled || false);
   const [autoReplySubject, setAutoReplySubject] = useState(() => initialSettings.autoReply?.subject || '');
   const [autoReplyMessage, setAutoReplyMessage] = useState(() => initialSettings.autoReply?.message || '');
@@ -386,10 +391,10 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Настройки сохранены');
+      toast.success(signatureT('saveSuccess'));
     },
     onError: () => {
-      toast.error('Ошибка сохранения настроек');
+      toast.error(signatureT('saveError'));
     },
   });
 
@@ -400,7 +405,7 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Автоответ</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <input
@@ -411,37 +416,37 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
               className="h-4 w-4 rounded border-gray-300"
             />
             <label htmlFor="autoReplyEnabled" className="text-sm font-medium">
-              Включить автоответ
+              {t('enable')}
             </label>
           </div>
 
           {autoReplyEnabled && (
             <div className="space-y-4 pl-6">
               <div className="space-y-2">
-                <label htmlFor="autoReplySubject" className="text-sm font-medium">Тема письма</label>
+                <label htmlFor="autoReplySubject" className="text-sm font-medium">{t('subjectLabel')}</label>
                 <Input
                   id="autoReplySubject"
                   value={autoReplySubject}
                   onChange={(e) => setAutoReplySubject(e.target.value)}
-                  placeholder="Re: тема исходного письма"
+                  placeholder={t('subjectPlaceholder')}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Если оставить пустым, будет использоваться &quot;Re: тема исходного письма&quot;
+                  {t('subjectHelp')}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="autoReplyMessage" className="text-sm font-medium">Текст автоответа</label>
+                <label htmlFor="autoReplyMessage" className="text-sm font-medium">{t('bodyLabel')}</label>
                 <textarea
                   id="autoReplyMessage"
                   value={autoReplyMessage}
                   onChange={(e) => setAutoReplyMessage(e.target.value)}
-                  placeholder="Введите текст автоматического ответа..."
+                  placeholder={t('bodyPlaceholder')}
                   className="min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   rows={6}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Этот текст будет отправляться автоматически на каждое входящее письмо
+                  {t('bodyHelp')}
                 </p>
               </div>
 
@@ -455,7 +460,7 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
                     className="h-4 w-4 rounded border-gray-300"
                   />
                   <label htmlFor="scheduleEnabled" className="text-sm font-medium">
-                    Автоответ по расписанию
+                    {t('schedule')}
                   </label>
                 </div>
 
@@ -463,7 +468,7 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
                   <div className="space-y-4 pl-6">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label htmlFor="startDate" className="text-sm font-medium">Дата начала</label>
+                        <label htmlFor="startDate" className="text-sm font-medium">{t('startDate')}</label>
                         <Input
                           id="startDate"
                           type="date"
@@ -472,7 +477,7 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
                         />
                       </div>
                       <div className="space-y-2">
-                        <label htmlFor="endDate" className="text-sm font-medium">Дата окончания</label>
+                        <label htmlFor="endDate" className="text-sm font-medium">{t('endDate')}</label>
                         <Input
                           id="endDate"
                           type="date"
@@ -483,7 +488,7 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label htmlFor="startTime" className="text-sm font-medium">Время начала</label>
+                        <label htmlFor="startTime" className="text-sm font-medium">{t('startTime')}</label>
                         <Input
                           id="startTime"
                           type="time"
@@ -492,7 +497,7 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
                         />
                       </div>
                       <div className="space-y-2">
-                        <label htmlFor="endTime" className="text-sm font-medium">Время окончания</label>
+                        <label htmlFor="endTime" className="text-sm font-medium">{t('endTime')}</label>
                         <Input
                           id="endTime"
                           type="time"
@@ -502,7 +507,7 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Автоответ будет работать только в указанный период времени
+                      {t('scheduleHelp')}
                     </p>
                   </div>
                 )}
@@ -513,7 +518,7 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
       </div>
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+          {saveMutation.isPending ? common('saving') : common('save')}
         </Button>
       </div>
     </div>
@@ -521,14 +526,15 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
 }
 
 const PRESET_THEMES = [
-  { id: 'blue', name: 'Синяя', icon: '💙' },
-  { id: 'green', name: 'Зеленая', icon: '💚' },
-  { id: 'purple', name: 'Фиолетовая', icon: '💜' },
-  { id: 'orange', name: 'Оранжевая', icon: '🧡' },
+  { id: 'blue', icon: '💙' },
+  { id: 'green', icon: '💚' },
+  { id: 'purple', icon: '💜' },
+  { id: 'orange', icon: '🧡' },
 ];
 
 function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
+  const t = useTranslations('settings.theme');
   const [theme, setTheme] = useState<UserSettings['theme']>(() => initialSettings.theme || 'system');
   const [selectedPreset, setSelectedPreset] = useState<string>(() => {
     // If custom theme is saved, use its name, otherwise use the base theme
@@ -550,11 +556,11 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
     mutationFn: (settings: UserSettings) => saveSettings(settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Тема сохранена');
+      toast.success(t('saveSuccess'));
     },
     onError: (error) => {
       console.error('[ThemeTab] Save error:', error);
-      toast.error('Ошибка сохранения темы');
+      toast.error(t('saveError'));
     },
   });
 
@@ -627,10 +633,10 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Тема оформления</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <div className="space-y-6">
           <div>
-            <h3 className="text-sm font-medium mb-3">Базовые темы</h3>
+            <h3 className="text-sm font-medium mb-3">{t('baseThemes')}</h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <button
                 onClick={() => handleThemeChange('light')}
@@ -642,7 +648,7 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
               >
                 <Sun className={`h-8 w-8 ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`} />
                 <span className={`font-medium ${theme === 'light' ? 'text-primary' : 'text-foreground'}`}>
-                  Светлая
+                  {t('light')}
                 </span>
               </button>
               <button
@@ -655,7 +661,7 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
               >
                 <Moon className={`h-8 w-8 ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`} />
                 <span className={`font-medium ${theme === 'dark' ? 'text-primary' : 'text-foreground'}`}>
-                  Темная
+                  {t('dark')}
                 </span>
               </button>
               <button
@@ -668,14 +674,14 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
               >
                 <Layout className={`h-8 w-8 ${theme === 'system' ? 'text-primary' : 'text-muted-foreground'}`} />
                 <span className={`font-medium ${theme === 'system' ? 'text-primary' : 'text-foreground'}`}>
-                  Системная
+                  {t('system')}
                 </span>
               </button>
             </div>
           </div>
 
           <div>
-            <h3 className="text-sm font-medium mb-3">Цветовые схемы</h3>
+            <h3 className="text-sm font-medium mb-3">{t('colorSchemes')}</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {PRESET_THEMES.map((preset) => (
                 <button
@@ -689,7 +695,7 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
                 >
                   <span className="text-2xl">{preset.icon}</span>
                   <span className={`text-sm font-medium ${selectedPreset === preset.id ? 'text-primary' : 'text-foreground'}`}>
-                    {preset.name}
+                    {t(preset.id)}
                   </span>
                 </button>
               ))}
@@ -697,18 +703,18 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
           </div>
 
           <div>
-            <h3 className="text-sm font-medium mb-3">Кастомная цветовая схема</h3>
+            <h3 className="text-sm font-medium mb-3">{t('custom')}</h3>
             <Button
               variant="outline"
               onClick={() => setShowCustom(!showCustom)}
               className="w-full"
             >
-              {showCustom ? 'Скрыть настройки' : 'Показать настройки цветов'}
+              {showCustom ? t('hideSettings') : t('showSettings')}
             </Button>
             {showCustom && (
               <div className="mt-4 space-y-4 p-4 rounded-lg border bg-card">
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Основной цвет</label>
+                  <label className="text-sm font-medium mb-2 block">{t('primaryColor')}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
@@ -731,7 +737,7 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Вторичный цвет</label>
+                  <label className="text-sm font-medium mb-2 block">{t('secondaryColor')}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
@@ -754,7 +760,7 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Акцентный цвет</label>
+                  <label className="text-sm font-medium mb-2 block">{t('accentColor')}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
@@ -777,7 +783,7 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
                   </div>
                 </div>
                 <Button onClick={handleSaveCustom} className="w-full">
-                  Сохранить кастомную схему
+                  {t('saveCustom')}
                 </Button>
               </div>
             )}
@@ -854,12 +860,13 @@ async function syncRulesToSieve(): Promise<void> {
   const res = await fetch('/api/mail/filters/rules/sync-sieve', { method: 'POST' });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || 'Ошибка синхронизации');
+    throw new Error(body.message || 'Failed to synchronize rules');
   }
 }
 
 function FiltersTab() {
   const queryClient = useQueryClient();
+  const t = useTranslations('settings.filters');
   const [newFilterName, setNewFilterName] = useState('');
   const [newFilterQuery, setNewFilterQuery] = useState('');
   const [ruleEditorOpen, setRuleEditorOpen] = useState(false);
@@ -891,10 +898,10 @@ function FiltersTab() {
       queryClient.invalidateQueries({ queryKey: ['saved-filters'] });
       setNewFilterName('');
       setNewFilterQuery('');
-      toast.success('Фильтр сохранён');
+      toast.success(t('saveSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка сохранения фильтра');
+      toast.error(error.message || t('saveError'));
     },
   });
 
@@ -902,16 +909,16 @@ function FiltersTab() {
     mutationFn: deleteFilter,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['saved-filters'] });
-      toast.success('Фильтр удалён');
+      toast.success(t('deleteSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка удаления фильтра');
+      toast.error(error.message || t('deleteError'));
     },
   });
 
   const handleCreateFilter = () => {
     if (!newFilterName.trim() || !newFilterQuery.trim()) {
-      toast.error('Введите название и запрос фильтра');
+      toast.error(t('emptyError'));
       return;
     }
     createFilterMutation.mutate({
@@ -922,7 +929,7 @@ function FiltersTab() {
   };
 
   const handleDeleteFilter = (filterId: string, filterName: string) => {
-    if (confirm(`Вы уверены, что хотите удалить фильтр "${filterName}"?`)) {
+    if (confirm(t('deleteConfirm', { name: filterName }))) {
       deleteFilterMutation.mutate(filterId);
     }
   };
@@ -930,27 +937,27 @@ function FiltersTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Сохранённые фильтры</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <div className="space-y-4">
           <div className="space-y-2">
             <Input
               value={newFilterName}
               onChange={(e) => setNewFilterName(e.target.value)}
-              placeholder="Название фильтра"
+              placeholder={t('namePlaceholder')}
             />
             <Input
               value={newFilterQuery}
               onChange={(e) => setNewFilterQuery(e.target.value)}
-              placeholder="Запрос фильтра (например: from:amazon has:attachment)"
+              placeholder={t('queryPlaceholder')}
             />
             <Button onClick={handleCreateFilter} disabled={createFilterMutation.isPending}>
-              {createFilterMutation.isPending ? 'Создание...' : 'Создать фильтр'}
+              {createFilterMutation.isPending ? t('creating') : t('createButton')}
             </Button>
           </div>
 
-          {filtersLoading && <p className="text-sm text-muted-foreground">Загрузка фильтров...</p>}
+          {filtersLoading && <p className="text-sm text-muted-foreground">{t('loadingFilters')}</p>}
           {!filtersLoading && filters.length === 0 && (
-            <p className="text-sm text-muted-foreground">Нет сохранённых фильтров</p>
+            <p className="text-sm text-muted-foreground">{t('noFilters')}</p>
           )}
           {!filtersLoading && filters.length > 0 && (
             <div className="space-y-2">
@@ -981,7 +988,7 @@ function FiltersTab() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold">Правила авто-сортировки</h2>
+            <h2 className="text-xl font-semibold">{t('autoSortHeading')}</h2>
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -990,112 +997,111 @@ function FiltersTab() {
               </DialogTrigger>
               <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Синтаксис фильтров для правил</DialogTitle>
+                  <DialogTitle>{t('syntaxHelpTitle')}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 text-sm">
                   <div>
-                    <h3 className="font-semibold mb-2">📧 Поля для поиска по адресам</h3>
+                    <h3 className="font-semibold mb-2">📧 {t('syntax.addressFields')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">from:</code> - отправитель</li>
-                      <li><code className="bg-muted px-1 rounded">to:</code> - получатель</li>
-                      <li><code className="bg-muted px-1 rounded">cc:</code> - копия</li>
-                      <li><code className="bg-muted px-1 rounded">bcc:</code> - скрытая копия</li>
+                      <li><code className="bg-muted px-1 rounded">from:</code> — {t('syntax.sender')}</li>
+                      <li><code className="bg-muted px-1 rounded">to:</code> — {t('syntax.recipient')}</li>
+                      <li><code className="bg-muted px-1 rounded">cc:</code> — {t('syntax.cc')}</li>
+                      <li><code className="bg-muted px-1 rounded">bcc:</code> — {t('syntax.bcc')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📝 Поля для поиска по содержимому</h3>
+                    <h3 className="font-semibold mb-2">📝 {t('syntax.contentFields')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">subject:</code> - тема письма</li>
-                      <li><code className="bg-muted px-1 rounded">body:</code> - тело письма</li>
+                      <li><code className="bg-muted px-1 rounded">subject:</code> — {t('syntax.subject')}</li>
+                      <li><code className="bg-muted px-1 rounded">body:</code> — {t('syntax.body')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📎 Вложения</h3>
+                    <h3 className="font-semibold mb-2">📎 {t('syntax.attachments')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">has:attachment</code> - есть вложения</li>
-                      <li><code className="bg-muted px-1 rounded">has:image</code> - есть изображения</li>
-                      <li><code className="bg-muted px-1 rounded">has:document</code> - есть документы</li>
+                      <li><code className="bg-muted px-1 rounded">has:attachment</code> — {t('syntax.hasAttachments')}</li>
+                      <li><code className="bg-muted px-1 rounded">has:image</code> — {t('syntax.hasImages')}</li>
+                      <li><code className="bg-muted px-1 rounded">has:document</code> — {t('syntax.hasDocuments')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">🏷️ Статус письма</h3>
+                    <h3 className="font-semibold mb-2">🏷️ {t('syntax.messageStatus')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">is:unread</code> - непрочитанное</li>
-                      <li><code className="bg-muted px-1 rounded">is:read</code> - прочитанное</li>
-                      <li><code className="bg-muted px-1 rounded">is:starred</code> - помеченное звездой</li>
-                      <li><code className="bg-muted px-1 rounded">is:important</code> - важное</li>
+                      <li><code className="bg-muted px-1 rounded">is:unread</code> — {t('syntax.unread')}</li>
+                      <li><code className="bg-muted px-1 rounded">is:read</code> — {t('syntax.read')}</li>
+                      <li><code className="bg-muted px-1 rounded">is:starred</code> — {t('syntax.starred')}</li>
+                      <li><code className="bg-muted px-1 rounded">is:important</code> — {t('syntax.important')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📅 Дата</h3>
+                    <h3 className="font-semibold mb-2">📅 {t('syntax.date')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">after:2024-01-01</code> - после даты</li>
-                      <li><code className="bg-muted px-1 rounded">before:7d</code> - до (7 дней назад)</li>
-                      <li><code className="bg-muted px-1 rounded">after:today</code> - сегодня</li>
-                      <li><code className="bg-muted px-1 rounded">after:yesterday</code> - вчера</li>
+                      <li><code className="bg-muted px-1 rounded">after:2024-01-01</code> — {t('syntax.afterDate')}</li>
+                      <li><code className="bg-muted px-1 rounded">before:7d</code> — {t('syntax.beforeDate')}</li>
+                      <li><code className="bg-muted px-1 rounded">after:today</code> — {t('syntax.today')}</li>
+                      <li><code className="bg-muted px-1 rounded">after:yesterday</code> — {t('syntax.yesterday')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📏 Размер</h3>
+                    <h3 className="font-semibold mb-2">📏 {t('syntax.size')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">size:&gt;1MB</code> - больше 1 МБ</li>
-                      <li><code className="bg-muted px-1 rounded">size:&gt;500KB</code> - больше 500 КБ</li>
+                      <li><code className="bg-muted px-1 rounded">size:&gt;1MB</code> — {t('syntax.larger1mb')}</li>
+                      <li><code className="bg-muted px-1 rounded">size:&gt;500KB</code> — {t('syntax.larger500kb')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">✨ Операторы</h3>
+                    <h3 className="font-semibold mb-2">✨ {t('syntax.operators')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">*</code> - подстановочный знак (любые символы)</li>
-                      <li><code className="bg-muted px-1 rounded">OR</code> - логическое ИЛИ</li>
-                      <li><code className="bg-muted px-1 rounded">-</code> - отрицание (исключить)</li>
-                      <li><code className="bg-muted px-1 rounded">&quot;точная фраза&quot;</code> - точное совпадение</li>
+                      <li><code className="bg-muted px-1 rounded">*</code> — {t('syntax.wildcard')}</li>
+                      <li><code className="bg-muted px-1 rounded">OR</code> — {t('syntax.logicalOr')}</li>
+                      <li><code className="bg-muted px-1 rounded">-</code> — {t('syntax.negation')}</li>
+                      <li><code className="bg-muted px-1 rounded">&quot;exact phrase&quot;</code> — {t('syntax.exactMatch')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📚 Примеры</h3>
+                    <h3 className="font-semibold mb-2">📚 {t('syntax.examples')}</h3>
                     <div className="space-y-2 text-muted-foreground">
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">from:amazon</code>
-                        <p className="text-xs pl-2">Все письма от адресов, содержащих &quot;amazon&quot;</p>
+                        <p className="text-xs pl-2">{t('syntax.exampleAmazon')}</p>
                       </div>
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">from:*@amazon.com</code>
-                        <p className="text-xs pl-2">Все письма от домена amazon.com</p>
+                        <p className="text-xs pl-2">{t('syntax.exampleDomain')}</p>
                       </div>
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">from:amazon OR from:ebay</code>
-                        <p className="text-xs pl-2">Письма от Amazon ИЛИ от eBay</p>
+                        <p className="text-xs pl-2">{t('syntax.exampleOr')}</p>
                       </div>
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">has:attachment size:&gt;1MB</code>
-                        <p className="text-xs pl-2">Письма с вложениями больше 1 МБ</p>
+                        <p className="text-xs pl-2">{t('syntax.exampleAttachment')}</p>
                       </div>
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">is:unread after:7d</code>
-                        <p className="text-xs pl-2">Непрочитанные письма за последние 7 дней</p>
+                        <p className="text-xs pl-2">{t('syntax.exampleUnread')}</p>
                       </div>
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">subject:invoice -from:spam</code>
-                        <p className="text-xs pl-2">Письма с &quot;invoice&quot; в теме, но не от spam</p>
+                        <p className="text-xs pl-2">{t('syntax.exampleExclude')}</p>
                       </div>
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">from:*@company.com subject:&quot;quarterly report&quot;</code>
-                        <p className="text-xs pl-2">Письма от домена company.com с точной фразой в теме</p>
+                        <p className="text-xs pl-2">{t('syntax.exampleExact')}</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="pt-2 border-t">
                     <p className="text-xs text-muted-foreground">
-                      💡 <strong>Совет:</strong> Используйте кавычки для точного поиска фраз с пробелами.
-                      Комбинируйте несколько условий для создания мощных правил фильтрации!
+                      💡 {t('syntax.tip')}
                     </p>
                   </div>
                 </div>
@@ -1110,7 +1116,7 @@ function FiltersTab() {
             size="sm"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Создать правило
+            {t('createRule')}
           </Button>
           <Button
             variant="outline"
@@ -1121,16 +1127,16 @@ function FiltersTab() {
               try {
                 await syncRulesToSieve();
                 queryClient.invalidateQueries({ queryKey: ['sieve-scripts'] });
-                toast.success('Правила синхронизированы в Sieve-скрипт');
+                toast.success(t('syncSuccess'));
               } catch (error) {
-                toast.error(error instanceof Error ? error.message : 'Ошибка синхронизации с Sieve');
+                toast.error(error instanceof Error ? error.message : t('syncError'));
               } finally {
                 setIsSyncingSieve(false);
               }
             }}
           >
             <Code2 className="h-4 w-4 mr-2" />
-            {isSyncingSieve ? 'Синхронизация...' : 'Синхронизировать в Sieve'}
+            {isSyncingSieve ? t('syncing') : t('syncSieve')}
           </Button>
           <Button
             variant="outline"
@@ -1140,23 +1146,23 @@ function FiltersTab() {
               setIsResettingProcessed(true);
               try {
                 const res = await fetch('/api/mail/filters/rules/reset-processed', { method: 'POST' });
-                if (!res.ok) throw new Error('Ошибка сброса кэша');
-                toast.success('Кэш обработанных писем сброшен. При следующем запуске авто-сортировки все письма будут проверены заново.');
+                if (!res.ok) throw new Error(t('resetError'));
+                toast.success(t('resetSuccess'));
               } catch (error) {
-                toast.error(error instanceof Error ? error.message : 'Ошибка сброса кэша');
+                toast.error(error instanceof Error ? error.message : t('resetError'));
               } finally {
                 setIsResettingProcessed(false);
               }
             }}
           >
             <RotateCcw className="h-4 w-4 mr-2" />
-            {isResettingProcessed ? 'Сброс...' : 'Сбросить кэш авто-сортировки'}
+            {isResettingProcessed ? t('resetting') : t('resetCache')}
           </Button>
         </div>
         <div className="space-y-4">
-          {rulesLoading && <p className="text-sm text-muted-foreground">Загрузка правил...</p>}
+          {rulesLoading && <p className="text-sm text-muted-foreground">{t('rulesLoading')}</p>}
           {!rulesLoading && rules.length === 0 && (
-            <p className="text-sm text-muted-foreground">Нет правил авто-сортировки</p>
+            <p className="text-sm text-muted-foreground">{t('noRules')}</p>
           )}
           {!rulesLoading && rules.length > 0 && (
             <div className="space-y-2">
@@ -1173,11 +1179,11 @@ function FiltersTab() {
                           rule.enabled ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-600'
                         }`}
                       >
-                        {rule.enabled ? 'Включено' : 'Выключено'}
+                        {rule.enabled ? t('enabled') : t('disabled')}
                       </span>
                     </div>
                     <div className="text-sm text-muted-foreground mt-1">
-                      Действий: {rule.actions.length}
+                      {t('actionCount', { count: rule.actions.length })}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1195,12 +1201,12 @@ function FiltersTab() {
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        if (confirm(`Вы уверены, что хотите удалить правило "${rule.name}"?`)) {
+                        if (confirm(t('deleteRuleConfirm', { name: rule.name }))) {
                           deleteFilterRule(rule.id).then(() => {
                             queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
-                            toast.success('Правило удалено');
+                            toast.success(t('ruleDeleteSuccess'));
                           }).catch((error: Error) => {
-                            toast.error(error.message || 'Ошибка удаления правила');
+                            toast.error(error.message || t('ruleDeleteError'));
                           });
                         }
                       }}
@@ -1213,7 +1219,7 @@ function FiltersTab() {
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            Правила авто-сортировки позволяют автоматически выполнять действия с письмами на основе условий.
+            {t('rulesHelp')}
           </p>
         </div>
       </div>
@@ -1232,7 +1238,7 @@ function FiltersTab() {
             queryClient.invalidateQueries({ queryKey: ['sieve-scripts'] });
 
             if (rule.applyToExisting) {
-              toast.success('Правило сохранено. Применение к существующим письмам запущено в фоне.');
+              toast.success(t('ruleSavedBackground'));
               // Fire-and-forget: don't await so the UI is never blocked
               fetch('/api/mail/filters/rules/apply', {
                 method: 'POST',
@@ -1242,10 +1248,10 @@ function FiltersTab() {
                 // Errors are logged server-side; background job will retry via daemon
               });
             } else {
-              toast.success('Правило сохранено и синхронизировано в Sieve');
+              toast.success(t('ruleSavedSieve'));
             }
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Ошибка сохранения правила');
+            toast.error(error instanceof Error ? error.message : t('ruleSaveError'));
           }
         }}
         folders={folders}
@@ -1257,6 +1263,8 @@ function FiltersTab() {
 
 function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
+  const t = useTranslations('settings.interface');
+  const common = useTranslations('common');
   const [density, setDensity] = useState<'compact' | 'comfortable' | 'spacious'>(() => initialSettings.ui?.density || 'comfortable');
   const [messagesPerPage, setMessagesPerPage] = useState(() => initialSettings.ui?.messagesPerPage || 50);
   const [sortBy, setSortBy] = useState<'date' | 'from' | 'subject' | 'size'>(() => initialSettings.ui?.sortBy || 'date');
@@ -1278,10 +1286,10 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
     onSuccess: (savedSettings) => {
       queryClient.setQueryData<UserSettings>(['settings'], savedSettings);
       window.localStorage.setItem('homemail-settings-updated-at', Date.now().toString());
-      toast.success('Настройки интерфейса сохранены');
+      toast.success(t('saveSuccess'));
     },
     onError: () => {
-      toast.error('Ошибка сохранения настроек интерфейса');
+      toast.error(t('saveError'));
     },
   });
 
@@ -1292,10 +1300,10 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Настройки интерфейса</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <div className="space-y-6">
           <div className="space-y-2">
-            <label htmlFor="density" className="text-sm font-medium">Плотность отображения</label>
+            <label htmlFor="density" className="text-sm font-medium">{t('density')}</label>
             <div className="grid grid-cols-3 gap-4">
               <button
                 onClick={() => setDensity('compact')}
@@ -1306,9 +1314,9 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
                 }`}
               >
                 <span className={`font-medium ${density === 'compact' ? 'text-primary' : 'text-foreground'}`}>
-                  Компактный
+                  {t('compact')}
                 </span>
-                <span className="text-xs text-muted-foreground">Больше писем на экране</span>
+                <span className="text-xs text-muted-foreground">{t('compactHelp')}</span>
               </button>
               <button
                 onClick={() => setDensity('comfortable')}
@@ -1319,9 +1327,9 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
                 }`}
               >
                 <span className={`font-medium ${density === 'comfortable' ? 'text-primary' : 'text-foreground'}`}>
-                  Обычный
+                  {t('comfortable')}
                 </span>
-                <span className="text-xs text-muted-foreground">Сбалансированный вид</span>
+                <span className="text-xs text-muted-foreground">{t('comfortableHelp')}</span>
               </button>
               <button
                 onClick={() => setDensity('spacious')}
@@ -1332,15 +1340,15 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
                 }`}
               >
                 <span className={`font-medium ${density === 'spacious' ? 'text-primary' : 'text-foreground'}`}>
-                  Просторный
+                  {t('spacious')}
                 </span>
-                <span className="text-xs text-muted-foreground">Больше пространства</span>
+                <span className="text-xs text-muted-foreground">{t('spaciousHelp')}</span>
               </button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="messagesPerPage" className="text-sm font-medium">Количество писем на странице</label>
+            <label htmlFor="messagesPerPage" className="text-sm font-medium">{t('messagesPerPage')}</label>
             <Input
               id="messagesPerPage"
               type="number"
@@ -1350,27 +1358,27 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
               onChange={(e) => setMessagesPerPage(Math.max(10, Math.min(100, parseInt(e.target.value, 10) || 50)))}
             />
             <p className="text-xs text-muted-foreground">
-              От 10 до 100 писем на странице
+              {t('messagesPerPageHelp')}
             </p>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="sortBy" className="text-sm font-medium">Сортировка по</label>
+            <label htmlFor="sortBy" className="text-sm font-medium">{t('sortBy')}</label>
             <select
               id="sortBy"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'date' | 'from' | 'subject' | 'size')}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="date">Дате</option>
-              <option value="from">Отправителю</option>
-              <option value="subject">Теме</option>
-              <option value="size">Размеру</option>
+              <option value="date">{t('date')}</option>
+              <option value="from">{t('sender')}</option>
+              <option value="subject">{t('subject')}</option>
+              <option value="size">{t('size')}</option>
             </select>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="sortOrder" className="text-sm font-medium">Порядок сортировки</label>
+            <label htmlFor="sortOrder" className="text-sm font-medium">{t('sortOrder')}</label>
             <div className="flex gap-4">
               <button
                 onClick={() => setSortOrder('desc')}
@@ -1381,7 +1389,7 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
                 }`}
               >
                 <span className={`font-medium ${sortOrder === 'desc' ? 'text-primary' : 'text-foreground'}`}>
-                  По убыванию
+                  {t('descending')}
                 </span>
               </button>
               <button
@@ -1393,33 +1401,33 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
                 }`}
               >
                 <span className={`font-medium ${sortOrder === 'asc' ? 'text-primary' : 'text-foreground'}`}>
-                  По возрастанию
+                  {t('ascending')}
                 </span>
               </button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="groupBy" className="text-sm font-medium">Группировка писем</label>
+            <label htmlFor="groupBy" className="text-sm font-medium">{t('groupBy')}</label>
             <select
               id="groupBy"
               value={groupBy}
               onChange={(e) => setGroupBy(e.target.value as 'none' | 'date' | 'sender')}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="none">Без группировки</option>
-              <option value="date">По дате</option>
-              <option value="sender">По отправителю</option>
+              <option value="none">{t('groupNone')}</option>
+              <option value="date">{t('groupDate')}</option>
+              <option value="sender">{t('groupSender')}</option>
             </select>
             <p className="text-xs text-muted-foreground">
-              Группировка писем в списке для удобной навигации
+              {t('groupHelp')}
             </p>
           </div>
         </div>
       </div>
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+          {saveMutation.isPending ? common('saving') : common('save')}
         </Button>
       </div>
     </div>
@@ -1428,6 +1436,8 @@ function InterfaceTab({ initialSettings }: { readonly initialSettings: UserSetti
 
 function NotificationsTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
   const queryClient = useQueryClient();
+  const t = useTranslations('settings.notifications');
+  const common = useTranslations('common');
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => initialSettings.notifications?.enabled ?? true);
   const [browserNotifications, setBrowserNotifications] = useState(() => initialSettings.notifications?.browser ?? true);
   const [soundNotifications, setSoundNotifications] = useState(() => initialSettings.notifications?.sound ?? false);
@@ -1445,20 +1455,20 @@ function NotificationsTab({ initialSettings }: { readonly initialSettings: UserS
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Настройки уведомлений сохранены');
+      toast.success(t('saveSuccess'));
       
       if (browserNotifications && 'Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission().then((permission) => {
           if (permission === 'granted') {
-            toast.success('Разрешение на уведомления получено');
+            toast.success(t('permissionGranted'));
           } else if (permission === 'denied') {
-            toast.error('Уведомления заблокированы. Разрешите их в настройках браузера.');
+            toast.error(t('permissionBlockedHelp'));
           }
         });
       }
     },
     onError: () => {
-      toast.error('Ошибка сохранения настроек уведомлений');
+      toast.error(t('saveError'));
     },
   });
 
@@ -1471,20 +1481,20 @@ function NotificationsTab({ initialSettings }: { readonly initialSettings: UserS
       Notification.requestPermission().then((permission) => {
         if (permission === 'granted') {
           setBrowserNotifications(true);
-          toast.success('Разрешение на уведомления получено');
+          toast.success(t('permissionGranted'));
         } else if (permission === 'denied') {
-          toast.error('Уведомления заблокированы');
+          toast.error(t('permissionBlocked'));
         }
       });
     } else {
-      toast.error('Браузер не поддерживает уведомления');
+      toast.error(t('unsupported'));
     }
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Уведомления</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <input
@@ -1495,7 +1505,7 @@ function NotificationsTab({ initialSettings }: { readonly initialSettings: UserS
               className="h-4 w-4 rounded border-gray-300"
             />
             <label htmlFor="notificationsEnabled" className="text-sm font-medium">
-              Включить уведомления
+              {t('enable')}
             </label>
           </div>
 
@@ -1510,15 +1520,15 @@ function NotificationsTab({ initialSettings }: { readonly initialSettings: UserS
                   className="h-4 w-4 rounded border-gray-300"
                 />
                 <label htmlFor="browserNotifications" className="text-sm font-medium">
-                  Браузерные уведомления
+                  {t('browser')}
                 </label>
                 {browserNotifications && 'Notification' in window && Notification.permission === 'default' && (
                   <Button variant="outline" size="sm" onClick={handleRequestPermission}>
-                    Запросить разрешение
+                    {t('requestPermission')}
                   </Button>
                 )}
                 {browserNotifications && 'Notification' in window && Notification.permission === 'denied' && (
-                  <span className="text-xs text-destructive">Уведомления заблокированы</span>
+                  <span className="text-xs text-destructive">{t('permissionBlocked')}</span>
                 )}
               </div>
 
@@ -1531,7 +1541,7 @@ function NotificationsTab({ initialSettings }: { readonly initialSettings: UserS
                   className="h-4 w-4 rounded border-gray-300"
                 />
                 <label htmlFor="soundNotifications" className="text-sm font-medium">
-                  Звуковые уведомления
+                  {t('sound')}
                 </label>
               </div>
 
@@ -1544,7 +1554,7 @@ function NotificationsTab({ initialSettings }: { readonly initialSettings: UserS
                   className="h-4 w-4 rounded border-gray-300"
                 />
                 <label htmlFor="onlyImportant" className="text-sm font-medium">
-                  Только для важных писем
+                  {t('importantOnly')}
                 </label>
               </div>
             </div>
@@ -1553,7 +1563,7 @@ function NotificationsTab({ initialSettings }: { readonly initialSettings: UserS
       </div>
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+          {saveMutation.isPending ? common('saving') : common('save')}
         </Button>
       </div>
     </div>
@@ -1925,6 +1935,7 @@ function SieveTab() {
 
 function FoldersTab() {
   const queryClient = useQueryClient();
+  const t = useTranslations('settings.folders');
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderParentId, setNewFolderParentId] = useState<string>('');
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
@@ -1962,10 +1973,10 @@ function FoldersTab() {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       setNewFolderName('');
       setNewFolderParentId('');
-      toast.success('Папка создана');
+      toast.success(t('createSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка создания папки');
+      toast.error(error.message || t('createError'));
     },
   });
 
@@ -1987,10 +1998,10 @@ function FoldersTab() {
       setEditingFolder(null);
       setEditFolderName('');
       setEditFolderParentId('');
-      toast.success('Папка обновлена');
+      toast.success(t('updateSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка обновления папки');
+      toast.error(error.message || t('updateError'));
     },
   });
 
@@ -1998,16 +2009,16 @@ function FoldersTab() {
     mutationFn: deleteFolder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
-      toast.success('Папка удалена');
+      toast.success(t('deleteSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка удаления папки');
+      toast.error(error.message || t('deleteError'));
     },
   });
 
   const handleCreate = () => {
     if (!newFolderName.trim()) {
-      toast.error('Введите название папки');
+      toast.error(t('nameRequired'));
       return;
     }
     createMutation.mutate({
@@ -2024,11 +2035,11 @@ function FoldersTab() {
 
   const handleSaveEdit = () => {
     if (!editingFolder || !editFolderName.trim()) {
-      toast.error('Введите название папки');
+      toast.error(t('nameRequired'));
       return;
     }
     if (editFolderParentId === editingFolder.id) {
-      toast.error('Папка не может быть родительской для самой себя');
+      toast.error(t('selfParentError'));
       return;
     }
     updateFolderMutation.mutate({
@@ -2052,7 +2063,7 @@ function FoldersTab() {
             )}
             <span className="font-medium truncate">{folder.name}</span>
             {folder.parentId && (
-              <span className="text-xs text-muted-foreground">(подпапка)</span>
+              <span className="text-xs text-muted-foreground">{t('subfolder')}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -2080,10 +2091,10 @@ function FoldersTab() {
 
   const handleDelete = (folderId: string, folderName: string, role: string) => {
     if (role !== 'custom') {
-      toast.error('Нельзя удалить системную папку');
+      toast.error(t('systemDeleteError'));
       return;
     }
-    if (confirm(`Вы уверены, что хотите удалить папку "${folderName}"?`)) {
+    if (confirm(t('deleteConfirm', { name: folderName }))) {
       deleteMutation.mutate(folderId);
     }
   };
@@ -2093,13 +2104,13 @@ function FoldersTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Пользовательские папки</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <div className="space-y-4">
           <div className="flex gap-2">
             <Input
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="Название новой папки"
+              placeholder={t('namePlaceholder')}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   handleCreate();
@@ -2107,13 +2118,13 @@ function FoldersTab() {
               }}
             />
             <Button onClick={handleCreate} disabled={createMutation.isPending}>
-              {createMutation.isPending ? 'Создание...' : 'Создать'}
+              {createMutation.isPending ? t('creating') : t('create')}
             </Button>
           </div>
 
-          {isLoading && <p className="text-sm text-muted-foreground">Загрузка папок...</p>}
+          {isLoading && <p className="text-sm text-muted-foreground">{t('loading')}</p>}
           {!isLoading && organizedFolders.filter((f) => f.role === 'custom').length === 0 && (
-            <p className="text-sm text-muted-foreground">Нет пользовательских папок</p>
+            <p className="text-sm text-muted-foreground">{t('empty')}</p>
           )}
           {!isLoading && organizedFolders.filter((f) => f.role === 'custom').length > 0 && (
             <div className="space-y-2">

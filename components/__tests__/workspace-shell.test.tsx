@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,7 +19,6 @@ vi.mock('next-intl', () => ({
       compose: 'Compose',
       foldersSection: 'Folders',
       quickViewsSection: 'Quick views',
-      quickInbox: 'Inbox',
       quickUnread: 'Unread',
       quickStarred: 'Starred',
       quickAttachments: 'With attachments',
@@ -71,6 +70,8 @@ describe('Workspace shell', () => {
     expect(
       quickViews.compareDocumentPosition(folders) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+    expect(within(quickViews).queryByText('Inbox')).not.toBeInTheDocument();
+    expect(screen.getByText('Primary inbox')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Starred' }));
     expect(onQuickFilterChange).toHaveBeenCalledWith('starred');
