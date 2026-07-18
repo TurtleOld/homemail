@@ -168,10 +168,7 @@ export async function POST(request: NextRequest) {
 
     if (validatedData.draftId) {
       try {
-        await provider.bulkUpdateMessages(session.accountId, {
-          ids: [validatedData.draftId],
-          action: 'delete',
-        });
+        await provider.deleteDraft(session.accountId, validatedData.draftId);
       } catch (error) {
         logger.error('Failed to delete draft after sending:', error);
       }

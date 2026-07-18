@@ -202,6 +202,8 @@
     "send": "Отправить",
     "sending": "Отправка...",
     "scheduledSend": "Запланировать отправку",
+    "showForwardedMessage": "Показать пересылаемое письмо",
+    "hideForwardedMessage": "Скрыть пересылаемое письмо",
     "noRecipient": "Укажите получателя",
     "invalidEmail": "Неверный email: {email}",
     "draftSaveError": "Ошибка сохранения черновика",

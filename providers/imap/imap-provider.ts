@@ -72,6 +72,10 @@ export class ImapMailProvider implements MailProvider {
     throw new Error('IMAP provider not implemented');
   }
 
+  async deleteDraft(accountId: string, draftId: string): Promise<void> {
+    throw new Error('IMAP provider not implemented');
+  }
+
   async getAttachment(
     accountId: string,
     messageId: string,

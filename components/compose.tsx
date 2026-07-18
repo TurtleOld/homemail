@@ -136,6 +136,8 @@ export function Compose({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [forwardQuoteExpanded, setForwardQuoteExpanded] = useState(false);
+  const composerRef = useRef<HTMLDivElement>(null);
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -234,7 +236,8 @@ export function Compose({
       setSubject(
         forwardFrom.subject.startsWith('Fwd:') ? forwardFrom.subject : `Fwd: ${forwardFrom.subject}`
       );
-      editor.commands.setContent(`<blockquote>${forwardFrom.body}</blockquote>`);
+      editor.commands.setContent(`<p></p><blockquote>${forwardFrom.body}</blockquote>`);
+      setForwardQuoteExpanded(false);
       requestAnimationFrame(() => {
         suppressDirtyRef.current = false;
       });
@@ -255,6 +258,15 @@ export function Compose({
     setAttachments([]);
     didInitRef.current = true;
   }, [initialDraft, replyTo, forwardFrom, editor, open, signatures]);
+
+  useEffect(() => {
+    if (!open || mode !== 'inline') return;
+    const frame = requestAnimationFrame(() => {
+      composerRef.current?.scrollIntoView({ block: 'start' });
+      composerRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [forwardFrom, mode, open, replyTo]);
 
   useEffect(() => {
     if (!editor) return;
@@ -645,8 +657,10 @@ export function Compose({
 
   return (
     <div
+      ref={composerRef}
+      data-inline-composer={mode === 'inline' ? '' : undefined}
       className={cn(
-        'flex flex-col border-border bg-background transition-[transform,opacity] duration-200',
+        'flex scroll-mt-4 flex-col border-border bg-background transition-[transform,opacity] duration-200',
         mode === 'inline'
           ? 'min-h-[360px] border-t'
           : cn(
@@ -851,7 +865,13 @@ export function Compose({
             </span>
           </label>
         </div>
-        <div className="rounded-control border border-border">
+        <div
+          className={cn(
+            'rounded-control border border-border',
+            forwardFrom && !forwardQuoteExpanded &&
+              '[&_.ProseMirror>blockquote]:max-h-20 [&_.ProseMirror>blockquote]:overflow-hidden [&_.ProseMirror>blockquote]:opacity-60'
+          )}
+        >
           <div className="border-b p-2 max-md:p-1 flex gap-2 max-md:gap-1 flex-wrap">
             <Button
               variant="ghost"
@@ -939,6 +959,20 @@ export function Compose({
             </Button>
           </div>
           <EditorContent editor={editor} />
+          {forwardFrom && (
+            <button
+              type="button"
+              onClick={() => setForwardQuoteExpanded((expanded) => !expanded)}
+              className="flex w-full items-center justify-center gap-1.5 border-t border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+              aria-expanded={forwardQuoteExpanded}
+            >
+              {forwardQuoteExpanded ? t('hideForwardedMessage') : t('showForwardedMessage')}
+              <ChevronDown
+                className={cn('h-3.5 w-3.5 transition-transform', forwardQuoteExpanded && 'rotate-180')}
+                aria-hidden="true"
+              />
+            </button>
+          )}
         </div>
       </div>
       <div className="border-t border-border px-4 py-3">

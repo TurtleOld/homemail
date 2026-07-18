@@ -202,6 +202,8 @@
     "send": "Send",
     "sending": "Sending...",
     "scheduledSend": "Schedule send",
+    "showForwardedMessage": "Show forwarded message",
+    "hideForwardedMessage": "Hide forwarded message",
     "noRecipient": "Please specify a recipient",
     "invalidEmail": "Invalid email: {email}",
     "draftSaveError": "Failed to save draft",

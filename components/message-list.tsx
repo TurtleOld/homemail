@@ -36,6 +36,8 @@ interface MessageListProps {
   onRetry?: () => void;
   initialTopMostItemIndex?: number;
   onTopMostItemChange?: (index: number) => void;
+  initialScrollOffset?: number;
+  onScrollOffsetChange?: (offset: number) => void;
   onDragStart?: (messageId: string) => void;
   conversationView?: boolean;
   density?: 'compact' | 'comfortable' | 'spacious';
@@ -296,12 +298,15 @@ export function MessageList({
   onRetry,
   initialTopMostItemIndex = 0,
   onTopMostItemChange,
+  initialScrollOffset = 0,
+  onScrollOffsetChange,
   onDragStart,
   conversationView = false,
   density = 'comfortable',
   groupBy = 'none',
   layout = 'legacy',
 }: MessageListProps) {
+  const conversationScrollRef = useRef<HTMLDivElement>(null);
   const t = useTranslations('messageList');
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
@@ -310,7 +315,15 @@ export function MessageList({
   const focusedIndexRef = useRef<number | null>(null);
 
   const tList = useTranslations('messageList');
-  const threads = conversationView ? groupMessagesByThread(messages) : null;
+  const threads = useMemo(
+    () => conversationView ? groupMessagesByThread(messages) : null,
+    [conversationView, messages]
+  );
+
+  useEffect(() => {
+    if (!conversationView || !conversationScrollRef.current) return;
+    conversationScrollRef.current.scrollTop = initialScrollOffset;
+  }, [conversationView, initialScrollOffset, threads?.length]);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -622,7 +635,12 @@ export function MessageList({
             </div>
           </div>
         ) : conversationView && threads ? (
-          <div className="overflow-auto h-full">
+          <div
+            ref={conversationScrollRef}
+            className="h-full overflow-auto"
+            data-message-list-scroll="conversation"
+            onScroll={(event) => onScrollOffsetChange?.(event.currentTarget.scrollTop)}
+          >
             {threads.map((thread) => (
               <ThreadItem
                 key={thread.threadId}

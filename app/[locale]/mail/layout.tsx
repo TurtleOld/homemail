@@ -68,7 +68,12 @@ import {
   parseMailListUrlState,
   type MailListUrlState,
 } from '@/lib/mail-url-state';
-import { readMailScrollPosition, writeMailScrollPosition } from '@/lib/mail-scroll-state';
+import {
+  readMailScrollOffset,
+  readMailScrollPosition,
+  writeMailScrollOffset,
+  writeMailScrollPosition,
+} from '@/lib/mail-scroll-state';
 
 interface MinimizedDraft {
   id: string;
@@ -1736,6 +1741,16 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                       listScrollPositionsRef.current.set(listScopeKey, index);
                       if (listFirstMailEnabled && typeof window !== 'undefined') {
                         writeMailScrollPosition(listScopeKey, index, window.sessionStorage);
+                      }
+                    }}
+                    initialScrollOffset={
+                      listFirstMailEnabled && typeof window !== 'undefined'
+                        ? readMailScrollOffset(listScopeKey, window.sessionStorage)
+                        : 0
+                    }
+                    onScrollOffsetChange={(offset) => {
+                      if (listFirstMailEnabled && typeof window !== 'undefined') {
+                        writeMailScrollOffset(listScopeKey, offset, window.sessionStorage);
                       }
                     }}
                     onDragStart={() => {}}

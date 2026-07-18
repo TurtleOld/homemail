@@ -1696,6 +1696,31 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   }
 
+  async deleteDraft(accountId: string, draftId: string): Promise<void> {
+    const client = await this.getClient(accountId);
+    const session = await client.getSession();
+    const actualAccountId =
+      session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+    const emails = await client.getEmails([draftId], {
+      accountId: actualAccountId,
+      properties: ['id', 'keywords', 'mailboxIds'],
+    });
+
+    if (emails.length === 0) return;
+
+    const mailboxes = await client.getMailboxes(actualAccountId);
+    const draftsMailbox = mailboxes.find((mailbox) => mailbox.role === 'drafts');
+    const email = emails[0];
+    const isDraft = email.keywords?.['$draft'] === true ||
+      (draftsMailbox ? email.mailboxIds?.[draftsMailbox.id] === true : false);
+
+    if (!isDraft) {
+      throw new Error(`Refusing to destroy non-draft email ${draftId}`);
+    }
+
+    await client.destroyEmails([draftId], actualAccountId);
+  }
+
   async getAttachment(
     accountId: string,
     messageId: string,

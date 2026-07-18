@@ -178,6 +178,36 @@ describe('MessageList', () => {
     expect(expandButton.closest('article')).toHaveClass('min-h-12');
   });
 
+  it('restores and reports the conversation-list scroll offset', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const onScrollOffsetChange = vi.fn();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageList
+          messages={mockMessages}
+          selectedIds={new Set()}
+          onSelect={vi.fn()}
+          onSelectAll={vi.fn()}
+          onMessageClick={vi.fn()}
+          conversationView
+          initialScrollOffset={420}
+          onScrollOffsetChange={onScrollOffsetChange}
+        />
+      </QueryClientProvider>
+    );
+
+    const scrollRegion = document.querySelector<HTMLElement>('[data-message-list-scroll="conversation"]');
+    expect(scrollRegion).not.toBeNull();
+    expect(scrollRegion?.scrollTop).toBe(420);
+
+    if (scrollRegion) {
+      scrollRegion.scrollTop = 640;
+      fireEvent.scroll(scrollRegion);
+    }
+    expect(onScrollOffsetChange).toHaveBeenLastCalledWith(640);
+  });
+
   it('updates message rows when density changes', () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
