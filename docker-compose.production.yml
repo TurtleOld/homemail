@@ -29,7 +29,7 @@ services:
       start_period: 40s
 
   stalwart:
-    image: stalwartlabs/stalwart:latest
+    image: stalwartlabs/stalwart:v0.15.3@sha256:8c977e1dc736f0078179074aa97f46aca6b387692fec09352cf160e9f5010c9c
     container_name: homemail-stalwart
     restart: unless-stopped
     ports:
