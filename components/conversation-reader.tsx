@@ -2,10 +2,12 @@
 
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
+import { Forward, Reply, ReplyAll } from 'lucide-react';
 import type { MessageDetail, MessageThreadDetail } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
 import { MessageViewer } from '@/components/message-viewer';
+import { Button } from '@/components/ui/button';
 
 interface ConversationReaderProps {
   thread: MessageThreadDetail;
@@ -53,6 +55,7 @@ export function ConversationReader({
 }: ConversationReaderProps) {
   const t = useTranslations('conversationReader');
   const tCommon = useTranslations('common');
+  const tMessage = useTranslations('messageViewer');
   const localeSettings = useLocaleSettings();
   const messages = useMemo(() => {
     if (activeMessage.threadId && activeMessage.threadId !== thread.id) {
@@ -98,6 +101,7 @@ export function ConversationReader({
                   layout="list-first"
                   embedded
                   hideSubject
+                  showReplyActions={false}
                   onReply={onReply}
                   onReplyAll={onReplyAll}
                   onForward={onForward}
@@ -145,6 +149,50 @@ export function ConversationReader({
           );
         })}
       </div>
+
+      {!inlineComposer && onReply && (
+        <div
+          className="mail-panel-muted flex-shrink-0 border-t border-border px-4 py-3 max-md:px-3 max-md:pb-safe-bottom"
+          role="toolbar"
+          aria-label={t('replyActions')}
+        >
+          <div className="flex items-center justify-center gap-2 max-md:gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              onClick={onReply}
+              className="gap-1.5 px-5 font-medium max-md:min-h-[44px] max-md:flex-1"
+            >
+              <Reply className="h-4 w-4" aria-hidden="true" />
+              {tMessage('reply')}
+            </Button>
+            {activeMessage.to.length + (activeMessage.cc?.length || 0) > 1 && onReplyAll && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onReplyAll}
+                className="gap-1.5 px-3 max-md:min-h-[44px] max-md:flex-1"
+              >
+                <ReplyAll className="h-4 w-4" aria-hidden="true" />
+                <span className="max-md:sr-only">{tMessage('replyAll')}</span>
+              </Button>
+            )}
+            {onForward && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onForward}
+                className="gap-1.5 px-3 text-muted-foreground max-md:min-h-[44px] max-md:flex-1"
+              >
+                <Forward className="h-4 w-4" aria-hidden="true" />
+                <span className="max-md:sr-only">{tMessage('forward')}</span>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

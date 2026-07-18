@@ -7,9 +7,13 @@ vi.mock('next-intl', () => ({
   useLocale: () => 'en',
   useTranslations: () => (key: string, values?: Record<string, string | number>) => ({
     regionLabel: 'Conversation',
+    replyActions: 'Message actions',
     messageCount: `${values?.count} messages`,
     truncated: `Showing ${values?.count} of ${values?.total} messages.`,
     openMessage: `Open message from ${values?.sender}`,
+    reply: 'Reply',
+    replyAll: 'Reply all',
+    forward: 'Forward',
   })[key] || key,
 }));
 
@@ -18,8 +22,16 @@ vi.mock('@/lib/hooks', () => ({
 }));
 
 vi.mock('../message-viewer', () => ({
-  MessageViewer: ({ message }: { message: MessageDetail }) => (
-    <div data-testid="active-message">{message.id}</div>
+  MessageViewer: ({
+    message,
+    showReplyActions,
+  }: {
+    message: MessageDetail;
+    showReplyActions?: boolean;
+  }) => (
+    <div data-testid="active-message" data-reply-actions={String(showReplyActions)}>
+      {message.id}
+    </div>
   ),
 }));
 
@@ -100,5 +112,27 @@ describe('ConversationReader', () => {
     );
 
     expect(screen.getByTestId('active-message')).toHaveTextContent('message-0');
+  });
+
+  it('keeps reply actions visible outside the scrolling message content', () => {
+    const onReply = vi.fn();
+    render(
+      <ConversationReader
+        thread={thread}
+        activeMessage={activeMessage}
+        onActivateMessage={vi.fn()}
+        getMessageHref={(messageId) => `/en/mail/messages/${messageId}`}
+        onReply={onReply}
+        onReplyAll={vi.fn()}
+        onForward={vi.fn()}
+      />
+    );
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Message actions' });
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }));
+
+    expect(toolbar).toBeInTheDocument();
+    expect(onReply).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('active-message')).toHaveAttribute('data-reply-actions', 'false');
   });
 });

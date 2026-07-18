@@ -167,6 +167,7 @@
   },
   "conversationReader": {
     "regionLabel": "Переписка",
+    "replyActions": "Действия с письмом",
     "messageCount": "{count, plural, one {# письмо} few {# письма} many {# писем} other {# письма}}",
     "truncated": "Показано {count} из {total} писем.",
     "openMessage": "Открыть письмо от {sender}"

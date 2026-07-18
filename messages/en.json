@@ -167,6 +167,7 @@
   },
   "conversationReader": {
     "regionLabel": "Conversation",
+    "replyActions": "Message actions",
     "messageCount": "{count, plural, one {# message} other {# messages}}",
     "truncated": "Showing {count} of {total} messages.",
     "openMessage": "Open message from {sender}"
