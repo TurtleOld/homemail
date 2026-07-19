@@ -1,6 +1,6 @@
 # HomeMail redesign implementation log
 
-Status: Phase 0 through Phase 4 complete; Phase 5 not started
+Status: Phase 0 through Phase 4 complete; Phase 5 in progress
 
 Last updated: 2026-07-19
 
@@ -920,3 +920,33 @@ All four fixes passed `npx tsc --noEmit` and the full `npx vitest run --maxWorke
 ### Phase 4 decision
 
 Phase 4 is complete as of 2026-07-19. Both feature flags (`HOMEMAIL_FEATURE_PROTECTED_MESSAGE_CONTENT`, `HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING`) are enabled in production, real `cid:` and external images render correctly through the hardened proxy, and the four production-only defects above are fixed and deployed. `HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING=false` remains the no-redeploy emergency stop if a regression is found later. Phase 5 may begin behind its own disabled feature flags.
+
+## Phase 5: Deliver family identity and personal workspaces
+
+### Increment 1: Identity/mailbox-assignment persistence and explicit administrator bootstrap
+
+Before starting Phase 5, the two OIDC identity prerequisites Phase 1 recorded against trusting `(issuer, sub)` were closed on production Stalwart (see the "OIDC identity prerequisites closed" section above): an asymmetric ES256 signing key replacing the ephemeral HS256 key, and a corrected `mailclient` OAuth-client redirect-URI registration. Both were verified with real production evidence, including sign-in working after each change and JWKS persistence across a container restart.
+
+Phase 5 itself was scoped with the user into ordered increments before writing any code, per the brainstorming discipline this project follows for creative/architectural work. This increment covers only the first: persisted identity and mailbox-assignment records, and an explicit, non-first-login administrator bootstrap. It intentionally does not touch OIDC identity linking in the real login flow, Stalwart provisioning, activation/recovery, or any UI — those are later increments.
+
+#### Added
+
+- `HOMEMAIL_FEATURE_FAMILY_IDENTITY` runtime flag (ninth redesign flag), defaulting to disabled like every other flag; documented as `false` in `.env.production.example`.
+- `lib/family-identity-store.ts`: a versioned (`version: 1`), file-per-record-type store built directly on the existing `readStorage`/`writeStorage` primitives from `lib/storage.ts` — no new persistence technology was introduced. `homeIdentities` holds `HomeMailIdentity[]`; `mailboxAssignments` holds `MailboxAssignment[]`. Provides `listHomeMailIdentities`, `findIdentityByOidc`, `findAdministratorIdentity`, `bootstrapAdministratorIdentity`, and `listMailboxAssignmentsForMember`.
+- `bootstrapAdministratorIdentity` re-reads the identities file immediately before writing and re-checks both invariants (no existing administrator; no existing identity for that `(issuer, subject)` pair) against that fresh read, narrowing — though not eliminating, since the underlying file store has no locking or compare-and-swap — the window in which two concurrent bootstrap attempts could both create an administrator record. This limitation is recorded in the source, not hidden.
+- `lib/admin-bootstrap.ts`: `bootstrapAdministratorIfConfigured` takes only fields already produced by `validateOidcIdToken` (issuer, subject, email) plus an environment map, and creates the sole administrator identity only when `HOMEMAIL_BOOTSTRAP_ADMIN_EMAIL` is configured and case-insensitively equals the verified email claim. It is a pure consumer of already-validated OIDC output; it does not itself validate tokens or read request bodies, so there is no path for client-supplied input to influence which identity becomes administrator.
+- `HOMEMAIL_BOOTSTRAP_ADMIN_EMAIL` documented in `.env.production.example` (left blank there; must be set to `alexander.pavlov@pavlovteam.ru` before this bootstrap path is ever exercised against production, once a later increment wires it into the real callback).
+
+#### Verification performed
+
+- `npx tsc --noEmit`: passed.
+- Focused suite (`lib/__tests__/family-identity-store.test.ts`, `lib/__tests__/admin-bootstrap.test.ts`, `lib/__tests__/feature-flags.test.ts`): 14 tests passed, covering: first-administrator bootstrap and lookup by `(issuer, subject)`; rejection of a second administrator; rejection of an `(issuer, subject)` pair already registered to an existing non-administrator identity (seeded directly, since normal bootstrap calls never produce that state themselves); mailbox-assignment listing scoped to one member; persistence surviving a fresh module import (real file, not an in-memory cache); no bootstrap when the env var is unset; no bootstrap on an email mismatch; case-insensitive email matching; idempotency on a repeated matching sign-in; and no second administrator for a different verified identity that happens to share the configured email.
+- Full `npx vitest run --maxWorkers=1 --no-file-parallelism`: 42 files, 232 tests passed.
+- `npx eslint` over every new and changed file: passed without errors or warnings.
+
+#### Known limitations and next safe step
+
+- Nothing in this increment is wired into the real session, OAuth callback, or any API route. `HOMEMAIL_FEATURE_FAMILY_IDENTITY` and `HOMEMAIL_BOOTSTRAP_ADMIN_EMAIL` have no effect on current sign-in, mailbox access, or settings behavior yet.
+- The file-store bootstrap race window (two concurrent first-sign-ins) is narrowed, not eliminated, matching the storage layer's existing lack of file locking elsewhere in the project. This is acceptable for a single-administrator, low-concurrency bootstrap event but must not be assumed safe for higher-frequency writes in later Phase 5 work (mailbox assignments, activation/recovery) without revisiting concurrency.
+- No family record beyond the bootstrap administrator, no mailbox provisioning, no Stalwart mutation, no migration, and no activation/recovery flow exist yet — all remain future increments per ADR 0001/0003/0004/0005.
+- Next safe step: wire `validateOidcIdToken` and `bootstrapAdministratorIfConfigured` into the real OAuth callback behind `HOMEMAIL_FEATURE_FAMILY_IDENTITY`, still without switching session authorization away from the legacy adapter, and add integration tests proving the legacy login path is unaffected when the flag is disabled.

@@ -12,6 +12,7 @@ describe('redesign feature flags', () => {
       listFirstMail: false,
       protectedMessageContent: false,
       remoteImageFetching: false,
+      familyIdentity: false,
     });
   });
 
@@ -28,6 +29,7 @@ describe('redesign feature flags', () => {
     expect(isRedesignFeatureEnabled('listFirstMail', environment)).toBe(false);
     expect(isRedesignFeatureEnabled('protectedMessageContent', environment)).toBe(false);
     expect(isRedesignFeatureEnabled('remoteImageFetching', environment)).toBe(false);
+    expect(isRedesignFeatureEnabled('familyIdentity', environment)).toBe(false);
   });
 
   it('fails closed for malformed and truthy-looking values', () => {
@@ -40,6 +42,7 @@ describe('redesign feature flags', () => {
       HOMEMAIL_FEATURE_LIST_FIRST_MAIL: '1',
       HOMEMAIL_FEATURE_PROTECTED_MESSAGE_CONTENT: 'yes',
       HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING: 'on',
+      HOMEMAIL_FEATURE_FAMILY_IDENTITY: '1',
     })).toEqual({
       identityFoundation: false,
       authorizationPolicy: false,
@@ -49,6 +52,7 @@ describe('redesign feature flags', () => {
       listFirstMail: false,
       protectedMessageContent: false,
       remoteImageFetching: false,
+      familyIdentity: false,
     });
   });
 });
