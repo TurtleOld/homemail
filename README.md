@@ -13,6 +13,8 @@ docker compose -f docker-compose.production.yml up -d
 
 Подробнее в [DEPLOYMENT.md](./DEPLOYMENT.md)
 
+Настраиваете семейную идентификацию (Family/HomeMail administrator, Stalwart service credential) впервые? См. [docs/FAMILY-IDENTITY-FIRST-RUN.md](./docs/FAMILY-IDENTITY-FIRST-RUN.md).
+
 ## Технологии
 
 - **Next.js 16.x** (App Router) + React 19 + TypeScript
