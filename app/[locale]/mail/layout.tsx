@@ -1562,10 +1562,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                       </DropdownMenu>
                     </div>
                   ) : (
-                    <div className="flex min-w-0 flex-1 items-center gap-2 max-md:gap-1">
-                      <h2 className="mr-auto truncate px-1 text-sm font-semibold">
-                        {selectedFolder?.name || t('allMail')}
-                      </h2>
+                    <div className="flex min-w-0 flex-1 items-center justify-end gap-2 max-md:gap-1">
                       <QuickFilters
                         activeFilter={quickFilter}
                         onFilterChange={handleQuickFilterChange}
