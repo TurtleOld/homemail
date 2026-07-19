@@ -12,7 +12,7 @@ Stalwart 0.15.3's real REST Management API was queried directly (per ADR 0009) a
 
 ## Decision
 
-HomeMail gains a new, independent feature flag, `HOMEMAIL_FEATURE_STALWART_MONITORING`, defaulting to disabled like every other redesign flag. When enabled, every signed-in family member sees an identical, read-only "System status" view inside Settings — no role or scope restricts who can see it, consistent with ADR 0008.
+Unlike every other redesign capability in this project, this feature ships without a feature flag. It is read-only, cannot mutate any Stalwart or HomeMail state, and the worst failure mode is an incorrect or missing count on a Settings page — not a data-safety or rollback concern the flag discipline exists to guard against. The user explicitly chose a direct, always-on implementation over the project's usual gated-rollout pattern for this specific, narrow case. Every signed-in family member sees an identical, read-only "System status" view inside Settings — no role or scope restricts who can see it, consistent with ADR 0008.
 
 The first increment shows only what was directly confirmed against a real Stalwart 0.15.3 instance:
 

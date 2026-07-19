@@ -38,6 +38,11 @@ interface HealthStatus {
     responseTime?: number;
     error?: string;
   };
+  stalwart?: {
+    reachable: boolean;
+    queue: { total: number; hasEntries: boolean } | null;
+    reports: { total: number; hasEntries: boolean } | null;
+  };
   checks: {
     storage: boolean;
     mailProvider: boolean;
@@ -284,6 +289,35 @@ export function MonitoringDashboard() {
           </div>
         </div>
       </div>
+
+      {data.stalwart && (
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <MailIcon className="h-5 w-5 text-muted-foreground" />
+            <span className="font-medium">Почтовый сервер Stalwart</span>
+          </div>
+          {!data.stalwart.reachable ? (
+            <p className="text-sm text-muted-foreground">
+              Данные недоступны. Проверьте, что STALWART_ADMIN_API_KEY настроен и Stalwart отвечает.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Писем в очереди на отправку</span>
+                <span className={`font-medium ${data.stalwart.queue?.hasEntries ? 'text-yellow-600' : ''}`}>
+                  {data.stalwart.queue?.total ?? '—'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Отчётов в очереди (DMARC/TLS)</span>
+                <span className={`font-medium ${data.stalwart.reports?.hasEntries ? 'text-yellow-600' : ''}`}>
+                  {data.stalwart.reports?.total ?? '—'}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {data.alerts && data.alerts.length > 0 && (
         <div className="rounded-lg border border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 p-4">

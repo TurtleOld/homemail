@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getStalwartSystemStatus } from '@/lib/stalwart-monitoring';
 
 const lookup = promisify(dns.lookup);
 
@@ -13,7 +14,7 @@ interface ServerStatus {
   smtp: ServiceStatus;
   imapJmap: ServiceStatus;
   queueSize: number | null;
-  deliveryErrors: number | null;
+  reportBacklog: number | null;
   updatedAt: string;
 }
 
@@ -116,10 +117,16 @@ const resolveImapJmapStatus = async (accountId: string): Promise<ServiceStatus> 
   }
 };
 
-const resolveQueueStats = async (_accountId: string): Promise<{ queueSize: number | null; deliveryErrors: number | null }> => {
-  // OAuth-only mode: queue stats require admin credentials which are not available in OAuth mode
-  // This feature is disabled when using OAuth authentication
-  return { queueSize: null, deliveryErrors: null };
+const resolveQueueStats = async (): Promise<{ queueSize: number | null; reportBacklog: number | null }> => {
+  if (MAIL_PROVIDER !== 'stalwart') {
+    return { queueSize: null, reportBacklog: null };
+  }
+
+  const status = await getStalwartSystemStatus();
+  return {
+    queueSize: status.queue?.total ?? null,
+    reportBacklog: status.reports?.total ?? null,
+  };
 };
 
 export async function GET() {
@@ -131,14 +138,14 @@ export async function GET() {
   const [smtp, imapJmap, queueStats] = await Promise.all([
     resolveSmtpStatus(),
     resolveImapJmapStatus(session.accountId),
-    resolveQueueStats(session.accountId),
+    resolveQueueStats(),
   ]);
 
   const payload: ServerStatus = {
     smtp,
     imapJmap,
     queueSize: queueStats.queueSize,
-    deliveryErrors: queueStats.deliveryErrors,
+    reportBacklog: queueStats.reportBacklog,
     updatedAt: new Date().toISOString(),
   };
 

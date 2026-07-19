@@ -1058,3 +1058,30 @@ Given that, the design (`docs/adr/0010-read-only-stalwart-monitoring-in-settings
 
 - No monitoring code exists yet — this step covers the design decision and the adapter cleanup only.
 - Next safe step: implement `lib/stalwart-monitoring.ts` (queue/report count reads, `Authorization: Bearer ${STALWART_ADMIN_API_KEY}`, response parsing that checks the `error` field regardless of HTTP status per the confirmed Stalwart 0.15.3 behavior), a server-side API route requiring only a valid session (no role check, since none exists), and the Settings UI surface — all behind `HOMEMAIL_FEATURE_STALWART_MONITORING`, defaulting to disabled.
+
+### Increment: read-only Stalwart monitoring implemented — shipped without a feature flag (2026-07-19)
+
+Before implementation, the user reconsidered the flag decision recorded above: for this specific capability — read-only, unable to mutate any state, whose worst failure mode is a missing or wrong count on a Settings page — the user explicitly chose to ship directly rather than behind `HOMEMAIL_FEATURE_STALWART_MONITORING`. This departs from every other capability in this project, all of which shipped gated. ADR 0010 was updated in place to record this as the user's deliberate choice for this one case, not a new default; the flag itself was removed from `lib/feature-flags.ts` rather than left unused.
+
+#### Added
+
+- `lib/stalwart-monitoring.ts`: `getStalwartSystemStatus()` reads `GET /api/queue/messages` and `GET /api/queue/reports` from Stalwart, authenticating with `Authorization: Bearer ${STALWART_ADMIN_API_KEY}`. Parses only the confirmed `data.total` field; treats a response with an `error` field, a non-numeric `total`, a missing API key, or any network failure as `reachable: false` with `queue`/`reports` left `null` — this function never throws, so callers get a quiet unavailable state rather than an unhandled rejection.
+- `lib/monitoring.ts`: `HealthStatus` gained an optional `stalwart` field (`StalwartStatus`), populated only when `MAIL_PROVIDER === 'stalwart'`, alongside the existing storage/security/mail-provider checks in the same `Promise.all`.
+- `components/monitoring-dashboard.tsx`: a new "Почтовый сервер Stalwart" card, rendered only when `data.stalwart` is present (so non-Stalwart deployments see no change), showing the queue and report-backlog totals with a highlighted color when non-zero, or a quiet explanatory message when Stalwart is unreachable.
+- `app/api/mail/status/route.ts`: the pre-existing `resolveQueueStats` — previously a hardcoded stub returning `{ queueSize: null, deliveryErrors: null }` with a comment noting "queue stats require admin credentials which are not available in OAuth mode" — now calls `getStalwartSystemStatus()` for real data when `MAIL_PROVIDER === 'stalwart'`. Its `deliveryErrors` field was renamed to `reportBacklog` (and the matching type in `app/[locale]/mail/layout.tsx` updated) since it was actually mapped to the DMARC/TLS-RPT report backlog count, not delivery failures — the old name would have been misleading once real data started flowing through it.
+
+#### Verification performed
+
+- `npx tsc --noEmit`: passed.
+- `lib/__tests__/stalwart-monitoring.test.ts` (6 tests): missing API key short-circuits with no fetch call; successful parsing of both queue and report totals with the correct `Authorization` header and URL; an HTTP-200-with-`error`-body response is treated as a failure (matching the confirmed Stalwart 0.15.3 behavior); a response missing a numeric `total` is treated as a failure; a thrown network error is caught and reported as unreachable rather than propagating; the default base URL is used when `STALWART_BASE_URL` is unset.
+- `lib/__tests__/monitoring-stalwart-status.test.ts` (2 tests): `getHealthStatus` includes the `stalwart` field and calls `getStalwartSystemStatus` when `MAIL_PROVIDER=stalwart`; omits the field entirely and never calls it for a non-Stalwart provider.
+- `components/__tests__/monitoring-dashboard.test.tsx` (3 tests): the Stalwart card renders queue/report totals when reachable; renders the unavailable message (mentioning `STALWART_ADMIN_API_KEY`) when unreachable; does not render at all when the `stalwart` field is absent from the response.
+- Full `npx vitest run --maxWorkers=1 --no-file-parallelism`: 43 files, 231 tests passed.
+- `npx eslint .`: 0 errors; the same 11 pre-existing warnings in unrelated files remain.
+- UI verification: a real dev-server smoke test against production Stalwart was not performed, since `.env.local` points at the real `pavlovteam.ru` deployment and this feature ships unconditionally with no flag to isolate it; verification instead used the component test above with mocked fetch responses covering both the reachable and unreachable states, per an explicit operator decision to avoid exercising this new code path against production credentials in this session.
+
+#### Known limitations and next safe step
+
+- Per-item detail (which specific message is stuck, which report is pending and for which domain) is still deferred, per ADR 0010, until the real JSON shape can be confirmed against genuine queued data.
+- This feature has no feature flag; the only way to change its behavior post-deploy is a new release. This is an accepted, deliberate trade-off for this specific read-only, non-mutating capability — not the project's default going forward.
+- Next safe step: the operator should create the `STALWART_ADMIN_API_KEY` in Stalwart Web Admin per the scope described in ADR 0009/0010 (queue/report reads only, never `/api/settings/*`) and set it in production, then confirm the new Stalwart card in Settings → Monitoring renders real, non-mocked data before considering this capability fully verified end-to-end.

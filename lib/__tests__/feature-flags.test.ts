@@ -7,7 +7,6 @@ describe('redesign feature flags', () => {
       identityFoundation: false,
       authorizationPolicy: false,
       oidcIdentityValidation: false,
-      stalwartMonitoring: false,
       productShell: false,
       listFirstMail: false,
       protectedMessageContent: false,
@@ -24,7 +23,6 @@ describe('redesign feature flags', () => {
     expect(isRedesignFeatureEnabled('authorizationPolicy', environment)).toBe(true);
     expect(isRedesignFeatureEnabled('identityFoundation', environment)).toBe(false);
     expect(isRedesignFeatureEnabled('oidcIdentityValidation', environment)).toBe(false);
-    expect(isRedesignFeatureEnabled('stalwartMonitoring', environment)).toBe(false);
     expect(isRedesignFeatureEnabled('productShell', environment)).toBe(false);
     expect(isRedesignFeatureEnabled('listFirstMail', environment)).toBe(false);
     expect(isRedesignFeatureEnabled('protectedMessageContent', environment)).toBe(false);
@@ -36,7 +34,6 @@ describe('redesign feature flags', () => {
       HOMEMAIL_FEATURE_IDENTITY_FOUNDATION: '1',
       HOMEMAIL_FEATURE_AUTHORIZATION_POLICY: 'yes',
       HOMEMAIL_FEATURE_OIDC_IDENTITY_VALIDATION: 'enabled',
-      HOMEMAIL_FEATURE_STALWART_MONITORING: 'false',
       HOMEMAIL_FEATURE_PRODUCT_SHELL: 'on',
       HOMEMAIL_FEATURE_LIST_FIRST_MAIL: '1',
       HOMEMAIL_FEATURE_PROTECTED_MESSAGE_CONTENT: 'yes',
@@ -45,7 +42,6 @@ describe('redesign feature flags', () => {
       identityFoundation: false,
       authorizationPolicy: false,
       oidcIdentityValidation: false,
-      stalwartMonitoring: false,
       productShell: false,
       listFirstMail: false,
       protectedMessageContent: false,
