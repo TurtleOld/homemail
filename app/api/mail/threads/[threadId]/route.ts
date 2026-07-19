@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getRedesignFeatureFlags, isRedesignFeatureEnabled } from '@/lib/feature-flags';
+import { getRedesignFeatureFlags } from '@/lib/feature-flags';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { getSession } from '@/lib/session';
 import { protectMessageForDelivery } from '@/lib/protected-message-content';
@@ -17,10 +17,6 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ threadId: string }> }
 ) {
-  if (!isRedesignFeatureEnabled('listFirstMail')) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
-
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -73,7 +73,6 @@ export default async function LocaleLayout({
         </a>
         <NextIntlClientProvider messages={messages}>
           <Providers
-            listFirstMailEnabled={redesignFeatures.listFirstMail}
             protectedMessageContentEnabled={redesignFeatures.protectedMessageContent}
           >
             {children}

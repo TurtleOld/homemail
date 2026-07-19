@@ -61,7 +61,6 @@ import { useSwipeable } from 'react-swipeable';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { getMailViewport } from '@/lib/mail-responsive';
 import { getQuickFilterFolderRole } from '@/lib/quick-filter-utils';
-import { useListFirstMailEnabled } from '@/components/product-shell/shell-feature-context';
 import {
   buildMailListHref,
   buildMailMessageHref,
@@ -128,18 +127,15 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const searchParams = useSearchParams();
   const locale = params.locale as string;
   const t = useTranslations('layout');
-  const listFirstMailEnabled = useListFirstMailEnabled();
   const searchParamsValue = searchParams.toString();
   const initialUrlState = useMemo(
     () => parseMailListUrlState(new URLSearchParams(searchParamsValue)),
     [searchParamsValue]
   );
-  const routeMessageId = listFirstMailEnabled && typeof params.messageId === 'string'
-    ? params.messageId
-    : null;
+  const routeMessageId = typeof params.messageId === 'string' ? params.messageId : null;
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(
-    () => listFirstMailEnabled ? initialUrlState.folderId || 'inbox' : 'inbox'
+    () => initialUrlState.folderId || 'inbox'
   );
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(routeMessageId);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -154,11 +150,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   } | null>(null);
   const [forwardFrom, setForwardFrom] = useState<{ subject: string; body: string } | null>(null);
   const [composerMode, setComposerMode] = useState<'floating' | 'inline'>('floating');
-  const [searchQuery, setSearchQuery] = useState(
-    () => listFirstMailEnabled ? initialUrlState.search : ''
-  );
+  const [searchQuery, setSearchQuery] = useState(() => initialUrlState.search);
   const [quickFilter, setQuickFilter] = useState<QuickFilterType | undefined>(
-    () => listFirstMailEnabled ? initialUrlState.quickFilter : undefined
+    () => initialUrlState.quickFilter
   );
   const [filterGroup, setFilterGroup] = useState<FilterGroup | undefined>();
   const [allowRemoteImages, setAllowRemoteImages] = useState(false);
@@ -167,50 +161,28 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [loadedDraft, setLoadedDraft] = useState<Draft | null>(null);
   const openingDraftIdRef = useRef<string | null>(null);
-  const [messageListWidth, setMessageListWidth] = useState(() => {
-    if (typeof window === 'undefined') return 400;
-    const saved = window.localStorage.getItem('messageListWidth');
-    if (!saved) return 400;
-    const width = parseInt(saved, 10);
-    if (Number.isNaN(width)) return 400;
-    if (width < 360 || width > 640) return 400;
-    return width;
-  });
-  const [isResizing, setIsResizing] = useState(false);
-  const resizeStartRef = useRef({ pointerX: 0, width: 400 });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const listScrollPositionsRef = useRef(new Map<string, number>());
-  const [conversationView, setConversationView] = useState(() => {
-    if (listFirstMailEnabled) return initialUrlState.presentation === 'conversation';
-    if (typeof window === 'undefined') return false;
-    const saved = window.localStorage.getItem('conversationView');
-    return saved === 'true';
-  });
+  const [conversationView, setConversationView] = useState(
+    () => initialUrlState.presentation === 'conversation'
+  );
   const debouncedSearch = useDebounce(searchQuery, 400);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!listFirstMailEnabled) return;
     setSelectedMessageId(routeMessageId);
-  }, [listFirstMailEnabled, routeMessageId]);
+  }, [routeMessageId]);
 
   useEffect(() => {
-    if (!listFirstMailEnabled) return;
     const next = parseMailListUrlState(new URLSearchParams(searchParamsValue));
     setSelectedFolderId(next.folderId || 'inbox');
     setSearchQuery(next.search);
     setQuickFilter(next.quickFilter);
     setConversationView(next.presentation === 'conversation');
-  }, [listFirstMailEnabled, searchParamsValue]);
-
-  useEffect(() => {
-    if (!listFirstMailEnabled && typeof window !== 'undefined') {
-      window.localStorage.setItem('conversationView', conversationView.toString());
-    }
-  }, [conversationView, listFirstMailEnabled]);
+  }, [searchParamsValue]);
 
   useEffect(() => {
     const checkViewport = () => {
@@ -273,40 +245,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       Notification.requestPermission();
     }
   }, [settings?.notifications?.browser]);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    resizeStartRef.current = { pointerX: e.clientX, width: messageListWidth };
-    setIsResizing(true);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      const delta = e.clientX - resizeStartRef.current.pointerX;
-      const newWidth = Math.min(640, Math.max(360, resizeStartRef.current.width + delta));
-      setMessageListWidth(newWidth);
-      localStorage.setItem('messageListWidth', newWidth.toString());
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-  }, [isResizing]);
 
   const { data: account } = useQuery<Account>({
     queryKey: ['account'],
@@ -498,20 +436,16 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const navigateToList = useCallback((state: MailListUrlState = currentMailUrlState) => {
     setSelectedMessageId(null);
     setSelectedIds(new Set());
-    if (listFirstMailEnabled) {
-      router.push(buildMailListHref(locale, state));
-    }
-  }, [currentMailUrlState, listFirstMailEnabled, locale, router]);
+    router.push(buildMailListHref(locale, state));
+  }, [currentMailUrlState, locale, router]);
 
   const navigateToMessage = useCallback((messageId: string) => {
     setSelectedMessageId(messageId);
-    if (listFirstMailEnabled) {
-      router.push(buildMailMessageHref(locale, messageId, currentMailUrlState));
-    }
-  }, [currentMailUrlState, listFirstMailEnabled, locale, router]);
+    router.push(buildMailMessageHref(locale, messageId, currentMailUrlState));
+  }, [currentMailUrlState, locale, router]);
 
   useEffect(() => {
-    if (!listFirstMailEnabled || debouncedSearch === initialUrlState.search) return;
+    if (debouncedSearch === initialUrlState.search) return;
     const nextState = { ...currentMailUrlState, search: debouncedSearch };
     const href = selectedMessageId
       ? buildMailMessageHref(locale, selectedMessageId, nextState)
@@ -521,7 +455,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     currentMailUrlState,
     debouncedSearch,
     initialUrlState.search,
-    listFirstMailEnabled,
     locale,
     router,
     selectedMessageId,
@@ -571,10 +504,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       }
       return res.json();
     },
-    enabled:
-      listFirstMailEnabled &&
-      conversationView &&
-      !!selectedMessage?.threadId,
+    enabled: conversationView && !!selectedMessage?.threadId,
     retry: 1,
   });
 
@@ -1082,11 +1012,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const handleFolderSelect = (id: string) => {
     setSelectedFolderId(id);
     setSelectedIds(new Set());
-    if (listFirstMailEnabled) {
-      navigateToList({ ...currentMailUrlState, folderId: id });
-    } else {
-      setSelectedMessageId(null);
-    }
+    navigateToList({ ...currentMailUrlState, folderId: id });
     if (isMobile || isTablet) setSidebarOpen(false);
   };
 
@@ -1104,13 +1030,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
 
     setQuickFilter(filter);
     setFilterGroup(undefined);
-    if (listFirstMailEnabled) {
-      navigateToList({
-        ...currentMailUrlState,
-        folderId: nextFolderId,
-        quickFilter: filter,
-      });
-    }
+    navigateToList({
+      ...currentMailUrlState,
+      folderId: nextFolderId,
+      quickFilter: filter,
+    });
     if (isMobile || isTablet) setSidebarOpen(false);
   };
 
@@ -1133,16 +1057,14 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const handlePresentationChange = () => {
     const nextConversationView = !conversationView;
     setConversationView(nextConversationView);
-    if (listFirstMailEnabled) {
-      const nextState: MailListUrlState = {
-        ...currentMailUrlState,
-        presentation: nextConversationView ? 'conversation' : 'flat',
-      };
-      const href = selectedMessageId
-        ? buildMailMessageHref(locale, selectedMessageId, nextState)
-        : buildMailListHref(locale, nextState);
-      router.replace(href, { scroll: false });
-    }
+    const nextState: MailListUrlState = {
+      ...currentMailUrlState,
+      presentation: nextConversationView ? 'conversation' : 'flat',
+    };
+    const href = selectedMessageId
+      ? buildMailMessageHref(locale, selectedMessageId, nextState)
+      : buildMailListHref(locale, nextState);
+    router.replace(href, { scroll: false });
   };
 
   const selectedFolder = useMemo(
@@ -1394,7 +1316,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   await queryClient.invalidateQueries({ queryKey: ['folders'] });
                   await refetchFolders();
                 }}
-                layout={listFirstMailEnabled ? 'list-first' : 'legacy'}
+                layout="list-first"
               />
             </div>
           </>
@@ -1413,7 +1335,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   <Menu className="h-5 w-5" />
                 </Button>
               )}
-              {listFirstMailEnabled && selectedMessageId && !isMobile && (
+              {selectedMessageId && !isMobile && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1429,9 +1351,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 <p className="truncate text-sm font-semibold text-foreground">
                   {selectedFolder?.name || t('allMail')}
                 </p>
-                {!listFirstMailEnabled && (
-                  <p className="text-xs text-muted-foreground">{t('searchAllMail')}</p>
-                )}
               </div>
               <SearchBar
                 value={searchQuery}
@@ -1439,9 +1358,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 onFilterChange={(nextQuickFilter, nextFilterGroup) => {
                   setQuickFilter(nextQuickFilter);
                   setFilterGroup(nextFilterGroup);
-                  if (listFirstMailEnabled) {
-                    navigateToList({ ...currentMailUrlState, quickFilter: nextQuickFilter });
-                  }
+                  navigateToList({ ...currentMailUrlState, quickFilter: nextQuickFilter });
                 }}
                 placeholder={t('searchPlaceholder')}
                 className="mx-auto w-full max-w-2xl"
@@ -1476,18 +1393,9 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             </div>
           )}
           <div className="flex min-h-0 flex-1 overflow-hidden">
-            {(listFirstMailEnabled ? !selectedMessageId : !(isMobile && selectedMessageId)) && (
+            {!selectedMessageId && (
               <div
-                className={`relative flex flex-col ${
-                  listFirstMailEnabled
-                    ? 'min-w-0 flex-1 overflow-hidden'
-                    : `flex-shrink-0 border-r border-border ${isMobile ? 'w-full' : 'overflow-hidden'}`
-                }`}
-                style={
-                  !listFirstMailEnabled && !isMobile
-                    ? { width: isTablet ? 'clamp(340px, 44vw, 400px)' : `${messageListWidth}px` }
-                    : {}
-                }
+                className="relative flex min-w-0 flex-1 flex-col overflow-hidden"
                 suppressHydrationWarning
                 {...(isMobile ? swipeHandlers : {})}
               >
@@ -1686,7 +1594,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     conversationView={conversationView}
                     density={settings?.ui?.density || 'comfortable'}
                     groupBy={settings?.ui?.groupBy || 'none'}
-                    layout={listFirstMailEnabled ? 'list-first' : 'legacy'}
+                    layout="list-first"
                     onClearSelection={() => {
                       setSelectedIds(new Set());
                       setAllMessagesSelected(false);
@@ -1718,7 +1626,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     isSelectingAllInFolder={isSelectingAllInFolder}
                     allMessagesSelected={allMessagesSelected}
                     onMessageClick={handleMessageClick}
-                    getMessageHref={listFirstMailEnabled && selectedFolder?.role !== 'drafts'
+                    getMessageHref={selectedFolder?.role !== 'drafts'
                       ? (message) => buildMailMessageHref(locale, message.id, currentMailUrlState)
                       : undefined}
                     onMessageDoubleClick={handleMessageDoubleClick}
@@ -1733,23 +1641,23 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     onRetry={() => void refetchMessages()}
                     initialTopMostItemIndex={
                       listScrollPositionsRef.current.get(listScopeKey)
-                      ?? (listFirstMailEnabled && typeof window !== 'undefined'
+                      ?? (typeof window !== 'undefined'
                         ? readMailScrollPosition(listScopeKey, window.sessionStorage)
                         : 0)
                     }
                     onTopMostItemChange={(index) => {
                       listScrollPositionsRef.current.set(listScopeKey, index);
-                      if (listFirstMailEnabled && typeof window !== 'undefined') {
+                      if (typeof window !== 'undefined') {
                         writeMailScrollPosition(listScopeKey, index, window.sessionStorage);
                       }
                     }}
                     initialScrollOffset={
-                      listFirstMailEnabled && typeof window !== 'undefined'
+                      typeof window !== 'undefined'
                         ? readMailScrollOffset(listScopeKey, window.sessionStorage)
                         : 0
                     }
                     onScrollOffsetChange={(offset) => {
-                      if (listFirstMailEnabled && typeof window !== 'undefined') {
+                      if (typeof window !== 'undefined') {
                         writeMailScrollOffset(listScopeKey, offset, window.sessionStorage);
                       }
                     }}
@@ -1758,15 +1666,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </div>
             )}
-            {!listFirstMailEnabled && !isMobile && (
-              <div
-                className="group relative hidden w-1 flex-shrink-0 cursor-col-resize bg-transparent transition-colors lg:block"
-                onMouseDown={handleMouseDown}
-              >
-                <div className="absolute inset-y-8 left-1/2 w-px -translate-x-1/2 rounded-full bg-border/45 opacity-70 group-hover:bg-border group-hover:opacity-100" />
-              </div>
-            )}
-            {(listFirstMailEnabled ? !!selectedMessageId : !isMobile || !!selectedMessageId) && (
+            {!!selectedMessageId && (
               <div
                 className={`
               flex-1 min-w-0
@@ -1793,7 +1693,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     </span>
                   </div>
                 )}
-                {listFirstMailEnabled && conversationView && selectedMessage && selectedThread ? (
+                {conversationView && selectedMessage && selectedThread ? (
                   <ConversationReader
                     thread={selectedThread}
                     activeMessage={selectedMessage}
@@ -1829,8 +1729,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   hasSelection={!!selectedMessageId}
                   error={messageError}
                   isMobile={isMobile}
-                  layout={listFirstMailEnabled ? 'list-first' : 'legacy'}
-                  onBack={listFirstMailEnabled ? navigateToList : undefined}
+                  layout="list-first"
+                  onBack={navigateToList}
                   inlineComposer={inlineReplyComposer}
                 />
                 )}

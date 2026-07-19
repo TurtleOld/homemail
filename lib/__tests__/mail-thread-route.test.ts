@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
-  featureEnabled: vi.fn(),
   getFeatureFlags: vi.fn(),
   getSession: vi.fn(),
   getThread: vi.fn(),
@@ -12,7 +11,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/feature-flags', () => ({
-  isRedesignFeatureEnabled: mocks.featureEnabled,
   getRedesignFeatureFlags: mocks.getFeatureFlags,
 }));
 
@@ -39,7 +37,6 @@ describe('mail thread route', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     process.env.MAIL_PROVIDER = 'stalwart';
-    mocks.featureEnabled.mockReturnValue(true);
     mocks.getFeatureFlags.mockReturnValue({ protectedMessageContent: false, remoteImageFetching: false });
     mocks.getSession.mockResolvedValue({ accountId: 'current-account' });
     mocks.getThread.mockResolvedValue({
@@ -49,16 +46,6 @@ describe('mail thread route', () => {
       truncated: false,
     });
     mocks.getMailProviderForAccount.mockReturnValue({ getThread: mocks.getThread });
-  });
-
-  it('is unavailable before authentication when the list-first flag is disabled', async () => {
-    mocks.featureEnabled.mockReturnValue(false);
-
-    const response = await GET(request(), { params: Promise.resolve({ threadId: 'thread-1' }) });
-
-    expect(response.status).toBe(404);
-    expect(mocks.getSession).not.toHaveBeenCalled();
-    expect(mocks.getThread).not.toHaveBeenCalled();
   });
 
   it('requires an authenticated session', async () => {

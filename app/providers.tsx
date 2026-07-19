@@ -2,7 +2,6 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
 import { Toaster } from '@/components/ui/toast';
 import { PerformanceReporter } from '@/components/performance-reporter';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -12,11 +11,9 @@ import { RouteAwareShell } from '@/components/product-shell/route-aware-shell';
 
 export function Providers({
   children,
-  listFirstMailEnabled = false,
   protectedMessageContentEnabled = false,
 }: {
   children: React.ReactNode;
-  listFirstMailEnabled?: boolean;
   protectedMessageContentEnabled?: boolean;
 }) {
   const [queryClient] = useState(
@@ -30,7 +27,6 @@ export function Providers({
         },
       })
   );
-  const pathname = usePathname();
 
   useEffect(() => {
     const handleSettingsChange = (event: StorageEvent) => {
@@ -145,11 +141,10 @@ export function Providers({
       removeSystemListener?.();
       window.removeEventListener('homemail-theme-change', handleThemeChange);
     };
-  }, [pathname]);
+  }, []);
 
   return (
     <ProductShellFeatureProvider
-      listFirstMailEnabled={listFirstMailEnabled}
       protectedMessageContentEnabled={protectedMessageContentEnabled}
     >
       <QueryClientProvider client={queryClient}>
