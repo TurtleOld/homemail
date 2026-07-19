@@ -1,6 +1,6 @@
 # HomeMail redesign implementation log
 
-Status: Phase 0 through Phase 4 complete; Phase 5 in progress
+Status: Phase 0 through Phase 5 complete (Phase 5 against a scope narrowed mid-phase by ADR 0008/0009 — see "Phase 5 decision" for what changed and why); Phase 6 not started
 
 Last updated: 2026-07-19
 
@@ -1091,3 +1091,18 @@ Before implementation, the user reconsidered the flag decision recorded above: f
 The operator created the `STALWART_ADMIN_API_KEY` in Stalwart Web Admin manually, with no assigned role, and explicit per-permission grants (`Authenticate`, `View message queue`, `Retrieve specific messages from the queue`, `View outgoing DMARC and TLS reports`), leaving every other permission at its `Default` (role-inherited, effectively off with no role assigned) value — matching ADR 0009/0010's requirement to scope this key narrowly and never grant `/api/settings/*` or any mutation permission.
 
 With the key configured in production, the Settings → Monitoring page rendered real, non-mocked data: an empty outbound queue (`0`) and a non-empty report backlog (`5`, shown in the highlighted/warning color the component applies when `hasEntries` is true). This is the first real end-to-end confirmation of the feature against live Stalwart data, following the component-test-only verification recorded above. The `total` field shape assumed by `lib/stalwart-monitoring.ts` is now confirmed correct against production, not just the dev instance queried during ADR 0009's investigation.
+
+### Phase 5 decision
+
+Phase 5 is complete as of 2026-07-19, against a scope the user deliberately narrowed mid-phase rather than the scope the original Phase 5 prompt (`docs/MAIL-REDESIGN-PHASE-PROMPTS.md`) described. That prompt's exit gate — "identities and assignments validate explicitly, prior access is preserved or restorable, API authorization tests pass, and application/data rollback is rehearsed" — was written for a role-based, HomeMail-driven-provisioning product shape that ADR 0008 and ADR 0009 explicitly rejected partway through this phase. It is recorded here rather than silently reinterpreted, so a future reader comparing this log against the original prompt understands why the two don't match line for line.
+
+What was actually delivered, and why it constitutes a legitimate, deliberately-chosen completion of Phase 5 rather than an abandonment of it:
+
+- **Identity persistence exists and is tested** (`lib/family-identity-store.ts`: `createIdentity`, `findIdentityByOidc`, `listMailboxAssignmentsForMember`), keyed by verified `(issuer, subject)` per ADR 0001, with no role field per ADR 0008. It has no wired consumer yet, honestly recorded as such rather than claimed as "in use."
+- **The two production OIDC blockers Phase 1 left open are closed with real evidence**: Stalwart's signing key is now a persistent asymmetric ES256 key (verified stable across a container restart), and the `mailclient` OAuth client registration matches HomeMail's actual redirect URI. Both were confirmed working with real production sign-ins.
+- **HomeMail never administers Stalwart** (ADR 0009) — a deliberate, permanent product-scope decision, not a deferred capability. Family member and mailbox lifecycle remains a direct, unmediated Stalwart Web Admin responsibility. This is why no provisioning, activation link, or recovery link code exists: ADR 0003 and ADR 0004, which specified that code, are formally superseded by ADR 0009 and marked as such in place.
+- **A real, narrowly-scoped, production-verified capability shipped**: read-only Stalwart queue/report monitoring (ADR 0010), authenticated with a `STALWART_ADMIN_API_KEY` granted only `Authenticate`, `View message queue`, `Retrieve specific messages from the queue`, and `View outgoing DMARC and TLS reports` — confirmed against real production data immediately above.
+- **No mutation capability was ever wired to anything**: `lib/stalwart-admin-adapter.ts`'s mutation contract (`principal.create/update/suspend/delete`, `mailbox.create`, `credential.update`, `oauth.revoke`) was removed once confirmed to have no planned consumer, rather than left as unused scaffolding — the same discipline ADR 0008 applied to the removed role.
+- **Legacy access and rollback compatibility were never put at risk**: every increment in this phase was additive or flag-gated (except the monitoring feature, shipped without a flag by explicit user choice since it is read-only and non-mutating per ADR 0010); no existing session, login path, or stored data format was changed or removed. The existing basic/OAuth login flow, mailbox access, and settings behavior are unchanged from before this phase began.
+
+What was not built, and is not planned under the current scope: family-member/mailbox provisioning from HomeMail, activation and recovery link state machines, member/mailbox/instance-scoped settings UI beyond what already existed, and any HomeMail-internal role or permission concept. Any future work in these areas requires a fresh ADR revisiting ADR 0008/0009, not an assumption that Phase 5's original prompt still describes the intended product.
