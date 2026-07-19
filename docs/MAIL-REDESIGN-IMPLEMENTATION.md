@@ -1,8 +1,8 @@
 # HomeMail redesign implementation log
 
-Status: Phase 0, Phase 1, and Phase 2 complete; Phase 3 in progress
+Status: Phase 0 through Phase 4 complete; Phase 5 not started
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 This log records implementation evidence for `docs/MAIL-REDESIGN-PLAN.md`. It does not replace `CONTEXT.md` or the accepted ADRs.
 
@@ -784,3 +784,128 @@ The first Playwright attempt used the Next development server and caused excessi
 ### Next safe step
 
 Keep every identity/authorization flag and `HOMEMAIL_FEATURE_LIST_FIRST_MAIL` disabled. Prepare a short manual browser checklist for the operator and use only sequential unit/static checks for any follow-up. Do not enable the list-first flag in production or close Phase 3 until that checklist passes with real mailbox data, including a multi-message thread and composer workflows, and the legacy flag-off fallback is reconfirmed.
+
+### Production acceptance and Phase 3 decision (2026-07-18)
+
+The operator completed the production checklist and accepted the list-first workspace. Follow-up acceptance defects were corrected before closure: conversation-list pixel scroll restoration, compact inline forward with focus and collapsed quoted content, permanent removal of a successfully sent saved draft instead of moving it to Deleted Items, settings localization gaps, and duplicate Inbox presentation. The final acceptance fixes are recorded in commit `94d9c2b`.
+
+The operator explicitly confirmed Phase 3 closure and authorized Phase 4. The list-first feature remains independently reversible through `HOMEMAIL_FEATURE_LIST_FIRST_MAIL`; no message or settings data conversion is required to disable it.
+
+## Phase 4: Deliver protected message content
+
+### Implemented locally so far
+
+- Added `HOMEMAIL_FEATURE_PROTECTED_MESSAGE_CONTENT` and the independent remote-fetch kill switch `HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING`. Both fail closed and default to `false`.
+- Added short-lived HMAC-signed internal image resource tokens. Tokens bind resource kind, current mailbox account, message, attachment or external URL, version, and expiry. The resource route also requires the current authenticated session to match the token mailbox.
+- Extended JMAP attachment mapping with inline disposition and normalized Content-ID metadata. Sanitized `cid:` image sources now resolve to authenticated HomeMail attachment resources rather than browser schemes.
+- Added server-side HTML sanitization and image-source rewriting on both single-message and conversation responses. External image sources become signed same-origin HomeMail paths only when the remote-fetch flag is enabled; otherwise they are removed by the existing blocked-image sanitizer path.
+- Added a protected iframe CSP (`img-src 'self' data:`) and `no-referrer` policy. In protected mode the legacy local opt-in cannot re-enable direct sender URLs. The existing image-banner implementation has not been deleted.
+- Added a dedicated fetcher that accepts only HTTP and HTTPS without embedded credentials, resolves all IPv4 and IPv6 answers fail-closed, rejects non-public and metadata ranges, pins the validated address through the HTTP client's lookup callback, disables connection pooling, verifies the connected socket's actual remote address, and repeats validation for every redirect hop.
+- Added a four-hop redirect limit, eight-second total deadline, eight-MiB response limit, six-request concurrency boundary, bounded wait queue, account-and-client-IP route rate limit, fixed non-identifying request headers, and no forwarding of cookies, authorization, client IP, or referrer.
+- Added strict JPEG, PNG, GIF, WebP, and AVIF header/content agreement. SVG, HTML, unknown content, MIME spoofing, and mismatches fail closed.
+- Added a disposable in-memory URL-hash cache with ten-minute TTL, 128-entry limit, and 32-MiB total byte limit. Cache entries contain validated image bytes only and are separate from HomeMail and Stalwart state.
+- Added redacted structured events containing a short token hash, outcome, resource kind, and cache result. Full sender URLs are not logged. A pre-existing provider log that exposed a Stalwart blob download URL was removed.
+- Every route refusal and fetch failure returns a same-origin one-pixel PNG placeholder with `private, no-store`, `nosniff`, same-origin resource policy, and no direct-browser fallback.
+
+### Resource-path trace
+
+External path: provider message HTML -> authenticated message or thread route -> sanitizer -> signed same-origin resource URL -> client sanitizer -> isolated iframe CSP -> authenticated resource route -> token and mailbox check -> rate/concurrency boundary -> fail-closed DNS validation -> pinned HTTP/TLS connection -> redirect-hop validation -> byte and MIME validation -> disposable cache -> private image response.
+
+Inline path: JMAP `bodyStructure` Content-ID and blob ID -> provider attachment metadata -> authenticated message or thread route -> signed same-origin cid resource -> isolated iframe -> authenticated resource route -> token and mailbox check -> provider `getAttachment(accountId, messageId, blobId)` -> size and MIME/content validation -> private image response.
+
+No protected rendering path emits a sender-controlled image URL to the iframe. Link navigation remains separate from image delivery and retains the existing sanitized external-link behavior.
+
+### Proxy test matrix
+
+| Case | Result |
+| --- | --- |
+| Missing, malformed, expired, tampered, or cross-mailbox token | Closed with placeholder |
+| Protected path or remote fetching disabled | Closed with placeholder; message access remains available |
+| Loopback, RFC1918, carrier NAT, link-local, metadata, benchmark, documentation, multicast, reserved IPv4 | Rejected before transport |
+| Unspecified, loopback, mapped private IPv4, unique-local, link-local, site-local, documentation, transition, multicast IPv6 | Rejected before transport |
+| DNS failure, empty answer, or mixed public/private answers | Rejected fail-closed |
+| DNS rebinding attempt | Transport receives only the validated pinned address |
+| Redirect to metadata/private destination | Redirect rejected before the second transport call |
+| Redirect loop or excessive redirects | Rejected at the four-hop boundary |
+| MIME spoofing or unsupported content | Rejected by declared-type and magic-byte agreement |
+| Oversized response | Rejected at the eight-MiB boundary |
+| Timeout | Closed with placeholder |
+| Cache key collision/poisoning attempt using a different URL | Separate SHA-256 cache entry |
+| Protected iframe with a raw sender image and legacy allow-images prop | Sender URL removed; CSP permits only same-origin/data images |
+
+The adversarial cases use deterministic controlled resolver and HTTP-hop fixtures. They do not require production connectivity or permit a test server to bypass the same private-address policy being tested.
+
+### Verification performed
+
+- `npx tsc --noEmit`: passed.
+- Focused protected-content, route, thread, and reader suite: 5 files and 29 tests passed.
+- Full `npm test -- --maxWorkers=1 --no-file-parallelism`: 38 files and 214 tests passed.
+- Focused ESLint over every changed runtime and test module: passed without errors or warnings.
+- `npm run build`: passed with Next.js 16.1.5. The first sandboxed attempt failed only because Turbopack could not create its PostCSS helper process/port; the permitted production build completed successfully outside that restriction and includes `/api/mail/resources/image/[token]`.
+
+### Defects found and corrected
+
+- The legacy manual image opt-in allowed direct browser requests to sender hosts. Protected mode now ignores that direct-loading state and enforces a same-origin image CSP.
+- `lib/url-validator.ts` performs IPv4-only checks, can continue after DNS failure, and does not pin or revalidate redirects. It remains unchanged for existing callers and is not used by protected image delivery.
+- The attachment model discarded Content-ID and omitted unnamed inline parts. The provider now retains both inline disposition and Content-ID.
+- Attachment diagnostics logged the complete Stalwart blob download URL. That log now records only that a URL was obtained.
+- The initial cache bound counted entries but not aggregate bytes. A 32-MiB total byte boundary was added.
+- Redirect responses initially consumed their bodies before validation. The transport now discards redirect bodies immediately and validates the next hop first.
+
+### Current limitations and next safe step
+
+- The cache, concurrency limiter, queue, and rate limiter are process-local. This is safe and disposable but limits are per HomeMail worker rather than globally coordinated. A multi-replica deployment would require an isolated shared limiter/cache or an enforced single-worker boundary.
+- Docker currently gives HomeMail general outbound connectivity. Application-layer destination pinning is the enforced boundary; a separate egress firewall is defense in depth and has not been added to the repository or the separately managed production Compose deployment.
+- The proxy deliberately supports only JPEG, PNG, GIF, WebP, and AVIF. Other image formats fail closed.
+- Automatic images and removal of the legacy banner are not yet accepted. First deploy with both flags false, then enable protected content plus remote fetching only for controlled synthetic messages. Inspect browser network requests and redacted rejection logs. Keep `HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING=false` as the no-redeploy emergency stop.
+
+### Disposable full-stack `cid:` contract verification (2026-07-18)
+
+The real Stalwart Content-ID/blob contract that Phase 4 depended on was proved end-to-end, closing the last local gate before production acceptance.
+
+#### Disposable stack
+
+- Started an isolated Stalwart 0.15.3 container (`stalwartlabs/stalwart:v0.15.3@sha256:8c977e1dc736f0078179074aa97f46aca6b387692fec09352cf160e9f5010c9c`) with a dedicated Docker volume mounted at the real `/opt/stalwart` entrypoint path, on a network with no external egress (`Internal=true`).
+- The container reported runtime version `0.15.3` after a fresh first-boot configuration write; it generated its own one-time administrator credential, which was used only to provision the synthetic principal below and was not reused or persisted anywhere.
+- Created a synthetic `test.local` domain and a synthetic principal named with its full email address (`phase4b@test.local`, matching how HomeMail's basic-auth login sends the JMAP username) with a generated password and the minimal `user` role required for SMTP submission and JMAP access.
+- Sent a synthetic multipart/related message over authenticated SMTP submission containing one inline `image/png` part with `Content-Disposition: inline` and `Content-ID: <test-inline-image@phase4>`, referenced from the HTML body as `<img src="cid:test-inline-image@phase4">`, plus a second `<img src="https://example.com/tracker.png">` for the external-image path.
+- Queried the raw JMAP `Email/get` response directly (bypassing HomeMail) to confirm Stalwart 0.15.5's real `bodyStructure` shape before testing the app: the inline part reports `disposition: "inline"`, `cid: "test-inline-image@phase4"` (already unwrapped, no angle brackets), and a `blobId`. This exactly matches the provider's existing assumptions (`attachment.id = part.blobId`, `attachment.contentId = part.cid`) with no code change required for the mapping itself.
+- Built the HomeMail application in a separate container attached first to a normal network (for `npm ci`, since the isolated Stalwart network has no DNS/registry egress by design) and then run attached only to the isolated Stalwart network, with `HOMEMAIL_FEATURE_PROTECTED_MESSAGE_CONTENT=true`, `HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING=true`, and (for the thread check) `HOMEMAIL_FEATURE_LIST_FIRST_MAIL=true`, using disposable signing secrets generated only for this run.
+
+#### Defect found and fixed: real accountId storage keys were rejected
+
+Standing up the real flow surfaced a defect unrelated to the Phase 4 image work but severe enough to block every mailbox: `GET /api/mail/messages` failed with `Invalid storage key` for the synthetic account, and the same failure reproduces for any real email-shaped `accountId`, including the existing production account `admin@rem.ru`.
+
+- `STORAGE_KEY_RE` in `lib/storage.ts` was tightened during the March storage-hardening commit (`add33f1`) to `^[a-zA-Z0-9_\-:]{1,256}$`, which silently excludes `@` and `.`. Dozens of routes (`mail/messages`, `mail/messages/[id]`, `mail/messages/[id]/labels`, `mail/statistics`, `mail/labels`, `mail/templates`, `contacts`, `contacts/groups`, `subscriptions`, `settings/hotkeys`, `push/subscribe`, backup) key `readStorage`/`writeStorage` calls with `` `prefix:${session.accountId}` ``, and `session.accountId` is a real email address in the current basic-auth login path.
+- Before the March hardening, `readStorage`/`writeStorage` applied no validation and only replaced `:` with `_`, so `@` and `.` already reached existing on-disk filenames unescaped. The fix widens `STORAGE_KEY_RE` to allow `@` and `.` (rejecting `..` explicitly, since a lone `.` is otherwise permitted) and leaves the `:`→`_` filename encoding unchanged, so it is compatible with any file created either before or after the March hardening; it does not change the on-disk filename for any existing key shape.
+- Added `lib/__tests__/storage-key.test.ts`: an email-shaped key now round-trips through `writeStorage`/`readStorage`; a key containing `..` or `/` is still rejected; and a key matching the pre-existing on-disk filename convention is verified against the literal file written to disk.
+- `npx tsc --noEmit` and the full `npx vitest run --maxWorkers=1 --no-file-parallelism` (39 files, 218 tests, including the 4 new storage tests) passed after the fix. This defect and fix are orthogonal to the protected-image feature flags and required no change to `protected-message-content.ts`, `protected-image-fetcher.ts`, or the resource route.
+
+#### Confirmed end-to-end evidence
+
+- `GET /api/mail/messages?folderId=inbox` returned the synthetic message with `hasAttachments: true` once the storage fix was applied.
+- `GET /api/mail/messages/{id}` returned a `body.html` with both the `cid:` and the `https://` image sources rewritten to signed same-origin `/api/mail/resources/image/{token}` paths, and an `attachments` entry with the real Stalwart `blobId` as `id`, `contentId: "test-inline-image@phase4"`, and `disposition: "inline"`.
+- `GET /api/mail/threads/{threadId}` (list-first flag enabled) applied the identical protection and rewriting to the conversation-reader response built from the same real message.
+- Fetching the signed `cid` resource URL returned HTTP 200, `X-HomeMail-Image-Status: ok`, `Content-Type: image/png`, `Content-Length: 66`, and the exact 66-byte PNG payload originally sent (verified byte-for-byte against the source PNG's magic bytes and IDAT/IEND structure). This is the real `provider.getAttachment(accountId, messageId, blobId)` path against a live Stalwart blob download, not a fixture.
+- Fetching the signed external-image resource URL on the egress-isolated network returned HTTP 200 with `X-HomeMail-Image-Status: placeholder` and the quiet one-pixel PNG, `private, no-store` — the expected fail-closed behavior for a destination the fetcher cannot reach, with no direct-browser fallback.
+- A tampered token (one flipped character) returned the identical placeholder response.
+- Application logs for both the successful `cid` fetch and the rejected external fetch contained only redacted event records (`event`, truncated `tokenId` hash, `cache`/`reason`); no full sender URL or token was logged.
+
+#### Disposal
+
+All disposable resources were removed after evidence collection: the Stalwart and HomeMail containers, the dedicated internal Docker network, the Stalwart data volume, and the locally built HomeMail image. No host `.env`/`.env.local`/`.env.production` file, no tracked Compose file, and no production state was read from or written to during this verification; only new disposable containers, an isolated network, and a scratch volume were created and then deleted.
+
+### Production acceptance defects found and fixed (2026-07-19)
+
+The operator enabled both Phase 4 flags in production and exercised real inbox messages containing `cid:` and external images. Four defects surfaced only under real production conditions (real Stalwart TLS, real Traefik, real dual-stack DNS, real inbox messages) that neither the disposable-stack verification above nor the existing unit/component suite exercised, because each depends on infrastructure or message shapes the local verification didn't reproduce.
+
+- **CSP blocked its own same-origin resource URL** (`fd97731`). The protected message iframe's CSP used `img-src 'self'`, but the iframe content is set via `srcDoc`, which gets an opaque, unique origin regardless of the sandbox's `allow-same-origin` token — so `'self'` never resolved to the real app origin. Fixed by naming the origin explicitly via `window.location.origin`.
+- **Manually-set `Content-Length` went stale** (`6920e45`). The image resource route computed `Content-Length` from the buffer before any proxy or Next's own compress layer could re-encode the body; if that layer touched the body, the stale header no longer matched the bytes sent, and the browser reported "Image corrupt or truncated" even on HTTP 200. Fixed by no longer setting it manually and letting the runtime compute it from the final wire bytes.
+- **Pinned DNS lookup didn't handle Node's Happy-Eyeballs callback shape** (`d1c59ea`), the root cause of every real external image failing as "corrupt or truncated" at HTTP 200. Node's http/https client invokes the `lookup` request option with `options.all: true` under Happy Eyeballs (the default for dual-stack hosts) and expects the callback to receive an address array, not a single `(address, family)` pair. The fetcher only supported the single-value shape, so the real request threw `ERR_INVALID_IP_ADDRESS` inside Node's own connect path before any bytes were read; that error was swallowed into a generic `fetch_failed` well before it reached the browser as a truncated image. This is why the disposable-stack verification above passed: it exercised the code path through injected test dependencies, never the real `defaultRequestHop` against a real dual-stack-resolving hostname over TLS. Fixed by extracting an exported `pinnedLookup()` that handles both callback shapes, with regression tests exercising it directly against both invocation forms (verified by temporarily reverting the fix and confirming the new test fails).
+- **Delivery-tracking polled a 404 that could never resolve** (`e8e3219`), an unrelated pre-existing bug the operator also asked to be looked at while testing Phase 4. `DeliveryTracking` rendered under every open message unconditionally and polled `GET /api/mail/delivery` every 30 seconds regardless of the response; for any received (non-sent) message the endpoint always 404s, so opening such a message produced a recurring 404 in the console for as long as it stayed open. Fixed by stopping `refetchInterval` once a query returns no data.
+
+All four fixes passed `npx tsc --noEmit` and the full `npx vitest run --maxWorkers=1 --no-file-parallelism` (40 files, 221 tests) before being deployed. After deployment, the operator confirmed both `cid:` and external images render correctly in production with no CSP, corrupt-image, or delivery-tracking errors in the browser console.
+
+### Phase 4 decision
+
+Phase 4 is complete as of 2026-07-19. Both feature flags (`HOMEMAIL_FEATURE_PROTECTED_MESSAGE_CONTENT`, `HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING`) are enabled in production, real `cid:` and external images render correctly through the hardened proxy, and the four production-only defects above are fixed and deployed. `HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING=false` remains the no-redeploy emergency stop if a regression is found later. Phase 5 may begin behind its own disabled feature flags.
