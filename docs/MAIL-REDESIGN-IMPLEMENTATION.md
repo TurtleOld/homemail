@@ -626,6 +626,17 @@ Phase 0 is complete as of 2026-07-18 with the mutable-image risk explicitly acce
 
 The public, ephemeral HS256 signing key and mismatched registered OAuth client remain mandatory prerequisites before Phase 1 identity validation can be enabled or trusted. They do not reopen Phase 0 and do not prevent Phase 1 code from being developed behind disabled feature flags.
 
+### OIDC identity prerequisites closed (2026-07-19)
+
+Both remaining blockers against trusting `(issuer, sub)` were closed on production Stalwart before Phase 5 began.
+
+- **Asymmetric signing key**: an ES256 (P-256) key pair was generated locally in PKCS#8 PEM format per Stalwart's documented `signature-key`/`signature-algorithm` format, and the operator applied it through Stalwart Web Admin, switching `Signature Algorithm` from `HS256` to `ES256`. The change took effect through Stalwart's save-and-reload without a container restart. `https://auth.pavlovteam.ru/auth/jwks.json` was confirmed to report `kty=EC` immediately after the change, and the operator confirmed a fresh HomeMail sign-in still succeeded.
+- **Restart persistence verified**: the operator recorded the JWKS response before restarting the `homemail-stalwart` container and confirmed it was byte-identical after restart, unlike the prior HS256 key, which was confirmed ephemeral across the same boundary in the Phase 0 backup rehearsal. A fresh HomeMail sign-in was reconfirmed after the restart.
+- **OAuth client mismatch resolved**: the operator located the existing `mailclient` principal in Stalwart Web Admin's OAuth-client registry (Stalwart already resolved `Client Id: mailclient` to an "Update" form rather than "Create", meaning the identifier already existed) and set its `Redirect URIs` to exactly `https://mail.pavlovteam.ru/api/auth/oauth/callback`, matching `OAUTH_REDIRECT_URI` in `.env.production`. The unrelated `mail-client` principal (a different redirect URI, of undetermined ownership) was left untouched rather than edited or deleted. A fresh HomeMail sign-in was confirmed after saving.
+- The symmetric key value was never requested, viewed, or recorded by this workspace, consistent with the Phase 0 handling of the prior HS256 secret. The new ES256 private key was generated in a disposable local scratch directory, delivered to the operator only through the chat for pasting into Stalwart Web Admin, and is not stored in this repository or any tracked file.
+
+With both prerequisites closed and confirmed by real production evidence (asymmetric JWKS, persistence across restart, matching OAuth client registration, and working sign-in at every step), Phase 5 may rely on `(issuer, sub)` as a verified identity anchor once its own OIDC identity-validation flag is enabled. This closure does not itself enable identity validation or any Phase 5 behavior; it only removes the blockers Phase 1 recorded against doing so.
+
 ## Phase 1: Make new code safe to deploy while inert
 
 ### Implemented locally
