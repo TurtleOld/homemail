@@ -219,7 +219,7 @@ describe('Mail foundation smoke coverage', () => {
 
   it('never leaves a sender image URL reachable in protected mode', () => {
     renderWithQueryClient(
-      <ProductShellFeatureProvider enabled={false} protectedMessageContentEnabled>
+      <ProductShellFeatureProvider protectedMessageContentEnabled>
         <MessageViewer
           message={{
             ...mockDetailMessage,

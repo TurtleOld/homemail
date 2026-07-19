@@ -1,5 +1,4 @@
 export const REDESIGN_FEATURE_FLAG_NAMES = [
-  'productShell',
   'listFirstMail',
   'protectedMessageContent',
   'remoteImageFetching',
@@ -10,7 +9,6 @@ export type RedesignFeatureFlagName = (typeof REDESIGN_FEATURE_FLAG_NAMES)[numbe
 export type RedesignFeatureFlags = Readonly<Record<RedesignFeatureFlagName, boolean>>;
 
 const ENV_BY_FLAG: Record<RedesignFeatureFlagName, string> = {
-  productShell: 'HOMEMAIL_FEATURE_PRODUCT_SHELL',
   listFirstMail: 'HOMEMAIL_FEATURE_LIST_FIRST_MAIL',
   protectedMessageContent: 'HOMEMAIL_FEATURE_PROTECTED_MESSAGE_CONTENT',
   remoteImageFetching: 'HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING',
@@ -28,7 +26,6 @@ export function getRedesignFeatureFlags(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): RedesignFeatureFlags {
   return Object.freeze({
-    productShell: enabled(environment[ENV_BY_FLAG.productShell]),
     listFirstMail: enabled(environment[ENV_BY_FLAG.listFirstMail]),
     protectedMessageContent: enabled(environment[ENV_BY_FLAG.protectedMessageContent]),
     remoteImageFetching: enabled(environment[ENV_BY_FLAG.remoteImageFetching]),

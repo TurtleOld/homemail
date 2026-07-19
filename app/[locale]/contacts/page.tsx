@@ -1,8 +1,7 @@
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { ContactRound, Users } from 'lucide-react';
 import { ContactsManager } from '@/components/contacts-manager';
 import { WorkspaceFrame } from '@/components/product-shell/workspace-frame';
-import { getRedesignFeatureFlags } from '@/lib/feature-flags';
 import { getSession } from '@/lib/session';
 
 const copy = {
@@ -33,8 +32,6 @@ export default async function ContactsPage({
 }: {
   params: Promise<{ locale: string }>;
 }) {
-  if (!getRedesignFeatureFlags().productShell) notFound();
-
   const { locale } = await params;
   const language = locale === 'en' ? 'en' : 'ru';
   const session = await getSession();

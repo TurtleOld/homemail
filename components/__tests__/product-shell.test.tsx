@@ -17,21 +17,10 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('product shell feature boundary', () => {
-  it('returns the legacy tree unchanged while disabled', () => {
-    const { container } = render(
-      <ProductShellFeatureProvider enabled={false}>
-        <RouteAwareShell><main data-testid="legacy">Legacy</main></RouteAwareShell>
-      </ProductShellFeatureProvider>
-    );
-
-    expect(screen.getByTestId('legacy')).toBeInTheDocument();
-    expect(container.querySelector('[data-product-shell]')).toBeNull();
-  });
-
-  it('adds a route-aware boundary only when enabled', () => {
+  it('adds a route-aware boundary unconditionally', () => {
     pathname = '/ru/settings/stalwart';
     const { container } = render(
-      <ProductShellFeatureProvider enabled>
+      <ProductShellFeatureProvider>
         <RouteAwareShell><main>System content</main></RouteAwareShell>
       </ProductShellFeatureProvider>
     );

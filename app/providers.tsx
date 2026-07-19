@@ -12,12 +12,10 @@ import { RouteAwareShell } from '@/components/product-shell/route-aware-shell';
 
 export function Providers({
   children,
-  productShellEnabled = false,
   listFirstMailEnabled = false,
   protectedMessageContentEnabled = false,
 }: {
   children: React.ReactNode;
-  productShellEnabled?: boolean;
   listFirstMailEnabled?: boolean;
   protectedMessageContentEnabled?: boolean;
 }) {
@@ -33,14 +31,6 @@ export function Providers({
       })
   );
   const pathname = usePathname();
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.productShell = productShellEnabled ? 'enabled' : 'legacy';
-    return () => {
-      delete root.dataset.productShell;
-    };
-  }, [productShellEnabled]);
 
   useEffect(() => {
     const handleSettingsChange = (event: StorageEvent) => {
@@ -129,11 +119,6 @@ export function Providers({
     const applyTheme = async () => {
       applyThemeColors();
 
-      if (/\/(?:(?:ru|en)\/)?login$/.test(pathname) && !productShellEnabled) {
-        applyThemePreference('light');
-        return;
-      }
-
       try {
         const res = await fetch('/api/settings');
         if (res.ok) {
@@ -160,11 +145,10 @@ export function Providers({
       removeSystemListener?.();
       window.removeEventListener('homemail-theme-change', handleThemeChange);
     };
-  }, [pathname, productShellEnabled]);
+  }, [pathname]);
 
   return (
     <ProductShellFeatureProvider
-      enabled={productShellEnabled}
       listFirstMailEnabled={listFirstMailEnabled}
       protectedMessageContentEnabled={protectedMessageContentEnabled}
     >

@@ -7,32 +7,6 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { LoaderCircle, Mail, ShieldCheck } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useProductShellEnabled } from '@/components/product-shell/shell-feature-context';
-
-function LegacyMailIcon() {
-  return (
-    <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-    </svg>
-  );
-}
-
-function LegacyShieldIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-    </svg>
-  );
-}
-
-function LegacyInfoIcon() {
-  return (
-    <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
-}
 
 function LoginForm() {
   const router = useRouter();
@@ -46,11 +20,6 @@ function LoginForm() {
   const isAddingAccount = searchParams.get('addAccount') === 'true';
   const redirect = searchParams.get('redirect') || `/${locale}/mail`;
   const t = useTranslations('login');
-  const productShellEnabled = useProductShellEnabled();
-
-  useEffect(() => {
-    if (!productShellEnabled) document.documentElement.classList.remove('dark');
-  }, [productShellEnabled]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -110,34 +79,17 @@ function LoginForm() {
   };
 
   return (
-    <div className={cn(
-      'flex min-h-dvh items-center justify-center px-4 py-8 sm:px-6 lg:px-8',
-      productShellEnabled ? 'bg-surface-app' : 'bg-gradient-to-br from-blue-50 to-indigo-100'
-    )}>
-      <div className={cn(
-        'w-full max-w-md space-y-8 p-6 sm:p-8 md:p-10',
-        productShellEnabled
-          ? 'rounded-overlay border border-border bg-surface-raised shadow-overlay'
-          : 'rounded-2xl border border-blue-200/50 bg-white/90 shadow-2xl backdrop-blur-sm'
-      )}>
+    <div className="flex min-h-dvh items-center justify-center bg-surface-app px-4 py-8 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8 rounded-overlay border border-border bg-surface-raised p-6 shadow-overlay sm:p-8 md:p-10">
         <div className="text-center">
-          <div className={productShellEnabled
-            ? 'mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-overlay bg-primary text-primary-foreground'
-            : 'mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg'}>
-            {productShellEnabled ? <Mail className="h-7 w-7" aria-hidden="true" /> : <LegacyMailIcon />}
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-overlay bg-primary text-primary-foreground">
+            <Mail className="h-7 w-7" aria-hidden="true" />
           </div>
 
-          <h1 className={cn(
-            productShellEnabled
-              ? 'text-2xl font-semibold tracking-tight text-foreground'
-              : 'text-3xl font-bold text-gray-900 sm:text-4xl'
-          )}>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             {isAddingAccount ? t('addAccount') : t('welcomeBack')}
           </h1>
-          <p className={cn(
-            'mt-3',
-            productShellEnabled ? 'text-sm leading-6 text-muted-foreground' : 'text-base text-gray-600 sm:text-lg'
-          )}>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
             {isAddingAccount ? t('addAccountDesc') : t('signInDesc')}
           </p>
         </div>
@@ -146,7 +98,7 @@ function LoginForm() {
           {authMode === 'basic' ? (
             <form className="space-y-4" onSubmit={handleBasicLogin}>
               <div className="space-y-2">
-                <label className={cn('text-sm font-medium', productShellEnabled ? 'text-foreground' : 'text-gray-700')} htmlFor="email">
+                <label className="text-sm font-medium text-foreground" htmlFor="email">
                   {t('email')}
                 </label>
                 <Input
@@ -158,11 +110,11 @@ function LoginForm() {
                   placeholder="user@example.com"
                   disabled={loading}
                   required
-                  className={productShellEnabled ? 'h-control bg-surface-raised' : 'h-12 border-blue-200/70 bg-white'}
+                  className="h-control bg-surface-raised"
                 />
               </div>
               <div className="space-y-2">
-                <label className={cn('text-sm font-medium', productShellEnabled ? 'text-foreground' : 'text-gray-700')} htmlFor="password">
+                <label className="text-sm font-medium text-foreground" htmlFor="password">
                   {t('password')}
                 </label>
                 <Input
@@ -173,18 +125,13 @@ function LoginForm() {
                   autoComplete="current-password"
                   disabled={loading}
                   required
-                  className={productShellEnabled ? 'h-control bg-surface-raised' : 'h-12 border-blue-200/70 bg-white'}
+                  className="h-control bg-surface-raised"
                 />
               </div>
               <Button
                 type="submit"
                 disabled={loading}
-                className={cn(
-                  'w-full font-semibold disabled:cursor-not-allowed disabled:opacity-50',
-                  productShellEnabled
-                    ? 'h-control shadow-none hover:shadow-none'
-                    : 'h-12 bg-gradient-to-r from-blue-600 to-indigo-600 text-white transition-all duration-200 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:h-14 sm:text-lg'
-                )}
+                className="h-control w-full font-semibold shadow-none hover:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? t('signingIn') : t('signInBasic')}
               </Button>
@@ -193,39 +140,27 @@ function LoginForm() {
             <Button
               onClick={handleOAuthLogin}
               disabled={loading}
-              className={cn(
-                'w-full font-semibold disabled:cursor-not-allowed disabled:opacity-50',
-                productShellEnabled
-                  ? 'h-control shadow-none hover:shadow-none'
-                  : 'h-12 bg-gradient-to-r from-blue-600 to-indigo-600 text-white transition-all duration-200 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:h-14 sm:text-lg'
-              )}
+              className="h-control w-full font-semibold shadow-none hover:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-3">
-                  {productShellEnabled
-                    ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
-                    : <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+                  <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
                   <span>{t('redirecting')}</span>
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-3">
-                  {productShellEnabled ? <ShieldCheck className="h-5 w-5" aria-hidden="true" /> : <LegacyShieldIcon />}
+                  <ShieldCheck className="h-5 w-5" aria-hidden="true" />
                   <span>{t('signInOAuth')}</span>
                 </div>
               )}
             </Button>
           )}
 
-          <div className={cn(
-            'rounded-control border p-4',
-            productShellEnabled ? 'border-border bg-surface-subtle' : 'border-blue-200 bg-blue-50/50'
-          )}>
+          <div className="rounded-control border border-border bg-surface-subtle p-4">
             <div className="flex items-start gap-3">
-              {productShellEnabled
-                ? <ShieldCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" aria-hidden="true" />
-                : <LegacyInfoIcon />}
-              <div className={cn('space-y-1 text-sm', productShellEnabled ? 'text-muted-foreground' : 'text-gray-700')}>
-                <p className={cn('font-medium', productShellEnabled ? 'text-foreground' : 'text-gray-900')}>
+              <ShieldCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" aria-hidden="true" />
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">
                   {authMode === 'basic' ? t('basicInfo') : t('oauthInfo')}
                 </p>
                 <p>{authMode === 'basic' ? t('basicInfoDesc') : t('oauthInfoDesc')}</p>
@@ -234,7 +169,7 @@ function LoginForm() {
           </div>
 
           {process.env.NODE_ENV === 'development' && (
-            <div className={cn('text-center text-xs', productShellEnabled ? 'text-muted-foreground' : 'text-gray-500')}>
+            <div className="text-center text-xs text-muted-foreground">
               {t('authMode')} <code className="rounded bg-gray-100 px-2 py-1">{authMode}</code>
             </div>
           )}
@@ -246,15 +181,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   const t = useTranslations('login');
-  const productShellEnabled = useProductShellEnabled();
 
   return (
     <Suspense
       fallback={
-        <div className={cn(
-          'flex min-h-dvh items-center justify-center',
-          productShellEnabled ? 'bg-surface-app text-muted-foreground' : 'bg-gradient-to-br from-blue-50 to-indigo-100 text-gray-600'
-        )}>
+        <div className="flex min-h-dvh items-center justify-center bg-surface-app text-muted-foreground">
           <div role="status">{t('loading')}</div>
         </div>
       }
