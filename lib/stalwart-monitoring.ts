@@ -58,11 +58,9 @@ async function fetchTotalCount(path: string, baseUrl: string, apiKey: string): P
 
 /**
  * Reads mail queue and report backlog counts from Stalwart's read-only
- * Management API. Never mutates any Stalwart or HomeMail state. Any failure
- * (missing key, network error, unexpected response shape) is reported as
- * `reachable: false` with `queue`/`reports` left null rather than thrown,
- * so the Settings page can show a quiet unavailable state instead of an
- * unhandled error.
+ * Management API. Never mutates any Stalwart or HomeMail state. Queue and
+ * report reads fail independently so one unavailable endpoint does not hide
+ * a healthy result from the other endpoint.
  */
 export async function getStalwartSystemStatus(
   environment: Readonly<Record<string, string | undefined>> = process.env,
@@ -75,21 +73,25 @@ export async function getStalwartSystemStatus(
 
   const baseUrl = environment.STALWART_BASE_URL || 'http://stalwart:8080';
 
-  try {
-    const [queueTotal, reportsTotal] = await Promise.all([
-      fetchTotalCount('/api/queue/messages', baseUrl, apiKey),
-      fetchTotalCount('/api/queue/reports', baseUrl, apiKey),
-    ]);
+  const [queueResult, reportsResult] = await Promise.allSettled([
+    fetchTotalCount('/api/queue/messages', baseUrl, apiKey),
+    fetchTotalCount('/api/queue/reports', baseUrl, apiKey),
+  ]);
+  const queue = queueResult.status === 'fulfilled'
+    ? { total: queueResult.value, hasEntries: queueResult.value > 0 }
+    : null;
+  const reports = reportsResult.status === 'fulfilled'
+    ? { total: reportsResult.value, hasEntries: reportsResult.value > 0 }
+    : null;
 
-    return {
-      reachable: true,
-      queue: { total: queueTotal, hasEntries: queueTotal > 0 },
-      reports: { total: reportsTotal, hasEntries: reportsTotal > 0 },
-    };
-  } catch (error) {
-    logger.warn('[StalwartMonitoring] Failed to read Stalwart system status', {
-      message: error instanceof Error ? error.message : String(error),
+  if (!queue || !reports) {
+    const failureCodes = [queueResult, reportsResult]
+      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+      .map((result) => result.reason instanceof StalwartMonitoringError ? result.reason.code : 'unreachable');
+    logger.warn('[StalwartMonitoring] One or more read-only checks failed', {
+      failureCodes,
     });
-    return { reachable: false, queue: null, reports: null };
   }
+
+  return { reachable: Boolean(queue || reports), queue, reports };
 }

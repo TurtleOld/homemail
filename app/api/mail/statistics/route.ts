@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { readStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
   const session = await getSession();
@@ -106,7 +107,9 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    console.error('[Statistics] Error:', error);
+    logger.warn('[Statistics] Read-only statistics request failed', {
+      errorType: error instanceof Error ? error.name : 'unknown',
+    });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

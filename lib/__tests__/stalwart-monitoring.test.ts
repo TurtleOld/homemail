@@ -75,6 +75,23 @@ describe('getStalwartSystemStatus', () => {
     expect(status).toEqual({ reachable: false, queue: null, reports: null });
   });
 
+  it('preserves a successful queue read when the report read fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/api/queue/messages')) {
+        return { json: async () => ({ data: { total: 2 } }) };
+      }
+      throw new Error('report endpoint unavailable');
+    }));
+
+    const status = await getStalwartSystemStatus({ STALWART_ADMIN_API_KEY: 'test-key' });
+
+    expect(status).toEqual({
+      reachable: true,
+      queue: { total: 2, hasEntries: true },
+      reports: null,
+    });
+  });
+
   it('defaults to http://stalwart:8080 when STALWART_BASE_URL is unset', async () => {
     const fetchMock = vi.fn(async (_url: string) => ({ json: async () => ({ data: { total: 0 } }) }));
     vi.stubGlobal('fetch', fetchMock);

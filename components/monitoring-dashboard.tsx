@@ -1,375 +1,208 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Shield, AlertTriangle, CheckCircle2, XCircle, RefreshCw, Server, HardDrive, Mail as MailIcon, Clock } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, Clock, HardDrive, Mail, RefreshCw, Server, Shield, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  SettingsSectionError,
+  SettingsSectionHeader,
+  SettingsSectionLoading,
+} from '@/components/settings/settings-section-state';
 
 interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
-  system: {
-    uptime: number;
-    memory: {
-      used: number;
-      total: number;
-      percentage: number;
-    };
-  };
+  system: { uptime: number; memory: { used: number; total: number; percentage: number } };
   security: {
-    recentEvents: {
-      total: number;
-      byType: Record<string, number>;
-      bySeverity: Record<string, number>;
-    };
-    last24Hours: {
-      failedLogins: number;
-      blockedIps: number;
-      csrfViolations: number;
-      suspiciousActivity: number;
-    };
+    recentEvents: { total: number; byType: Record<string, number>; bySeverity: Record<string, number> };
+    last24Hours: { failedLogins: number; blockedIps: number; csrfViolations: number; suspiciousActivity: number };
   };
-  storage: {
-    available: boolean;
-    writable: boolean;
-  };
-  mailProvider?: {
-    available: boolean;
-    responseTime?: number;
-    error?: string;
-  };
+  storage: { available: boolean; writable: boolean };
+  mailProvider?: { available: boolean; responseTime?: number; error?: string };
   stalwart?: {
     reachable: boolean;
     queue: { total: number; hasEntries: boolean } | null;
     reports: { total: number; hasEntries: boolean } | null;
   };
-  checks: {
-    storage: boolean;
-    mailProvider: boolean;
-    security: boolean;
-  };
-  alerts?: string[];
+  checks: { storage: boolean; mailProvider: boolean; security: boolean };
 }
 
 async function fetchMonitoringData(): Promise<HealthStatus> {
-  const res = await fetch('/api/monitoring?alerts=true&detailed=true');
-  if (!res.ok) {
-    throw new Error('Failed to fetch monitoring data');
-  }
-  return res.json();
-}
-
-function formatUptime(seconds: number): string {
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  
-  if (days > 0) {
-    return `${days}д ${hours}ч ${minutes}м`;
-  }
-  if (hours > 0) {
-    return `${hours}ч ${minutes}м`;
-  }
-  return `${minutes}м`;
+  const response = await fetch('/api/monitoring?detailed=true');
+  if (!response.ok) throw new Error('monitoring_unavailable');
+  const body = await response.json();
+  if (!body || !body.system || !body.security || !body.checks) throw new Error('monitoring_invalid');
+  return body as HealthStatus;
 }
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / Math.pow(1024, index)).toFixed(1)} ${units[index]}`;
+}
+
+function CheckRow({ label, ok }: { readonly label: string; readonly ok: boolean }) {
+  return (
+    <div className="flex min-h-10 items-center justify-between gap-3">
+      <span className="text-sm">{label}</span>
+      {ok ? <CheckCircle2 className="h-5 w-5 text-[hsl(var(--status-success))]" aria-hidden="true" /> : <XCircle className="h-5 w-5 text-destructive" aria-hidden="true" />}
+    </div>
+  );
 }
 
 export function MonitoringDashboard() {
-  const [autoRefresh, setAutoRefresh] = useState(false);
-
-  const { data, isLoading, error, refetch } = useQuery({
+  const locale = useLocale();
+  const t = useTranslations('settings.monitoring');
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['monitoring'],
     queryFn: fetchMonitoringData,
-    refetchInterval: autoRefresh ? 30000 : false,
+    retry: 1,
   });
 
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(() => {
-        refetch();
-      }, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, refetch]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Загрузка данных мониторинга...</span>
-      </div>
-    );
-  }
-
+  if (isLoading) return <SettingsSectionLoading label={t('loading')} />;
   if (error || !data) {
     return (
-      <div className="rounded-lg border border-destructive bg-destructive/10 p-4">
-        <div className="flex items-center gap-2 text-destructive">
-          <XCircle className="h-5 w-5" />
-          <span className="font-medium">Ошибка загрузки данных мониторинга</span>
-        </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {error instanceof Error ? error.message : 'Неизвестная ошибка'}
-        </p>
-        <Button onClick={() => refetch()} variant="outline" size="sm" className="mt-4">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Повторить
-        </Button>
-      </div>
+      <SettingsSectionError
+        title={t('loadError')}
+        description={t('loadErrorDescription')}
+        retryLabel={t('retry')}
+        onRetry={() => void refetch()}
+      />
     );
   }
 
-  const statusColors = {
-    healthy: 'text-green-600',
-    degraded: 'text-yellow-600',
-    unhealthy: 'text-red-600',
-  };
+  const uptimeMinutes = Math.floor(data.system.uptime / 60);
+  const uptime = uptimeMinutes >= 1440
+    ? t('uptimeDays', { days: Math.floor(uptimeMinutes / 1440), hours: Math.floor((uptimeMinutes % 1440) / 60) })
+    : uptimeMinutes >= 60
+      ? t('uptimeHours', { hours: Math.floor(uptimeMinutes / 60), minutes: uptimeMinutes % 60 })
+      : t('uptimeMinutes', { minutes: uptimeMinutes });
 
-  const statusIcons = {
-    healthy: <CheckCircle2 className="h-5 w-5 text-green-600" />,
-    degraded: <AlertTriangle className="h-5 w-5 text-yellow-600" />,
-    unhealthy: <XCircle className="h-5 w-5 text-red-600" />,
+  const statusLabel = t(`status.${data.status}`);
+  const eventTypeLabels: Record<string, string> = {
+    login_failed: t('eventTypes.login_failed'),
+    login_success: t('eventTypes.login_success'),
+    login_blocked: t('eventTypes.login_blocked'),
+    session_created: t('eventTypes.session_created'),
+    session_invalidated: t('eventTypes.session_invalidated'),
+    session_hijack_attempt: t('eventTypes.session_hijack_attempt'),
+    rate_limit_exceeded: t('eventTypes.rate_limit_exceeded'),
+    csrf_violation: t('eventTypes.csrf_violation'),
+    suspicious_activity: t('eventTypes.suspicious_activity'),
+    unauthorized_access: t('eventTypes.unauthorized_access'),
+    password_change: t('eventTypes.password_change'),
+    account_locked: t('eventTypes.account_locked'),
+    ip_blocked: t('eventTypes.ip_blocked'),
+    file_access_denied: t('eventTypes.file_access_denied'),
+    ssrf_attempt: t('eventTypes.ssrf_attempt'),
+    path_traversal_attempt: t('eventTypes.path_traversal_attempt'),
   };
-
-  const statusLabels = {
-    healthy: 'Работает нормально',
-    degraded: 'Работает с ограничениями',
-    unhealthy: 'Не работает',
+  const severityLabels: Record<string, string> = {
+    low: t('severities.low'),
+    medium: t('severities.medium'),
+    high: t('severities.high'),
+    critical: t('severities.critical'),
   };
+  const alerts = [
+    !data.checks.storage ? t('alerts.storage') : null,
+    !data.checks.mailProvider ? t('alerts.mailProvider') : null,
+    data.security.last24Hours.failedLogins > 50 ? t('alerts.failedLogins', { count: data.security.last24Hours.failedLogins }) : null,
+    data.security.last24Hours.csrfViolations > 20 ? t('alerts.csrf', { count: data.security.last24Hours.csrfViolations }) : null,
+    data.security.last24Hours.suspiciousActivity > 10 ? t('alerts.suspicious', { count: data.security.last24Hours.suspiciousActivity }) : null,
+    data.system.memory.percentage > 90 ? t('alerts.memory', { percentage: data.system.memory.percentage.toFixed(1) }) : null,
+  ].filter((value): value is string => Boolean(value));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Мониторинг системы</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Статус системы, метрики безопасности и производительности
-          </p>
+    <section className="space-y-7">
+      <SettingsSectionHeader
+        title={t('heading')}
+        description={t('description')}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin motion-reduce:animate-none' : ''}`} />
+            {isFetching ? t('refreshing') : t('refresh')}
+          </Button>
+        }
+      />
+
+      <div className="grid border-l border-t border-border sm:grid-cols-3">
+        <div className="border-b border-r border-border p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Activity className="h-4 w-4" />{t('overallStatus')}</div>
+          <p className="mt-2 font-semibold">{statusLabel}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('updated', { value: new Date(data.timestamp).toLocaleString(locale) })}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={autoRefresh ? 'bg-primary/10' : ''}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-            Автообновление
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Обновить
-          </Button>
+        <div className="border-b border-r border-border p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Server className="h-4 w-4" />{t('uptime')}</div>
+          <p className="mt-2 font-semibold tabular-nums">{uptime}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('sinceStart')}</p>
+        </div>
+        <div className="border-b border-r border-border p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground"><HardDrive className="h-4 w-4" />{t('memory')}</div>
+          <p className="mt-2 font-semibold tabular-nums">{data.system.memory.percentage.toFixed(1)}%</p>
+          <p className="mt-1 text-xs text-muted-foreground">{formatBytes(data.system.memory.used)} / {formatBytes(data.system.memory.total)}</p>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {statusIcons[data.status]}
-              <span className="font-medium">Общий статус</span>
-            </div>
-          </div>
-          <p className={`mt-2 text-2xl font-bold ${statusColors[data.status]}`}>
-            {statusLabels[data.status]}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Обновлено: {new Date(data.timestamp).toLocaleString('ru-RU')}
-          </p>
-        </div>
+      <div className="grid gap-7 md:grid-cols-2">
+        <section aria-labelledby="monitoring-security-title">
+          <h3 id="monitoring-security-title" className="flex items-center gap-2 font-semibold"><Shield className="h-4 w-4 text-muted-foreground" />{t('security24h')}</h3>
+          <dl className="mt-3 space-y-2 text-sm">
+            {[
+              [t('failedLogins'), data.security.last24Hours.failedLogins],
+              [t('blockedIps'), data.security.last24Hours.blockedIps],
+              [t('csrfViolations'), data.security.last24Hours.csrfViolations],
+              [t('suspiciousActivity'), data.security.last24Hours.suspiciousActivity],
+              [t('totalEvents'), data.security.recentEvents.total],
+            ].map(([label, value]) => <div key={String(label)} className="flex justify-between gap-4"><dt className="text-muted-foreground">{label}</dt><dd className="tabular-nums font-medium">{value}</dd></div>)}
+          </dl>
+        </section>
 
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <Server className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Время работы</span>
+        <section aria-labelledby="monitoring-checks-title">
+          <h3 id="monitoring-checks-title" className="flex items-center gap-2 font-semibold"><CheckCircle2 className="h-4 w-4 text-muted-foreground" />{t('checks')}</h3>
+          <div className="mt-2 divide-y divide-border">
+            <CheckRow label={t('storage')} ok={data.checks.storage} />
+            <CheckRow label={t('mailServer')} ok={data.checks.mailProvider} />
+            <CheckRow label={t('security')} ok={data.checks.security} />
           </div>
-          <p className="mt-2 text-2xl font-bold">{formatUptime(data.system.uptime)}</p>
-          <p className="text-xs text-muted-foreground mt-1">С момента запуска</p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <HardDrive className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Память</span>
-          </div>
-          <p className="mt-2 text-2xl font-bold">{data.system.memory.percentage.toFixed(1)}%</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {formatBytes(data.system.memory.used)} / {formatBytes(data.system.memory.total)}
-          </p>
-          {data.system.memory.percentage > 90 && (
-            <p className="text-xs text-yellow-600 mt-1 font-medium">Высокое использование памяти</p>
+          {data.mailProvider?.available && data.mailProvider.responseTime !== undefined && (
+            <p className="mt-2 text-xs text-muted-foreground">{t('responseTime', { milliseconds: data.mailProvider.responseTime })}</p>
           )}
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Shield className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Безопасность (24 часа)</span>
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Неудачные входы</span>
-              <span className="font-medium">{data.security.last24Hours.failedLogins}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Заблокированные IP</span>
-              <span className="font-medium">{data.security.last24Hours.blockedIps}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">CSRF нарушения</span>
-              <span className="font-medium">{data.security.last24Hours.csrfViolations}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Подозрительная активность</span>
-              <span className="font-medium">{data.security.last24Hours.suspiciousActivity}</span>
-            </div>
-            <div className="flex justify-between items-center pt-2 border-t">
-              <span className="text-sm font-medium">Всего событий</span>
-              <span className="font-bold">{data.security.recentEvents.total}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Проверки системы</span>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <HardDrive className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Хранилище</span>
-              </div>
-              {data.checks.storage ? (
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-              ) : (
-                <XCircle className="h-5 w-5 text-red-600" />
-              )}
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MailIcon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Почтовый сервер</span>
-              </div>
-              {data.checks.mailProvider ? (
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-              ) : (
-                <XCircle className="h-5 w-5 text-red-600" />
-              )}
-            </div>
-            {data.mailProvider && (
-              <div className="text-xs text-muted-foreground pl-6">
-                {data.mailProvider.available
-                  ? `Время отклика: ${data.mailProvider.responseTime || 0}мс`
-                  : `Ошибка: ${data.mailProvider.error || 'Неизвестная'}`}
-              </div>
-            )}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Безопасность</span>
-              </div>
-              {data.checks.security ? (
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-              ) : (
-                <XCircle className="h-5 w-5 text-red-600" />
-              )}
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
 
       {data.stalwart && (
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <MailIcon className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Почтовый сервер Stalwart</span>
-          </div>
+        <section className="rounded-lg border border-border p-4" aria-labelledby="stalwart-monitoring-title">
+          <h3 id="stalwart-monitoring-title" className="flex items-center gap-2 font-semibold"><Mail className="h-4 w-4 text-muted-foreground" />{t('stalwartHeading')}</h3>
           {!data.stalwart.reachable ? (
-            <p className="text-sm text-muted-foreground">
-              Данные недоступны. Проверьте, что STALWART_ADMIN_API_KEY настроен и Stalwart отвечает.
-            </p>
+            <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--status-warning))]" /><p>{t('stalwartUnavailable')}</p></div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Писем в очереди на отправку</span>
-                <span className={`font-medium ${data.stalwart.queue?.hasEntries ? 'text-yellow-600' : ''}`}>
-                  {data.stalwart.queue?.total ?? '—'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Отчётов в очереди (DMARC/TLS)</span>
-                <span className={`font-medium ${data.stalwart.reports?.hasEntries ? 'text-yellow-600' : ''}`}>
-                  {data.stalwart.reports?.total ?? '—'}
-                </span>
-              </div>
-            </div>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div><dt className="text-sm text-muted-foreground">{t('queue')}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{data.stalwart.queue?.total ?? '-'}</dd></div>
+              <div><dt className="text-sm text-muted-foreground">{t('reports')}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{data.stalwart.reports?.total ?? '-'}</dd></div>
+            </dl>
           )}
-        </div>
+          {data.stalwart.reachable && (!data.stalwart.queue || !data.stalwart.reports) && (
+            <p className="mt-3 text-sm text-muted-foreground">{t('stalwartPartial')}</p>
+          )}
+        </section>
       )}
 
-      {data.alerts && data.alerts.length > 0 && (
-        <div className="rounded-lg border border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-600" />
-            <span className="font-medium text-yellow-900 dark:text-yellow-100">Предупреждения</span>
-          </div>
-          <ul className="space-y-1">
-            {data.alerts.map((alert, index) => (
-              <li key={index} className="text-sm text-yellow-800 dark:text-yellow-200">
-                • {alert}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {alerts.length > 0 && (
+        <section className="rounded-lg border border-[hsl(var(--status-warning)/0.45)] bg-[hsl(var(--status-warning)/0.08)] p-4" aria-labelledby="monitoring-alerts-title">
+          <h3 id="monitoring-alerts-title" className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4 text-[hsl(var(--status-warning))]" />{t('warnings')}</h3>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">{alerts.map((alert) => <li key={alert}>{alert}</li>)}</ul>
+        </section>
       )}
 
-      <div className="rounded-lg border bg-card p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Clock className="h-5 w-5 text-muted-foreground" />
-          <span className="font-medium">Статистика событий</span>
+      <section aria-labelledby="monitoring-events-title">
+        <h3 id="monitoring-events-title" className="flex items-center gap-2 font-semibold"><Clock className="h-4 w-4 text-muted-foreground" />{t('eventStatistics')}</h3>
+        <div className="mt-3 grid gap-6 sm:grid-cols-2">
+          <div><p className="text-sm font-medium">{t('byType')}</p><dl className="mt-2 space-y-1">{Object.entries(data.security.recentEvents.byType).slice(0, 5).map(([key, count]) => <div key={key} className="flex justify-between gap-4 text-sm"><dt className="truncate text-muted-foreground">{eventTypeLabels[key] ?? t('unknownEvent')}</dt><dd className="tabular-nums font-medium">{count}</dd></div>)}</dl></div>
+          <div><p className="text-sm font-medium">{t('bySeverity')}</p><dl className="mt-2 space-y-1">{Object.entries(data.security.recentEvents.bySeverity).map(([key, count]) => <div key={key} className="flex justify-between gap-4 text-sm"><dt className="truncate text-muted-foreground">{severityLabels[key] ?? t('unknownSeverity')}</dt><dd className="tabular-nums font-medium">{count}</dd></div>)}</dl></div>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <p className="text-sm font-medium mb-2">По типу</p>
-            <div className="space-y-1">
-              {Object.entries(data.security.recentEvents.byType)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 5)
-                .map(([type, count]) => (
-                  <div key={type} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{type}</span>
-                    <span className="font-medium">{count}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-medium mb-2">По серьезности</p>
-            <div className="space-y-1">
-              {Object.entries(data.security.recentEvents.bySeverity)
-                .sort(([, a], [, b]) => b - a)
-                .map(([severity, count]) => (
-                  <div key={severity} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground capitalize">{severity}</span>
-                    <span className="font-medium">{count}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      </section>
+    </section>
   );
 }

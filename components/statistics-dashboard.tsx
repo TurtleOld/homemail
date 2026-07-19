@@ -1,8 +1,14 @@
 'use client';
 
+import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Mail, MailOpen, Send, FileText, TrendingUp, Users } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { BarChart3, FileText, Mail, MailOpen, Send, Users } from 'lucide-react';
+import {
+  SettingsSectionEmpty,
+  SettingsSectionError,
+  SettingsSectionHeader,
+  SettingsSectionLoading,
+} from '@/components/settings/settings-section-state';
 
 interface StatisticsData {
   totalMessages: number;
@@ -11,179 +17,120 @@ interface StatisticsData {
   totalDrafts: number;
   messagesByDay: Array<{ date: string; incoming: number; outgoing: number }>;
   topSenders: Array<{ email: string; count: number }>;
-  labelStats: Record<string, number>;
-  folderStats: Array<{ id: string; name: string; role: string; unreadCount: number }>;
+  folderStats: Array<{ id: string; name: string; unreadCount: number }>;
 }
 
 async function fetchStatistics(): Promise<StatisticsData> {
-  const res = await fetch('/api/mail/statistics');
-  if (!res.ok) {
-    throw new Error('Failed to fetch statistics');
+  const response = await fetch('/api/mail/statistics');
+  if (!response.ok) throw new Error('statistics_unavailable');
+  const body = await response.json();
+  if (!body || !Array.isArray(body.messagesByDay) || !Array.isArray(body.folderStats)) {
+    throw new Error('statistics_invalid');
   }
-  return res.json();
+  return body as StatisticsData;
 }
 
 export function StatisticsDashboard() {
-  const { data, isLoading, error } = useQuery({
+  const locale = useLocale();
+  const t = useTranslations('settings.statistics');
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['statistics'],
     queryFn: fetchStatistics,
-    staleTime: 60000,
+    retry: 1,
   });
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-lg border bg-card p-4">
-              <Skeleton className="h-6 w-24 mb-2" />
-              <Skeleton className="h-8 w-16" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+  if (isLoading) return <SettingsSectionLoading label={t('loading')} />;
   if (error || !data) {
     return (
-      <div className="rounded-lg border border-destructive bg-destructive/10 p-4">
-        <p className="text-destructive">Ошибка загрузки статистики</p>
-      </div>
+      <SettingsSectionError
+        title={t('loadError')}
+        description={t('loadErrorDescription')}
+        retryLabel={t('retry')}
+        onRetry={() => void refetch()}
+      />
     );
   }
 
-  const maxMessages = Math.max(
-    ...data.messagesByDay.map((d) => Math.max(d.incoming, d.outgoing)),
-    1
-  );
+  const metrics = [
+    { label: t('totalMessages'), value: data.totalMessages, help: t('allTime'), icon: Mail },
+    { label: t('unread'), value: data.totalUnread, help: t('needsAttention'), icon: MailOpen },
+    { label: t('sent'), value: data.totalSent, help: t('lastThirtyDays'), icon: Send },
+    { label: t('drafts'), value: data.totalDrafts, help: t('notSent'), icon: FileText },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Статистика использования</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Аналитика вашей почтовой активности за последние 30 дней
-        </p>
-      </div>
+    <section className="space-y-7">
+      <SettingsSectionHeader title={t('heading')} description={t('description')} />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <Mail className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Всего писем</span>
-          </div>
-          <p className="mt-2 text-2xl font-bold">{data.totalMessages}</p>
-          <p className="text-xs text-muted-foreground mt-1">За все время</p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <MailOpen className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Непрочитанных</span>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-primary">{data.totalUnread}</p>
-          <p className="text-xs text-muted-foreground mt-1">Требуют внимания</p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <Send className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Отправлено</span>
-          </div>
-          <p className="mt-2 text-2xl font-bold">{data.totalSent}</p>
-          <p className="text-xs text-muted-foreground mt-1">За последние 30 дней</p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Черновиков</span>
-          </div>
-          <p className="mt-2 text-2xl font-bold">{data.totalDrafts}</p>
-          <p className="text-xs text-muted-foreground mt-1">Неотправленные</p>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Активность за 30 дней</span>
-          </div>
-          <div className="space-y-2">
-            {data.messagesByDay.slice(-7).map((day) => (
-              <div key={day.date} className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground w-20">
-                  {new Date(day.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                </span>
-                <div className="flex-1 flex items-center gap-2">
-                  <div className="flex-1 bg-muted rounded-full h-4 relative overflow-hidden">
-                    <div
-                      className="absolute left-0 top-0 h-full bg-blue-500"
-                      style={{ width: `${(day.incoming / maxMessages) * 100}%` }}
-                    />
-                    <div
-                      className="absolute right-0 top-0 h-full bg-green-500"
-                      style={{ width: `${(day.outgoing / maxMessages) * 100}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-muted-foreground w-16 text-right">
-                    {day.incoming + day.outgoing}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded bg-blue-500" />
-              <span>Входящие</span>
+      <div className="grid grid-cols-2 border-l border-t border-border max-sm:grid-cols-1">
+        {metrics.map(({ label, value, help, icon: Icon }) => (
+          <div key={label} className="border-b border-r border-border p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Icon className="h-4 w-4" />
+              <span>{label}</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded bg-green-500" />
-              <span>Исходящие</span>
-            </div>
+            <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{help}</p>
           </div>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">Топ отправителей</span>
-          </div>
-          <div className="space-y-2">
-            {data.topSenders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Нет данных</p>
-            ) : (
-              data.topSenders.map((sender, index) => (
-                <div key={sender.email} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-sm font-medium w-6">{index + 1}.</span>
-                    <span className="text-sm truncate">{sender.email}</span>
-                  </div>
-                  <span className="text-sm font-medium">{sender.count}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        ))}
       </div>
 
-      <div className="rounded-lg border bg-card p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="h-5 w-5 text-muted-foreground" />
-          <span className="font-medium">Статистика по папкам</span>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-7 lg:grid-cols-[minmax(0,1.2fr)_minmax(16rem,0.8fr)]">
+        <section className="min-w-0" aria-labelledby="statistics-activity-title">
+          <h3 id="statistics-activity-title" className="flex items-center gap-2 font-semibold">
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            {t('activity')}
+          </h3>
+          <div className="mt-3 overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[28rem] text-sm">
+              <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+                <tr><th className="px-3 py-2 font-medium">{t('date')}</th><th className="px-3 py-2 text-right font-medium">{t('incoming')}</th><th className="px-3 py-2 text-right font-medium">{t('outgoing')}</th></tr>
+              </thead>
+              <tbody>
+                {data.messagesByDay.slice(-7).map((day) => (
+                  <tr key={day.date} className="border-t border-border">
+                    <td className="px-3 py-2">{new Date(day.date).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{day.incoming}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{day.outgoing}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="min-w-0" aria-labelledby="statistics-senders-title">
+          <h3 id="statistics-senders-title" className="flex items-center gap-2 font-semibold">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            {t('topSenders')}
+          </h3>
+          {data.topSenders.length === 0 ? (
+            <div className="mt-3"><SettingsSectionEmpty>{t('noData')}</SettingsSectionEmpty></div>
+          ) : (
+            <ol className="mt-3 space-y-2">
+              {data.topSenders.slice(0, 5).map((sender, index) => (
+                <li key={sender.email} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 text-sm">
+                  <span className="text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+                  <span className="truncate">{sender.email}</span>
+                  <span className="tabular-nums font-medium">{sender.count}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      <section aria-labelledby="statistics-folders-title">
+        <h3 id="statistics-folders-title" className="font-semibold">{t('folders')}</h3>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {data.folderStats.map((folder) => (
-            <div key={folder.id} className="flex items-center justify-between p-3 rounded-md border bg-muted/30">
-              <span className="text-sm font-medium">{folder.name}</span>
-              <span className="text-sm text-muted-foreground">{folder.unreadCount} непрочитанных</span>
+            <div key={folder.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-3 text-sm">
+              <span className="min-w-0 truncate font-medium">{folder.name}</span>
+              <span className="ml-3 shrink-0 tabular-nums text-muted-foreground">{t('unreadCount', { count: folder.unreadCount })}</span>
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      </section>
+    </section>
   );
 }
