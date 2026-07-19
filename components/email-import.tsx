@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Upload, FileText, X, Archive } from 'lucide-react';
+import { Upload, FileText, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,7 @@ interface EmailImportProps {
 }
 
 export function EmailImport({ open, onClose }: EmailImportProps) {
+  const t = useTranslations('settings.importDialog');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('inbox');
   const queryClient = useQueryClient();
@@ -72,10 +74,10 @@ export function EmailImport({ open, onClose }: EmailImportProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
       queryClient.invalidateQueries({ queryKey: ['folders'] });
-      toast.success('Письмо импортировано');
+      toast.success(t('singleSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка импорта письма');
+    onError: () => {
+      toast.error(t('singleError'));
     },
   });
 
@@ -102,15 +104,15 @@ export function EmailImport({ open, onClose }: EmailImportProps) {
           }
           
           if (emlFiles.length === 0) {
-            toast.error(`В архиве ${file.name} не найдено EML файлов`);
+            toast.error(t('archiveEmpty', { name: file.name }));
           } else {
-            toast.success(`Извлечено ${emlFiles.length} EML файлов из архива`);
+            toast.success(t('archiveExtracted', { count: emlFiles.length }));
           }
         } catch (error) {
-          toast.error(`Ошибка чтения архива ${file.name}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+          toast.error(t('archiveReadError', { name: file.name }));
         }
       } else {
-        toast.error(`Файл ${file.name} не поддерживается. Используйте .eml или .zip файлы`);
+        toast.error(t('unsupportedFile', { name: file.name }));
       }
     }
     
@@ -125,7 +127,7 @@ export function EmailImport({ open, onClose }: EmailImportProps) {
 
   const handleImport = async () => {
     if (selectedFiles.length === 0) {
-      toast.error('Выберите файлы для импорта');
+      toast.error(t('filesRequired'));
       return;
     }
 
@@ -143,10 +145,10 @@ export function EmailImport({ open, onClose }: EmailImportProps) {
     }
 
     if (successCount > 0) {
-      toast.success(`Импортировано ${successCount} из ${selectedFiles.length} писем`);
+      toast.success(t('batchSuccess', { success: successCount, total: selectedFiles.length }));
     }
     if (errorCount > 0) {
-      toast.error(`Не удалось импортировать ${errorCount} писем`);
+      toast.error(t('batchError', { count: errorCount }));
     }
 
     setSelectedFiles([]);
@@ -164,11 +166,11 @@ export function EmailImport({ open, onClose }: EmailImportProps) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Импорт писем из EML</DialogTitle>
+          <DialogTitle>{t('title')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium mb-2 block">Папка для импорта</label>
+            <label className="text-sm font-medium mb-2 block">{t('folderLabel')}</label>
             <select
               value={selectedFolderId}
               onChange={(e) => setSelectedFolderId(e.target.value)}
@@ -182,7 +184,7 @@ export function EmailImport({ open, onClose }: EmailImportProps) {
             </select>
           </div>
           <div>
-            <label className="text-sm font-medium mb-2 block">Файлы EML</label>
+            <label className="text-sm font-medium mb-2 block">{t('filesLabel')}</label>
             <div className="border-2 border-dashed rounded-md p-4">
               <input
                 type="file"
@@ -198,10 +200,10 @@ export function EmailImport({ open, onClose }: EmailImportProps) {
               >
                 <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                 <span className="text-sm text-muted-foreground text-center">
-                  Нажмите для выбора файлов или перетащите EML файлы или ZIP архивы сюда
+                  {t('dropLabel')}
                 </span>
                 <span className="text-xs text-muted-foreground/70 mt-1">
-                  Поддерживаются .eml файлы и .zip архивы с EML файлами
+                  {t('supportedFiles')}
                 </span>
               </label>
             </div>
@@ -235,13 +237,13 @@ export function EmailImport({ open, onClose }: EmailImportProps) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>
-            Отмена
+            {t('cancel')}
           </Button>
           <Button
             onClick={handleImport}
             disabled={importMutation.isPending || selectedFiles.length === 0}
           >
-            {importMutation.isPending ? 'Импорт...' : `Импортировать ${selectedFiles.length} файл(ов)`}
+            {importMutation.isPending ? t('importing') : t('importCount', { count: selectedFiles.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

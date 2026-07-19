@@ -1,239 +1,104 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import Link from 'next/link';
 import { ArrowLeft, ExternalLink, ServerCog } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { WorkspaceLoading, WorkspaceState } from '@/components/product-shell/workspace-state';
-import { useProductShellEnabled } from '@/components/product-shell/shell-feature-context';
+import {
+  SettingsSectionError,
+  SettingsSectionHeader,
+  SettingsSectionLoading,
+} from '@/components/settings/settings-section-state';
 
-interface StalwartUnavailableState {
-  message: string;
-  adminUrl: string | null;
+interface StalwartEntryResponse {
+  code?: string;
+  message?: string;
+  adminUrl?: string | null;
+  error?: string;
 }
 
 export default function StalwartSettingsPage() {
-  const router = useRouter();
   const locale = useLocale();
-  const [loading, setLoading] = useState(true);
+  const t = useTranslations('settings.stalwart');
+  const [data, setData] = useState<StalwartEntryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [unavailable, setUnavailable] = useState<StalwartUnavailableState | null>(null);
-  const productShellEnabled = useProductShellEnabled();
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/settings/stalwart');
+      const body = (await response.json().catch(() => null)) as StalwartEntryResponse | null;
+      if (!response.ok || !body) throw new Error('stalwart_entry_unavailable');
+      setData(body);
+    } catch {
+      setError(t('unknownError'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadStalwart = async () => {
-      try {
-        const response = await fetch('/api/settings/stalwart');
+    void load();
+    // The locale-owned load error changes only when the route locale changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
 
-        if (response.status === 401) {
-          router.push('/login');
-          return;
-        }
+  return (
+    <main className="mail-app-shell min-h-dvh px-4 py-8 sm:px-6">
+      <div className="mail-panel-surface mx-auto max-w-3xl space-y-6 rounded-xl border border-border p-5 sm:p-7">
+        <Link
+          href={`/${locale}/settings`}
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {t('backToSettings')}
+        </Link>
+        <SettingsSectionHeader title={t('heading')} description={t('description')} />
 
-        if (response.status === 404) {
-          setError('Учетные данные не найдены');
-          setLoading(false);
-          return;
-        }
-
-        const contentType = response.headers.get('Content-Type') || '';
-
-        if (contentType.includes('application/json')) {
-          const data = await response.json();
-          if (data.code === 'STALWART_ADMIN_REQUIRES_DIRECT_LOGIN') {
-            setUnavailable({
-              message: data.message || 'Stalwart requires a separate administrator login',
-              adminUrl: typeof data.adminUrl === 'string' ? data.adminUrl : null,
-            });
-            setLoading(false);
-            return;
-          }
-          if (data.error) {
-            setError(data.error);
-            setLoading(false);
-            return;
-          }
-        }
-
-        if (!response.ok) {
-          setError(`Ошибка загрузки: ${response.status}`);
-          setLoading(false);
-          return;
-        }
-
-        const html = await response.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const container = document.getElementById('stalwart-container');
-
-        if (container) {
-          container.innerHTML = doc.body.innerHTML;
-
-          const headElements = doc.head.querySelectorAll('link, script, meta, title');
-          headElements.forEach((el) => {
-            if (el.tagName === 'LINK') {
-              const link = el as HTMLLinkElement;
-              const href = link.getAttribute('href');
-              if (
-                href &&
-                !href.startsWith('http') &&
-                !document.querySelector(`link[href="/api/settings/stalwart${href}"]`)
-              ) {
-                const newLink = link.cloneNode(true) as HTMLLinkElement;
-                if (href.startsWith('/')) {
-                  newLink.href = `/api/settings/stalwart${href}`;
-                } else {
-                  newLink.href = `/api/settings/stalwart/${href}`;
-                }
-                document.head.appendChild(newLink);
-              }
-            } else if (el.tagName === 'SCRIPT') {
-              const script = el as HTMLScriptElement;
-              const src = script.getAttribute('src');
-              const type = script.getAttribute('type');
-
-              if (type === 'module') {
-                const newScript = document.createElement('script');
-                newScript.type = 'module';
-                if (src) {
-                  if (src.startsWith('/')) {
-                    newScript.textContent = `import init, * as bindings from '/api/settings/stalwart${src}';`;
-                  } else if (!src.startsWith('http')) {
-                    newScript.textContent = `import init, * as bindings from '/api/settings/stalwart/${src}';`;
-                  } else {
-                    newScript.textContent = script.textContent || '';
-                  }
-                } else {
-                  const originalText = script.textContent || '';
-                  newScript.textContent = originalText.replace(
-                    /from\s+['"]([^'"]+)['"]/g,
-                    (match, path) => {
-                      if (path.startsWith('http')) return match;
-                      if (path.startsWith('/')) return `from '/api/settings/stalwart${path}'`;
-                      return `from '/api/settings/stalwart/${path}'`;
-                    }
-                  );
-                }
-                document.head.appendChild(newScript);
-              } else {
-                const newScript = document.createElement('script');
-                if (src) {
-                  if (src.startsWith('/')) {
-                    newScript.src = `/api/settings/stalwart${src}`;
-                  } else if (!src.startsWith('http')) {
-                    newScript.src = `/api/settings/stalwart/${src}`;
-                  } else {
-                    newScript.src = src;
-                  }
-                } else {
-                  newScript.textContent = script.textContent || '';
-                }
-                document.head.appendChild(newScript);
-              }
-            }
-          });
-        }
-        setLoading(false);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
-        setLoading(false);
-      }
-    };
-
-    loadStalwart();
-  }, [router]);
-
-  if (loading) {
-    if (productShellEnabled) {
-      return <WorkspaceLoading label={locale === 'ru' ? 'Загрузка системных настроек' : 'Loading system settings'} />;
-    }
-    return (
-      <div className="mail-app-shell min-h-dvh p-6" aria-busy="true">
-        <div className="mx-auto max-w-2xl space-y-5 pt-16">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-32 w-full" />
-        </div>
-      </div>
-    );
-  }
-
-  if (unavailable) {
-    return (
-      <main className="mail-app-shell min-h-dvh px-4 py-12">
-        <section className="mail-panel-surface mx-auto max-w-2xl rounded-xl border border-border p-6 shadow-[0_18px_40px_-28px_hsl(var(--shadow-soft)/0.35)]">
-          <div className="flex items-start gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--status-warning)/0.12)] text-[hsl(var(--status-warning))]">
-              <ServerCog className="h-5 w-5" />
+        {loading && <SettingsSectionLoading label={t('loading')} />}
+        {!loading && error && (
+          <SettingsSectionError
+            title={t('loadError')}
+            description={error}
+            retryLabel={t('retry')}
+            onRetry={() => void load()}
+          />
+        )}
+        {!loading && !error && data && (
+          <div className="space-y-5">
+            <div className="flex items-start gap-4 rounded-lg border border-border bg-muted/30 p-4">
+              <ServerCog className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <div>
+                <h2 className="font-medium">{t('separateLoginHeading')}</h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('separateLoginDescription')}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-semibold">
-                {locale === 'ru'
-                  ? 'Для управления Stalwart нужен отдельный вход'
-                  : 'Stalwart management requires a separate login'}
-              </h1>
-              <p className="mt-2 max-w-prose text-sm leading-6 text-muted-foreground">
-                {locale === 'ru'
-                  ? 'Почтовый клиент использует OAuth-сеанс пользователя и не получает административные учётные данные. Войдите в панель Stalwart под администратором.'
-                  : unavailable.message}
-              </p>
-              {!unavailable.adminUrl && (
-                <p className="mt-3 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-                  {locale === 'ru'
-                    ? 'Публичный адрес панели не настроен. Укажите STALWART_MANAGEMENT_PUBLIC_URL на сервере приложения.'
-                    : 'The public management address is not configured. Set STALWART_MANAGEMENT_PUBLIC_URL on the application server.'}
-                </p>
+
+            {!data.adminUrl && <p className="text-sm text-muted-foreground">{t('urlMissing')}</p>}
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href={`/${locale}/settings/monitoring`}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t('monitoringLink')}
+              </Link>
+              {data.adminUrl && (
+                <a
+                  href={data.adminUrl}
+                  rel="noreferrer"
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {t('openAdmin')}
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </a>
               )}
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Button variant="outline" onClick={() => router.push(`/${locale}/settings`)}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              {locale === 'ru' ? 'К настройкам' : 'Back to settings'}
-            </Button>
-            {unavailable.adminUrl && (
-              <Button onClick={() => window.location.assign(unavailable.adminUrl!)}>
-                {locale === 'ru' ? 'Открыть панель Stalwart' : 'Open Stalwart management'}
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (error) {
-    if (productShellEnabled) {
-      return (
-        <WorkspaceState
-          kind="error"
-          title={locale === 'ru' ? 'Не удалось открыть системные настройки' : 'Could not open system settings'}
-          description={error}
-          actionLabel={locale === 'ru' ? 'Вернуться к почте' : 'Back to mail'}
-          onAction={() => router.push(`/${locale}/mail`)}
-        />
-      );
-    }
-    return (
-      <div className="flex min-h-dvh items-center justify-center">
-        <div className="text-center">
-          <p className="text-destructive mb-4">{error}</p>
-          <button
-            onClick={() => router.push(`/${locale}/mail`)}
-            className="text-primary hover:underline"
-          >
-            Вернуться в почту
-          </button>
-        </div>
+        )}
       </div>
-    );
-  }
-
-  return (
-    <div className="min-h-dvh w-full overflow-auto">
-      <div id="stalwart-container" className="h-full w-full" />
-    </div>
+    </main>
   );
 }

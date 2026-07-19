@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,7 @@ async function saveSettings(settings: any): Promise<void> {
 }
 
 export function AccessibilitySettings() {
+  const t = useTranslations('settings.accessibility');
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<{
     fontSize?: number;
@@ -85,20 +87,19 @@ export function AccessibilitySettings() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Настройки доступности сохранены');
+      toast.success(t('saveSuccess'));
     },
     onError: () => {
-      toast.error('Ошибка сохранения настроек');
+      toast.error(t('saveError'));
     },
   });
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Доступность</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Настройки для улучшения доступности интерфейса для пользователей с ограниченными
-          возможностями.
+          {t('description')}
         </p>
       </div>
 
@@ -106,12 +107,12 @@ export function AccessibilitySettings() {
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-2 mb-4">
             <Type className="h-5 w-5 text-primary" />
-            <h3 className="text-lg font-semibold">Размер шрифта</h3>
+            <h3 className="text-lg font-semibold">{t('fontSizeHeading')}</h3>
           </div>
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-2 block">
-                Базовый размер шрифта: {fontSize}px
+                {t('fontSizeLabel', { size: fontSize })}
               </label>
               <input
                 type="range"
@@ -134,8 +135,7 @@ export function AccessibilitySettings() {
             </div>
             <div className="p-4 rounded-md border bg-muted/30">
               <p style={{ fontSize: `${fontSize}px` }}>
-                Пример текста с выбранным размером шрифта. Это поможет вам оценить, как будет
-                выглядеть интерфейс.
+                {t('preview')}
               </p>
             </div>
           </div>
@@ -144,7 +144,7 @@ export function AccessibilitySettings() {
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-2 mb-4">
             <Eye className="h-5 w-5 text-primary" />
-            <h3 className="text-lg font-semibold">Визуальные настройки</h3>
+            <h3 className="text-lg font-semibold">{t('visualHeading')}</h3>
           </div>
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -158,11 +158,11 @@ export function AccessibilitySettings() {
                 className="h-4 w-4 rounded border-gray-300"
               />
               <label htmlFor="highContrast" className="text-sm font-medium">
-                Высокий контраст
+                {t('highContrast')}
               </label>
             </div>
             <p className="text-xs text-muted-foreground pl-6">
-              Увеличивает контрастность цветов для лучшей читаемости
+              {t('highContrastHelp')}
             </p>
           </div>
         </div>
@@ -170,7 +170,7 @@ export function AccessibilitySettings() {
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-2 mb-4">
             <Keyboard className="h-5 w-5 text-primary" />
-            <h3 className="text-lg font-semibold">Дополнительные настройки</h3>
+            <h3 className="text-lg font-semibold">{t('additionalHeading')}</h3>
           </div>
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -184,11 +184,11 @@ export function AccessibilitySettings() {
                 className="h-4 w-4 rounded border-gray-300"
               />
               <label htmlFor="reducedMotion" className="text-sm font-medium">
-                Уменьшить анимации
+                {t('reducedMotion')}
               </label>
             </div>
             <p className="text-xs text-muted-foreground pl-6">
-              Отключает или уменьшает анимации для пользователей с вестибулярными расстройствами
+              {t('reducedMotionHelp')}
             </p>
 
             <div className="flex items-center gap-2">
@@ -202,11 +202,11 @@ export function AccessibilitySettings() {
                 className="h-4 w-4 rounded border-gray-300"
               />
               <label htmlFor="screenReaderMode" className="text-sm font-medium">
-                Режим для экранных дикторов
+                {t('screenReader')}
               </label>
             </div>
             <p className="text-xs text-muted-foreground pl-6">
-              Оптимизирует интерфейс для работы с экранными дикторами (NVDA, JAWS, VoiceOver)
+              {t('screenReaderHelp')}
             </p>
           </div>
         </div>
@@ -214,7 +214,7 @@ export function AccessibilitySettings() {
 
       <div className="flex justify-end">
         <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить настройки'}
+          {saveMutation.isPending ? t('saving') : t('save')}
         </Button>
       </div>
     </div>

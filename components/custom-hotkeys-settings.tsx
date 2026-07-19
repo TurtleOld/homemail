@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Keyboard, Plus, Trash2, Edit2 } from 'lucide-react';
+import { Keyboard, Trash2, Edit2 } from 'lucide-react';
 
 export interface CustomHotkey {
   id: string;
@@ -14,17 +15,17 @@ export interface CustomHotkey {
   enabled: boolean;
 }
 
-const DEFAULT_HOTKEYS: CustomHotkey[] = [
-  { id: 'compose', action: 'Новое письмо', keys: 'ctrl+k,cmd+k', enabled: true },
-  { id: 'reply', action: 'Ответить', keys: 'r', enabled: true },
-  { id: 'forward', action: 'Переслать', keys: 'f', enabled: true },
-  { id: 'delete', action: 'Удалить', keys: 'delete,backspace', enabled: true },
-];
+const DEFAULT_HOTKEYS = [
+  { id: 'compose', keys: 'ctrl+k,cmd+k', enabled: true },
+  { id: 'reply', keys: 'r', enabled: true },
+  { id: 'forward', keys: 'f', enabled: true },
+  { id: 'delete', keys: 'delete,backspace', enabled: true },
+] as const;
 
 async function getHotkeys(): Promise<CustomHotkey[]> {
   const res = await fetch('/api/settings/hotkeys');
   if (!res.ok) {
-    return DEFAULT_HOTKEYS;
+    return [];
   }
   return res.json();
 }
@@ -41,6 +42,7 @@ async function saveHotkeys(hotkeys: CustomHotkey[]): Promise<void> {
 }
 
 export function CustomHotkeysSettings() {
+  const t = useTranslations('settings.hotkeys');
   const [hotkeysOverride, setHotkeys] = useState<CustomHotkey[] | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editKeys, setEditKeys] = useState('');
@@ -51,18 +53,21 @@ export function CustomHotkeysSettings() {
     queryFn: getHotkeys,
   });
 
-  const hotkeys =
-    hotkeysOverride ?? (savedHotkeys && savedHotkeys.length > 0 ? savedHotkeys : DEFAULT_HOTKEYS);
+  const localizedDefaults: CustomHotkey[] = DEFAULT_HOTKEYS.map((hotkey) => ({
+    ...hotkey,
+    action: t(`actions.${hotkey.id}`),
+  }));
+  const hotkeys = hotkeysOverride ?? (savedHotkeys && savedHotkeys.length > 0 ? savedHotkeys : localizedDefaults);
 
   const saveMutation = useMutation({
     mutationFn: saveHotkeys,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hotkeys'] });
-      toast.success('Горячие клавиши сохранены');
+      toast.success(t('saveSuccess'));
       setEditingId(null);
     },
     onError: () => {
-      toast.error('Ошибка сохранения горячих клавиш');
+      toast.error(t('saveError'));
     },
   });
 
@@ -87,7 +92,7 @@ export function CustomHotkeysSettings() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Удалить эту горячую клавишу?')) {
+    if (confirm(t('deleteConfirm'))) {
       const updated = hotkeys.filter((h) => h.id !== id);
       setHotkeys(updated);
       saveMutation.mutate(updated);
@@ -97,10 +102,9 @@ export function CustomHotkeysSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Пользовательские горячие клавиши</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Настройте горячие клавиши для быстрого доступа к функциям. Используйте формат:{' '}
-          <code>ctrl+k</code>, <code>cmd+k</code>, <code>r</code>, <code>delete</code> и т.д.
+          {t('description')}
         </p>
       </div>
 
@@ -135,10 +139,10 @@ export function CustomHotkeysSettings() {
                     autoFocus
                   />
                   <Button size="sm" onClick={() => handleSave(hotkey.id)}>
-                    Сохранить
+                    {t('save')}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setEditingId(null)}>
-                    Отмена
+                    {t('cancel')}
                   </Button>
                 </div>
               ) : (
@@ -163,19 +167,19 @@ export function CustomHotkeysSettings() {
         <div className="flex items-start gap-2">
           <Keyboard className="h-5 w-5 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-medium mb-1">Формат горячих клавиш:</p>
+            <p className="font-medium mb-1">{t('formatHeading')}</p>
             <ul className="list-disc list-inside space-y-1">
               <li>
-                Одиночные клавиши: <code>r</code>, <code>f</code>, <code>delete</code>
+                {t('singleKeys')}: <code>r</code>, <code>f</code>, <code>delete</code>
               </li>
               <li>
-                Комбинации: <code>ctrl+k</code>, <code>cmd+k</code>, <code>shift+delete</code>
+                {t('combinations')}: <code>ctrl+k</code>, <code>cmd+k</code>, <code>shift+delete</code>
               </li>
               <li>
-                Несколько вариантов: <code>ctrl+k,cmd+k</code> (через запятую)
+                {t('alternatives')}: <code>ctrl+k,cmd+k</code>
               </li>
               <li>
-                Модификаторы: <code>ctrl</code>, <code>cmd</code>, <code>shift</code>,{' '}
+                {t('modifiers')}: <code>ctrl</code>, <code>cmd</code>, <code>shift</code>,{' '}
                 <code>alt</code>
               </li>
             </ul>

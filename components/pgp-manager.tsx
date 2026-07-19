@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { SettingsSectionEmpty, SettingsSectionError, SettingsSectionHeader, SettingsSectionLoading } from '@/components/settings/settings-section-state';
 
 async function getPGPKeys(): Promise<PGPKey[]> {
   const res = await fetch('/api/pgp/keys');
@@ -36,7 +38,7 @@ async function generateKey(data: {
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    const errorMessage = error.error || 'Ошибка создания ключа';
+    const errorMessage = error.error || 'Failed to create key';
     const apiError = new Error(errorMessage);
     (apiError as any).response = res;
     throw apiError;
@@ -52,7 +54,7 @@ async function importKey(data: { keyData: string; email: string; name?: string }
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    const errorMessage = error.error || 'Ошибка импорта ключа';
+    const errorMessage = error.error || 'Failed to import key';
     const apiError = new Error(errorMessage);
     (apiError as any).response = res;
     throw apiError;
@@ -67,7 +69,7 @@ async function deleteKey(id: string): Promise<void> {
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    const errorMessage = error.error || 'Ошибка удаления ключа';
+    const errorMessage = error.error || 'Failed to delete key';
     const apiError = new Error(errorMessage);
     (apiError as any).response = res;
     throw apiError;
@@ -75,6 +77,7 @@ async function deleteKey(id: string): Promise<void> {
 }
 
 export function PGPManager() {
+  const t = useTranslations('settings.pgp');
   const [showGenerate, setShowGenerate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [generateEmail, setGenerateEmail] = useState('');
@@ -87,7 +90,7 @@ export function PGPManager() {
   const [keyToDelete, setKeyToDelete] = useState<PGPKey | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: keys = [], isLoading } = useQuery({
+  const { data: keys = [], isLoading, error, refetch } = useQuery({
     queryKey: ['pgp-keys'],
     queryFn: getPGPKeys,
   });
@@ -100,10 +103,10 @@ export function PGPManager() {
       setGenerateEmail('');
       setGenerateName('');
       setGeneratePassphrase('');
-      toast.success('PGP ключ создан');
+      toast.success(t('generateSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка создания ключа');
+      toast.error(t('generateError'));
     },
   });
 
@@ -115,10 +118,10 @@ export function PGPManager() {
       setImportKeyData('');
       setImportEmail('');
       setImportName('');
-      toast.success('PGP ключ импортирован');
+      toast.success(t('importSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка импорта ключа');
+      toast.error(t('importError'));
     },
   });
 
@@ -128,16 +131,16 @@ export function PGPManager() {
       queryClient.invalidateQueries({ queryKey: ['pgp-keys'] });
       setDeleteDialogOpen(false);
       setKeyToDelete(null);
-      toast.success('PGP ключ удален');
+      toast.success(t('deleteSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка удаления ключа');
+      toast.error(t('deleteError'));
     },
   });
 
   const handleGenerate = () => {
     if (!generateEmail) {
-      toast.error('Введите email');
+      toast.error(t('emailRequired'));
       return;
     }
     if (generateMutation.isPending) {
@@ -152,7 +155,7 @@ export function PGPManager() {
 
   const handleImport = () => {
     if (!importKeyData || !importEmail) {
-      toast.error('Введите данные ключа и email');
+      toast.error(t('keyRequired'));
       return;
     }
     if (importMutation.isPending) {
@@ -190,46 +193,27 @@ export function PGPManager() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold mb-4">PGP/GPG шифрование</h2>
-        <p className="text-sm text-muted-foreground mb-6">
-          Управление PGP ключами для шифрования и подписи писем.
-        </p>
-      </div>
+      <SettingsSectionHeader title={t('heading')} description={t('description')} />
 
       <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4 space-y-3">
         <h3 className="font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-2">
           <Key className="h-5 w-5" />
-          Инструкция по использованию PGP шифрования
+          {t('instructionsHeading')}
         </h3>
         <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
-          <p className="font-medium">Для отправки зашифрованных писем необходимо:</p>
+          <p className="font-medium">{t('sendHeading')}</p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
-            <li>Получить публичный PGP ключ от получателя (файл с расширением .asc или .pub)</li>
-            <li>
-              Импортировать публичный ключ получателя, используя кнопку &quot;Импортировать
-              ключ&quot; выше
-            </li>
-            <li>
-              Убедиться, что email адрес в импортированном ключе точно совпадает с email адресом
-              получателя
-            </li>
-            <li>При создании письма отметить галочку &quot;Зашифровать письмо (PGP)&quot;</li>
+            <li>{t('sendStepKey')}</li>
+            <li>{t('sendStepImport')}</li>
+            <li>{t('sendStepAddress')}</li>
+            <li>{t('sendStepEncrypt')}</li>
           </ol>
-          <p className="font-medium mt-3">Важно:</p>
+          <p className="font-medium mt-3">{t('important')}</p>
           <ul className="list-disc list-inside space-y-1 ml-2">
-            <li>Для каждого получателя нужен отдельный публичный ключ</li>
-            <li>
-              Email адрес в ключе должен точно совпадать с адресом получателя (регистр не важен)
-            </li>
-            <li>
-              Если у получателя несколько ключей, импортируйте тот, который он использует для
-              шифрования
-            </li>
-            <li>
-              Для расшифровки входящих писем нужен ваш приватный ключ (создается при генерации
-              ключа)
-            </li>
+            <li>{t('notePerRecipient')}</li>
+            <li>{t('noteAddress')}</li>
+            <li>{t('noteKeyChoice')}</li>
+            <li>{t('notePrivateKey')}</li>
           </ul>
         </div>
       </div>
@@ -237,40 +221,41 @@ export function PGPManager() {
       <div className="flex gap-4 mb-6">
         <Button onClick={() => setShowGenerate(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Создать ключ
+          {t('generate')}
         </Button>
         <Button variant="outline" onClick={() => setShowImport(true)}>
           <Upload className="h-4 w-4 mr-2" />
-          Импортировать ключ
+          {t('import')}
         </Button>
       </div>
 
       {showGenerate && (
         <div className="rounded-lg border bg-card p-4 space-y-4">
-          <h3 className="font-semibold">Создать новый PGP ключ</h3>
+          <h3 className="font-semibold">{t('generateHeading')}</h3>
           <Input
             value={generateEmail}
             onChange={(e) => setGenerateEmail(e.target.value)}
-            placeholder="Email"
+            placeholder={t('emailPlaceholder')}
+            aria-label={t('email')}
             type="email"
           />
           <Input
             value={generateName}
             onChange={(e) => setGenerateName(e.target.value)}
-            placeholder="Имя (необязательно)"
+            placeholder={t('namePlaceholder')}
           />
           <Input
             value={generatePassphrase}
             onChange={(e) => setGeneratePassphrase(e.target.value)}
-            placeholder="Парольная фраза (необязательно)"
+            placeholder={t('passphrasePlaceholder')}
             type="password"
           />
           <div className="flex gap-2">
             <Button onClick={handleGenerate} disabled={generateMutation.isPending}>
-              {generateMutation.isPending ? 'Создание...' : 'Создать'}
+              {generateMutation.isPending ? t('generating') : t('create')}
             </Button>
             <Button variant="outline" onClick={() => setShowGenerate(false)}>
-              Отмена
+              {t('cancel')}
             </Button>
           </div>
         </div>
@@ -278,43 +263,40 @@ export function PGPManager() {
 
       {showImport && (
         <div className="rounded-lg border bg-card p-4 space-y-4">
-          <h3 className="font-semibold">Импортировать PGP ключ</h3>
+          <h3 className="font-semibold">{t('importHeading')}</h3>
           <textarea
             value={importKeyData}
             onChange={(e) => setImportKeyData(e.target.value)}
-            placeholder="Вставьте PGP ключ (-----BEGIN PGP PUBLIC KEY BLOCK-----...)"
+            placeholder={t('keyPlaceholder')}
             className="w-full min-h-[150px] rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <Input
             value={importEmail}
             onChange={(e) => setImportEmail(e.target.value)}
-            placeholder="Email"
+            placeholder={t('emailPlaceholder')}
+            aria-label={t('email')}
             type="email"
           />
           <Input
             value={importName}
             onChange={(e) => setImportName(e.target.value)}
-            placeholder="Имя (необязательно)"
+            placeholder={t('namePlaceholder')}
           />
           <div className="flex gap-2">
             <Button onClick={handleImport} disabled={importMutation.isPending}>
-              {importMutation.isPending ? 'Импорт...' : 'Импортировать'}
+              {importMutation.isPending ? t('importing') : t('import')}
             </Button>
             <Button variant="outline" onClick={() => setShowImport(false)}>
-              Отмена
+              {t('cancel')}
             </Button>
           </div>
         </div>
       )}
 
-      {isLoading && (
-        <div className="text-center py-8">
-          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-          <p className="text-sm text-muted-foreground">Загрузка ключей...</p>
-        </div>
-      )}
+      {isLoading && <SettingsSectionLoading label={t('loading')} />}
+      {!isLoading && error && <SettingsSectionError title={t('loadError')} description={t('loadErrorDescription')} retryLabel={t('retry')} onRetry={() => void refetch()} />}
 
-      {!isLoading && keys.length > 0 && (
+      {!isLoading && !error && keys.length > 0 && (
         <div className="space-y-2">
           {keys.map((key) => (
             <div
@@ -325,19 +307,19 @@ export function PGPManager() {
                 <div className="font-medium truncate">{key.name || key.email}</div>
                 <div className="text-sm text-muted-foreground truncate">{key.email}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Отпечаток: {key.fingerprint}
+                  {t('fingerprint')}: {key.fingerprint}
                 </div>
                 {key.privateKey && (
                   <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
                     <Lock className="h-3 w-3" />
-                    Приватный ключ доступен
+                    {t('privateKeyAvailable')}
                   </div>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => handleExport(key)}>
                   <Download className="h-4 w-4 mr-2" />
-                  Экспорт
+                  {t('export')}
                 </Button>
                 <Button
                   variant="outline"
@@ -346,7 +328,7 @@ export function PGPManager() {
                   className="text-destructive hover:text-destructive"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Удалить
+                  {t('delete')}
                 </Button>
               </div>
             </div>
@@ -354,28 +336,21 @@ export function PGPManager() {
         </div>
       )}
 
-      {!isLoading && keys.length === 0 && (
-        <div className="text-center py-8">
-          <Key className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-sm text-muted-foreground">
-            Нет PGP ключей. Создайте или импортируйте ключ для начала работы.
-          </p>
-        </div>
-      )}
+      {!isLoading && !error && keys.length === 0 && <SettingsSectionEmpty>{t('empty')}</SettingsSectionEmpty>}
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Удалить PGP ключ</DialogTitle>
+            <DialogTitle>{t('deleteTitle')}</DialogTitle>
             <DialogDescription>
-              Вы уверены, что хотите удалить ключ для {keyToDelete?.email}?
+              {t('deleteConfirm', { email: keyToDelete?.email ?? '' })}
               <br />
               <span className="text-xs text-muted-foreground mt-2 block">
-                Отпечаток: {keyToDelete?.fingerprint}
+                {t('fingerprint')}: {keyToDelete?.fingerprint}
               </span>
               <br />
               <span className="text-xs text-destructive mt-2 block">
-                Это действие нельзя отменить. Ключ будет удален с сервера.
+                {t('deleteWarning')}
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -388,14 +363,14 @@ export function PGPManager() {
               }}
               disabled={deleteMutation.isPending}
             >
-              Отмена
+              {t('cancel')}
             </Button>
             <Button
               variant="destructive"
               onClick={handleDeleteConfirm}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Удаление...' : 'Удалить'}
+              {deleteMutation.isPending ? t('deleting') : t('delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

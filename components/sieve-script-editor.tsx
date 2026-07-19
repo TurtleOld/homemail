@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -15,6 +16,7 @@ interface SieveScriptEditorProps {
 }
 
 export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScriptEditorProps) {
+  const t = useTranslations('settings.sieveEditor');
   const [name, setName] = useState<string>('');
   const [content, setContent] = useState<string>('');
   const [activate, setActivate] = useState(false);
@@ -41,7 +43,7 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
 
   const handleValidate = async () => {
     if (!content.trim()) {
-      toast.error('Введите текст скрипта');
+      toast.error(t('contentRequired'));
       return;
     }
     setIsValidating(true);
@@ -55,7 +57,7 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
       const data = await res.json();
       setValidationResult(data);
     } catch {
-      setValidationResult({ valid: false, error: 'Ошибка соединения с сервером' });
+      setValidationResult({ valid: false, error: t('connectionError') });
     } finally {
       setIsValidating(false);
     }
@@ -63,7 +65,7 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
 
   const handleSave = async () => {
     if (!content.trim()) {
-      toast.error('Введите текст скрипта');
+      toast.error(t('contentRequired'));
       return;
     }
     setIsSaving(true);
@@ -76,7 +78,7 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
       });
 
       if (applyToExisting) {
-        // Fire-and-forget — not awaited
+        // The background operation is intentionally not awaited.
         fetch('/api/mail/sieve/apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -85,11 +87,10 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
           .then(async (res) => {
             if (!res.ok) {
               const data = await res.json().catch(() => ({}));
-              const reason = data.reason || data.message || 'Не удалось применить к существующим письмам';
-              toast.warning(`Sieve: ${reason}`);
+              toast.warning(t('applyError'));
             } else {
               const data = await res.json().catch(() => ({}));
-              toast.success(`Sieve: применено к ${data.applied ?? 0} письмам`);
+              toast.success(t('applySuccess', { count: data.applied ?? 0 }));
             }
           })
           .catch(() => {
@@ -98,8 +99,8 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
       }
 
       onClose();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Ошибка сохранения скрипта');
+    } catch {
+      toast.error(t('saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -109,36 +110,36 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{existing ? 'Редактировать Sieve-скрипт' : 'Создать Sieve-скрипт'}</DialogTitle>
+          <DialogTitle>{existing ? t('editTitle') : t('createTitle')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           {/* Name */}
           <div className="space-y-1">
-            <label className="text-sm font-medium">Название скрипта (необязательно)</label>
+            <label className="text-sm font-medium">{t('nameLabel')}</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Например: Сортировка рассылок"
+              placeholder={t('namePlaceholder')}
               maxLength={100}
             />
           </div>
 
           {/* Code editor */}
           <div className="space-y-1">
-            <label className="text-sm font-medium">Sieve-скрипт</label>
+            <label className="text-sm font-medium">{t('contentLabel')}</label>
             <textarea
               value={content}
               onChange={(e) => { setContent(e.target.value); setValidationResult(null); }}
               className="w-full min-h-[300px] resize-y rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              placeholder={`require ["fileinto"];\n\nif header :contains "From" "newsletter@example.com" {\n  fileinto "Рассылки";\n}`}
+              placeholder={`require ["fileinto"];\n\nif header :contains "From" "newsletter@example.com" {\n  fileinto "Newsletters";\n}`}
               spellCheck={false}
             />
 
             {/* Validation result */}
             {validationResult && (
               <p className={`text-xs mt-1 ${validationResult.valid ? 'text-green-600' : 'text-destructive'}`}>
-                {validationResult.valid ? 'Скрипт корректен' : `Ошибка: ${validationResult.error ?? 'Неверный синтаксис'}`}
+                {validationResult.valid ? t('valid') : t('invalid', { reason: validationResult.error ?? t('invalidSyntax') })}
               </p>
             )}
           </div>
@@ -151,7 +152,7 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
               onChange={(e) => setActivate(e.target.checked)}
               className="h-4 w-4"
             />
-            <span className="text-sm">Активировать после сохранения</span>
+            <span className="text-sm">{t('activate')}</span>
           </label>
 
           {/* Apply to existing */}
@@ -163,9 +164,9 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
               className="h-4 w-4 mt-0.5"
             />
             <span className="text-sm">
-              Применить к существующим письмам
+              {t('applyExisting')}
               <span className="block text-xs text-muted-foreground">
-                Работает только для простых условий (From, To, Subject, Size). Сложные скрипты (vacation, body и т.д.) — не поддерживаются.
+                {t('applyExistingHelp')}
               </span>
             </span>
           </label>
@@ -177,13 +178,13 @@ export function SieveScriptEditor({ open, onClose, onSave, existing }: SieveScri
             onClick={handleValidate}
             disabled={isValidating || !content.trim()}
           >
-            {isValidating ? 'Проверка…' : 'Проверить синтаксис'}
+            {isValidating ? t('validating') : t('validate')}
           </Button>
           <Button variant="outline" onClick={onClose} disabled={isSaving}>
-            Отмена
+            {t('cancel')}
           </Button>
           <Button onClick={handleSave} disabled={isSaving || !content.trim()}>
-            {isSaving ? 'Сохранение…' : 'Сохранить'}
+            {isSaving ? t('saving') : t('save')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Mail, Trash2, Search, CheckSquare, Square } from 'lucide-react';
 import type { EmailSubscription } from '@/lib/types';
+import { SettingsSectionEmpty, SettingsSectionError, SettingsSectionHeader, SettingsSectionLoading } from '@/components/settings/settings-section-state';
 
 async function getSubscriptions(): Promise<EmailSubscription[]> {
   const res = await fetch('/api/subscriptions');
@@ -41,11 +43,13 @@ async function detectSubscriptions(messageIds: string[]): Promise<{ success: boo
 }
 
 export function SubscriptionManager() {
+  const locale = useLocale();
+  const t = useTranslations('settings.subscriptions');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
-  const { data: subscriptions = [], isLoading } = useQuery({
+  const { data: subscriptions = [], isLoading, error, refetch } = useQuery({
     queryKey: ['subscriptions'],
     queryFn: getSubscriptions,
   });
@@ -55,10 +59,10 @@ export function SubscriptionManager() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
       setSelectedIds(new Set());
-      toast.success(`Отписано от ${data.unsubscribed} рассылок`);
+      toast.success(t('unsubscribeSuccess', { count: data.unsubscribed }));
     },
     onError: () => {
-      toast.error('Ошибка отписки');
+      toast.error(t('unsubscribeError'));
     },
   });
 
@@ -66,10 +70,10 @@ export function SubscriptionManager() {
     mutationFn: detectSubscriptions,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-      toast.success(`Обнаружено ${data.detected} новых подписок`);
+      toast.success(t('detectSuccess', { count: data.detected }));
     },
     onError: () => {
-      toast.error('Ошибка обнаружения подписок');
+      toast.error(t('detectError'));
     },
   });
 
@@ -106,10 +110,10 @@ export function SubscriptionManager() {
 
   const handleUnsubscribe = () => {
     if (selectedIds.size === 0) {
-      toast.error('Выберите подписки для отписки');
+      toast.error(t('selectRequired'));
       return;
     }
-    if (confirm(`Отписаться от ${selectedIds.size} рассылок?`)) {
+    if (confirm(t('confirmUnsubscribe', { count: selectedIds.size }))) {
       unsubscribeMutation.mutate(Array.from(selectedIds));
     }
   };
@@ -117,13 +121,13 @@ export function SubscriptionManager() {
   const handleDetectFromMessages = async () => {
     const res = await fetch('/api/mail/messages?folderId=inbox&limit=100');
     if (!res.ok) {
-      toast.error('Не удалось загрузить письма');
+      toast.error(t('messagesLoadError'));
       return;
     }
     const data = await res.json();
     const messageIds = data.messages?.map((m: any) => m.id) || [];
     if (messageIds.length === 0) {
-      toast.error('Нет писем для анализа');
+      toast.error(t('noMessages'));
       return;
     }
     detectMutation.mutate(messageIds);
@@ -131,12 +135,7 @@ export function SubscriptionManager() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Управление подписками</h2>
-        <p className="text-sm text-muted-foreground mb-6">
-          Управляйте email-подписками и массово отписывайтесь от нежелательных рассылок.
-        </p>
-      </div>
+      <SettingsSectionHeader title={t('heading')} description={t('description')} />
 
       <div className="flex items-center gap-4 mb-4">
         <div className="relative flex-1">
@@ -144,7 +143,7 @@ export function SubscriptionManager() {
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск по отправителю или категории..."
+            placeholder={t('searchPlaceholder')}
             className="pl-10"
           />
         </div>
@@ -154,14 +153,14 @@ export function SubscriptionManager() {
           disabled={detectMutation.isPending}
         >
           <Mail className="h-4 w-4 mr-2" />
-          {detectMutation.isPending ? 'Обнаружение...' : 'Обнаружить подписки'}
+          {detectMutation.isPending ? t('detecting') : t('detect')}
         </Button>
       </div>
 
       {selectedIds.size > 0 && (
         <div className="flex items-center justify-between rounded-lg border bg-card p-4">
           <span className="text-sm font-medium">
-            Выбрано: {selectedIds.size}
+            {t('selected', { count: selectedIds.size })}
           </span>
           <Button
             variant="destructive"
@@ -169,24 +168,23 @@ export function SubscriptionManager() {
             disabled={unsubscribeMutation.isPending}
           >
             <Trash2 className="h-4 w-4 mr-2" />
-            {unsubscribeMutation.isPending ? 'Отписка...' : 'Отписаться'}
+            {unsubscribeMutation.isPending ? t('unsubscribing') : t('unsubscribe')}
           </Button>
         </div>
       )}
 
-      {isLoading && (
-        <div className="text-center py-8">
-          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-          <p className="text-sm text-muted-foreground">Загрузка подписок...</p>
-        </div>
+      {isLoading && <SettingsSectionLoading label={t('loading')} />}
+
+      {!isLoading && error && (
+        <SettingsSectionError title={t('loadError')} description={t('loadErrorDescription')} retryLabel={t('retry')} onRetry={() => void refetch()} />
       )}
 
-      {!isLoading && (
+      {!isLoading && !error && (
         <>
           {activeSubscriptions.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Активные подписки ({activeSubscriptions.length})</h3>
+                <h3 className="text-lg font-semibold">{t('active', { count: activeSubscriptions.length })}</h3>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -197,7 +195,7 @@ export function SubscriptionManager() {
                   ) : (
                     <Square className="h-4 w-4 mr-2" />
                   )}
-                  {selectedIds.size === activeSubscriptions.length ? 'Снять выбор' : 'Выбрать все'}
+                  {selectedIds.size === activeSubscriptions.length ? t('clearSelection') : t('selectAll')}
                 </Button>
               </div>
               <div className="space-y-2">
@@ -220,7 +218,7 @@ export function SubscriptionManager() {
                         {sub.senderEmail}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        Писем: {sub.messageCount} • Последнее: {new Date(sub.lastMessageDate).toLocaleDateString('ru-RU')}
+                        {t('messageSummary', { count: sub.messageCount, date: new Date(sub.lastMessageDate).toLocaleDateString(locale) })}
                       </div>
                     </div>
                     {sub.unsubscribeUrl && (
@@ -229,7 +227,7 @@ export function SubscriptionManager() {
                         size="sm"
                         onClick={() => window.open(sub.unsubscribeUrl, '_blank')}
                       >
-                        Отписаться
+                        {t('unsubscribe')}
                       </Button>
                     )}
                   </div>
@@ -240,7 +238,7 @@ export function SubscriptionManager() {
 
           {inactiveSubscriptions.length > 0 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Отписанные ({inactiveSubscriptions.length})</h3>
+              <h3 className="text-lg font-semibold">{t('inactive', { count: inactiveSubscriptions.length })}</h3>
               <div className="space-y-2">
                 {inactiveSubscriptions.map((sub) => (
                   <div
@@ -262,12 +260,7 @@ export function SubscriptionManager() {
           )}
 
           {filteredSubscriptions.length === 0 && (
-            <div className="text-center py-8">
-              <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-sm text-muted-foreground">
-                {searchQuery ? 'Подписки не найдены' : 'Нет подписок. Используйте кнопку "Обнаружить подписки" для анализа ваших писем.'}
-              </p>
-            </div>
+            <SettingsSectionEmpty>{searchQuery ? t('notFound') : t('empty')}</SettingsSectionEmpty>
           )}
         </>
       )}

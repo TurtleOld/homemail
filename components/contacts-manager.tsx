@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { SettingsSectionEmpty, SettingsSectionError, SettingsSectionLoading } from '@/components/settings/settings-section-state';
 
 async function getContacts(): Promise<Contact[]> {
   const res = await fetch('/api/contacts');
@@ -139,6 +141,7 @@ async function importContacts(content: string, format: 'vcard' | 'csv'): Promise
 }
 
 export function ContactsManager() {
+  const t = useTranslations('settings.contacts');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -157,7 +160,7 @@ export function ContactsManager() {
 
   const queryClient = useQueryClient();
 
-  const { data: contacts = [], isLoading } = useQuery({
+  const { data: contacts = [], isLoading, error, refetch } = useQuery({
     queryKey: ['contacts'],
     queryFn: getContacts,
   });
@@ -173,10 +176,10 @@ export function ContactsManager() {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       setIsDialogOpen(false);
       resetForm();
-      toast.success('Контакт создан');
+      toast.success(t('createSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка создания контакта');
+      toast.error(t('createError'));
     },
   });
 
@@ -187,10 +190,10 @@ export function ContactsManager() {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       setIsDialogOpen(false);
       resetForm();
-      toast.success('Контакт обновлён');
+      toast.success(t('updateSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка обновления контакта');
+      toast.error(t('updateError'));
     },
   });
 
@@ -198,20 +201,20 @@ export function ContactsManager() {
     mutationFn: deleteContact,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast.success('Контакт удалён');
+      toast.success(t('deleteSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка удаления контакта');
+      toast.error(t('deleteError'));
     },
   });
 
   const exportMutation = useMutation({
     mutationFn: exportContacts,
     onSuccess: (_, format) => {
-      toast.success(`Контакты экспортированы в ${format === 'vcard' ? 'vCard' : 'CSV'}`);
+      toast.success(t('exportSuccess', { format: format === 'vcard' ? 'vCard' : 'CSV' }));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка экспорта контактов');
+      toast.error(t('exportError'));
     },
   });
 
@@ -221,15 +224,15 @@ export function ContactsManager() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       if (result.skipped > 0) {
-        toast.success(`Импортировано ${result.imported} контактов, пропущено ${result.skipped} (уже существуют)`);
+        toast.success(t('importPartial', { imported: result.imported, skipped: result.skipped }));
       } else {
-        toast.success(`Импортировано ${result.imported} контактов`);
+        toast.success(t('importSuccess', { count: result.imported }));
       }
       setIsImportDialogOpen(false);
       setImportFile(null);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка импорта контактов');
+      toast.error(t('importError'));
     },
   });
 
@@ -239,10 +242,10 @@ export function ContactsManager() {
       queryClient.invalidateQueries({ queryKey: ['contact-groups'] });
       setIsGroupDialogOpen(false);
       resetGroupForm();
-      toast.success('Группа создана');
+      toast.success(t('groupCreateSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка создания группы');
+      toast.error(t('groupCreateError'));
     },
   });
 
@@ -254,10 +257,10 @@ export function ContactsManager() {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       setIsGroupDialogOpen(false);
       resetGroupForm();
-      toast.success('Группа обновлена');
+      toast.success(t('groupUpdateSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка обновления группы');
+      toast.error(t('groupUpdateError'));
     },
   });
 
@@ -266,10 +269,10 @@ export function ContactsManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contact-groups'] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast.success('Группа удалена');
+      toast.success(t('groupDeleteSuccess'));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка удаления группы');
+      toast.error(t('groupDeleteError'));
     },
   });
 
@@ -295,7 +298,7 @@ export function ContactsManager() {
 
   const handleGroupSubmit = () => {
     if (!groupName.trim()) {
-      toast.error('Введите название группы');
+      toast.error(t('groupNameRequired'));
       return;
     }
 
@@ -344,7 +347,7 @@ export function ContactsManager() {
 
   const handleSubmit = () => {
     if (!email.trim()) {
-      toast.error('Введите email');
+      toast.error(t('emailRequired'));
       return;
     }
 
@@ -382,7 +385,7 @@ export function ContactsManager() {
     } else if (fileName.endsWith('.csv')) {
       setImportFormat('csv');
     } else {
-      toast.error('Поддерживаются только .vcf и .csv файлы');
+      toast.error(t('unsupportedImport'));
       return;
     }
     
@@ -391,7 +394,7 @@ export function ContactsManager() {
 
   const handleImport = () => {
     if (!importFile) {
-      toast.error('Выберите файл для импорта');
+      toast.error(t('importFileRequired'));
       return;
     }
 
@@ -401,7 +404,7 @@ export function ContactsManager() {
       importMutation.mutate({ content, format: importFormat });
     };
     reader.onerror = () => {
-      toast.error('Ошибка чтения файла');
+      toast.error(t('fileReadError'));
     };
     reader.readAsText(importFile);
   };
@@ -409,13 +412,13 @@ export function ContactsManager() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Контакты</h2>
+        <h2 className="text-xl font-semibold">{t('heading')}</h2>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
-                Экспорт
+                {t('export')}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -423,34 +426,34 @@ export function ContactsManager() {
                 onClick={() => exportMutation.mutate('vcard')}
                 disabled={exportMutation.isPending}
               >
-                Экспорт в vCard (.vcf)
+                {t('exportVcard')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => exportMutation.mutate('csv')}
                 disabled={exportMutation.isPending}
               >
-                Экспорт в CSV
+                {t('exportCsv')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
-            Импорт
+            {t('import')}
           </Button>
           <Button variant="outline" size="sm" onClick={() => handleOpenGroupDialog()}>
             <Users className="h-4 w-4 mr-2" />
-            Группы
+            {t('groups')}
           </Button>
           <Button onClick={() => handleOpenDialog()} size="sm">
             <UserPlus className="h-4 w-4 mr-2" />
-            Добавить контакт
+            {t('add')}
           </Button>
         </div>
       </div>
 
       {groups.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Группы контактов</h3>
+          <h3 className="text-sm font-semibold">{t('groupsHeading')}</h3>
           <div className="flex flex-wrap gap-2">
             {groups.map((group) => {
               const groupContacts = contacts.filter((c) => c.groups?.includes(group.id));
@@ -477,7 +480,7 @@ export function ContactsManager() {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      if (confirm(`Удалить группу "${group.name}"?`)) {
+                      if (confirm(t('groupDeleteConfirm', { name: group.name }))) {
                         deleteGroupMutation.mutate(group.id);
                       }
                     }}
@@ -494,20 +497,18 @@ export function ContactsManager() {
 
       <div className="space-y-4">
         <Input
-          placeholder="Поиск контактов..."
+          placeholder={t('searchPlaceholder')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
 
-        {isLoading && <p className="text-sm text-muted-foreground">Загрузка контактов...</p>}
+        {isLoading && <SettingsSectionLoading label={t('loading')} />}
 
-        {!isLoading && filteredContacts.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {searchQuery ? 'Контакты не найдены' : 'Нет контактов'}
-          </p>
-        )}
+        {!isLoading && error && <SettingsSectionError title={t('loadError')} description={t('loadErrorDescription')} retryLabel={t('retry')} onRetry={() => void refetch()} />}
 
-        {!isLoading && filteredContacts.length > 0 && (
+        {!isLoading && !error && filteredContacts.length === 0 && <SettingsSectionEmpty>{searchQuery ? t('notFound') : t('empty')}</SettingsSectionEmpty>}
+
+        {!isLoading && !error && filteredContacts.length > 0 && (
           <div className="space-y-2">
             {filteredContacts.map((contact) => (
               <div
@@ -569,7 +570,7 @@ export function ContactsManager() {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      if (confirm(`Удалить контакт ${contact.email}?`)) {
+                      if (confirm(t('deleteConfirm', { email: contact.email }))) {
                         deleteMutation.mutate(contact.id);
                       }
                     }}
@@ -586,12 +587,13 @@ export function ContactsManager() {
       <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingContact ? 'Редактировать контакт' : 'Новый контакт'}</DialogTitle>
+            <DialogTitle>{editingContact ? t('editTitle') : t('newTitle')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Email *</label>
+              <label htmlFor="contact-email" className="text-sm font-medium">{t('emailRequiredLabel')}</label>
               <Input
+                id="contact-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -599,15 +601,15 @@ export function ContactsManager() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Имя</label>
+              <label className="text-sm font-medium">{t('name')}</label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Имя контакта"
+                placeholder={t('namePlaceholder')}
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Телефон</label>
+              <label className="text-sm font-medium">{t('phone')}</label>
               <Input
                 type="tel"
                 value={phone}
@@ -616,28 +618,28 @@ export function ContactsManager() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Заметки</label>
+              <label className="text-sm font-medium">{t('notes')}</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Дополнительная информация"
+                placeholder={t('notesPlaceholder')}
                 className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>
-              Отмена
+              {t('cancel')}
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={createMutation.isPending || updateMutation.isPending}
             >
               {createMutation.isPending || updateMutation.isPending
-                ? 'Сохранение...'
+                ? t('saving')
                 : editingContact
-                  ? 'Сохранить'
-                  : 'Создать'}
+                  ? t('save')
+                  : t('create')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -646,11 +648,11 @@ export function ContactsManager() {
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Импорт контактов</DialogTitle>
+            <DialogTitle>{t('importTitle')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Файл для импорта</label>
+              <label className="text-sm font-medium mb-2 block">{t('importFile')}</label>
               <input
                 type="file"
                 accept=".vcf,.csv"
@@ -658,7 +660,7 @@ export function ContactsManager() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Поддерживаются файлы vCard (.vcf) и CSV (.csv)
+                {t('importHelp')}
               </p>
             </div>
             {importFile && (
@@ -675,13 +677,13 @@ export function ContactsManager() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
-              Отмена
+              {t('cancel')}
             </Button>
             <Button
               onClick={handleImport}
               disabled={importMutation.isPending || !importFile}
             >
-              {importMutation.isPending ? 'Импорт...' : 'Импортировать'}
+              {importMutation.isPending ? t('importing') : t('import')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -690,20 +692,20 @@ export function ContactsManager() {
       <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editingGroup ? 'Редактировать группу' : 'Новая группа'}</DialogTitle>
+            <DialogTitle>{editingGroup ? t('groupEditTitle') : t('groupNewTitle')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Название группы *</label>
+              <label className="text-sm font-medium">{t('groupName')}</label>
               <Input
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
-                placeholder="Например: Коллеги, Друзья"
+                placeholder={t('groupNamePlaceholder')}
                 className="mt-1"
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Цвет</label>
+              <label className="text-sm font-medium">{t('color')}</label>
               <div className="mt-2 flex items-center gap-2">
                 <input
                   type="color"
@@ -727,10 +729,10 @@ export function ContactsManager() {
             </div>
             {editingGroup && (
               <div>
-                <label className="text-sm font-medium mb-2 block">Контакты в группе</label>
+                <label className="text-sm font-medium mb-2 block">{t('groupContacts')}</label>
                 <div className="border rounded-md p-3 max-h-[300px] overflow-y-auto">
                   {contacts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Нет контактов</p>
+                    <p className="text-sm text-muted-foreground">{t('empty')}</p>
                   ) : (
                     <div className="space-y-2">
                       {contacts.map((contact) => (
@@ -760,17 +762,17 @@ export function ContactsManager() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsGroupDialogOpen(false)}>
-              Отмена
+              {t('cancel')}
             </Button>
             <Button
               onClick={handleGroupSubmit}
               disabled={createGroupMutation.isPending || updateGroupMutation.isPending}
             >
               {createGroupMutation.isPending || updateGroupMutation.isPending
-                ? 'Сохранение...'
+                ? t('saving')
                 : editingGroup
-                  ? 'Сохранить'
-                  : 'Создать'}
+                  ? t('save')
+                  : t('create')}
             </Button>
           </DialogFooter>
         </DialogContent>

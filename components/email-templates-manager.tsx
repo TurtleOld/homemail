@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { SettingsSectionEmpty, SettingsSectionError, SettingsSectionHeader, SettingsSectionLoading } from '@/components/settings/settings-section-state';
 
 export interface EmailTemplate {
   id: string;
@@ -94,7 +95,7 @@ export function EmailTemplatesManager() {
 
   const queryClient = useQueryClient();
 
-  const { data: templates = [], isLoading } = useQuery({
+  const { data: templates = [], isLoading, error, refetch } = useQuery({
     queryKey: ['email-templates'],
     queryFn: getTemplates,
   });
@@ -107,8 +108,8 @@ export function EmailTemplatesManager() {
       resetForm();
       toast.success(t('createSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('createError'));
+    onError: () => {
+      toast.error(t('createError'));
     },
   });
 
@@ -121,8 +122,8 @@ export function EmailTemplatesManager() {
       resetForm();
       toast.success(t('updateSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('updateError'));
+    onError: () => {
+      toast.error(t('updateError'));
     },
   });
 
@@ -132,8 +133,8 @@ export function EmailTemplatesManager() {
       queryClient.invalidateQueries({ queryKey: ['email-templates'] });
       toast.success(t('deleteSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('deleteError'));
+    onError: () => {
+      toast.error(t('deleteError'));
     },
   });
 
@@ -205,24 +206,16 @@ export function EmailTemplatesManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">{t('heading')}</h2>
-        <Button onClick={() => handleOpenDialog()} size="sm">
-          <Plus className="h-4 w-4 mr-2" />
-          {t('create')}
-        </Button>
-      </div>
+      <SettingsSectionHeader title={t('heading')} actions={<Button onClick={() => handleOpenDialog()} size="sm"><Plus className="h-4 w-4 mr-2" />{t('create')}</Button>} />
 
       <div className="space-y-4">
-        {isLoading && <p className="text-sm text-muted-foreground">{t('loading')}</p>}
+        {isLoading && <SettingsSectionLoading label={t('loading')} />}
 
-        {!isLoading && templates.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {t('empty')}
-          </p>
-        )}
+        {!isLoading && error && <SettingsSectionError title={t('loadError')} description={t('loadErrorDescription')} retryLabel={t('retry')} onRetry={() => void refetch()} />}
 
-        {!isLoading && templates.length > 0 && (
+        {!isLoading && !error && templates.length === 0 && <SettingsSectionEmpty>{t('empty')}</SettingsSectionEmpty>}
+
+        {!isLoading && !error && templates.length > 0 && (
           <div className="space-y-2">
             {templates.map((template) => {
               const templateVariables = extractVariables(template.subject + ' ' + template.body);

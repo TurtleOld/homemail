@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ async function archiveMessages(folderId: string, days: number): Promise<{ archiv
 }
 
 export function AutoArchiveSettings() {
+  const t = useTranslations('settings.autoArchive');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('inbox');
   const [days, setDays] = useState<number>(30);
   const queryClient = useQueryClient();
@@ -46,20 +48,20 @@ export function AutoArchiveSettings() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
       queryClient.invalidateQueries({ queryKey: ['folders'] });
-      toast.success(`Архивировано ${result.archived} писем`);
+      toast.success(t('success', { count: result.archived }));
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка архивации');
+      toast.error(t('error'));
     },
   });
 
   const handleArchive = () => {
     if (!selectedFolderId || !days || days < 1) {
-      toast.error('Выберите папку и укажите количество дней');
+      toast.error(t('required'));
       return;
     }
 
-    if (confirm(`Архивировать письма старше ${days} дней из выбранной папки?`)) {
+    if (confirm(t('confirm', { days }))) {
       archiveMutation.mutate({ folderId: selectedFolderId, days });
     }
   };
@@ -67,16 +69,15 @@ export function AutoArchiveSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Автоматическая архивация</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Архивируйте старые письма из выбранной папки. Письма старше указанного количества дней
-          будут перемещены в архив.
+          {t('description')}
         </p>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label className="text-sm font-medium mb-2 block">Папка для архивации</label>
+          <label className="text-sm font-medium mb-2 block">{t('folder')}</label>
           <select
             value={selectedFolderId}
             onChange={(e) => setSelectedFolderId(e.target.value)}
@@ -92,7 +93,7 @@ export function AutoArchiveSettings() {
 
         <div>
           <label className="text-sm font-medium mb-2 block">
-            Архивировать письма старше (дней)
+            {t('days')}
           </label>
           <Input
             type="number"
@@ -102,13 +103,13 @@ export function AutoArchiveSettings() {
             className="w-full"
           />
           <p className="text-xs text-muted-foreground mt-1">
-            Письма старше указанного количества дней будут перемещены в архив
+            {t('daysHelp')}
           </p>
         </div>
 
         <Button onClick={handleArchive} disabled={archiveMutation.isPending} className="w-full">
           <Archive className="h-4 w-4 mr-2" />
-          {archiveMutation.isPending ? 'Архивация...' : 'Заархивировать письма'}
+          {archiveMutation.isPending ? t('archiving') : t('archive')}
         </Button>
       </div>
 
@@ -116,15 +117,12 @@ export function AutoArchiveSettings() {
         <div className="flex items-start gap-2">
           <Calendar className="h-5 w-5 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-medium mb-1">Как это работает:</p>
+            <p className="font-medium mb-1">{t('howItWorks')}</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Выберите папку и количество дней</li>
-              <li>Все письма старше указанного возраста будут перемещены в архив</li>
-              <li>Архивация выполняется вручную по запросу</li>
-              <li>
-                Для автоматической архивации используйте правила авто-сортировки с действием
-                &quot;Автоархивация&quot;
-              </li>
+              <li>{t('stepChoose')}</li>
+              <li>{t('stepMove')}</li>
+              <li>{t('stepManual')}</li>
+              <li>{t('stepRules')}</li>
             </ul>
           </div>
         </div>

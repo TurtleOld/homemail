@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,13 @@ import { AccessibilitySettings } from '@/components/accessibility-settings';
 import { CustomHotkeysSettings } from '@/components/custom-hotkeys-settings';
 import { SubscriptionManager } from '@/components/subscription-manager';
 import { PGPManager } from '@/components/pgp-manager';
+import {
+  SETTINGS_SECTION_IDS,
+  getSettingsSectionFromPathname,
+  getSettingsSectionHref,
+  type SettingsSectionId,
+} from '@/lib/settings-routes';
+import { SettingsSectionError, SettingsSectionLoading } from '@/components/settings/settings-section-state';
 
 interface Signature {
   id: string;
@@ -142,7 +150,7 @@ async function deleteFolder(folderId: string): Promise<void> {
   }
 }
 
-type TabId = 'signature' | 'theme' | 'autoReply' | 'folders' | 'filters' | 'sieve' | 'contacts' | 'interface' | 'advanced' | 'monitoring' | 'labels' | 'import' | 'templates' | 'notifications' | 'statistics' | 'backup' | 'archive' | 'accessibility' | 'hotkeys' | 'subscriptions' | 'pgp' | 'language' | 'stalwart';
+type TabId = SettingsSectionId;
 
 interface Tab {
   id: TabId;
@@ -156,46 +164,48 @@ interface TabGroup {
   tabs: Tab[];
 }
 
-function getTabGroups(theme: UserSettings['theme'], locale: string): TabGroup[] {
-  const ru = locale === 'ru';
-  const label = (ruLabel: string, enLabel: string) => (ru ? ruLabel : enLabel);
+function getTabGroups(
+  theme: UserSettings['theme'],
+  tabLabels: Record<TabId, string>,
+  groupLabels: Record<TabGroup['id'], string>,
+): TabGroup[] {
   const themeIcon = theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />;
 
   return [
-    { id: 'mail', label: label('Почта', 'Mail'), tabs: [
-      { id: 'signature', label: label('Подписи', 'Signatures'), icon: <Mail className="h-4 w-4" /> },
-      { id: 'autoReply', label: label('Автоответ', 'Auto-reply'), icon: <RotateCcw className="h-4 w-4" /> },
-      { id: 'advanced', label: label('Пересылка и алиасы', 'Forwarding and aliases'), icon: <Forward className="h-4 w-4" /> },
-      { id: 'templates', label: label('Шаблоны', 'Templates'), icon: <FileText className="h-4 w-4" /> },
+    { id: 'mail', label: groupLabels.mail, tabs: [
+      { id: 'signature', label: tabLabels.signature, icon: <Mail className="h-4 w-4" /> },
+      { id: 'autoReply', label: tabLabels.autoReply, icon: <RotateCcw className="h-4 w-4" /> },
+      { id: 'advanced', label: tabLabels.advanced, icon: <Forward className="h-4 w-4" /> },
+      { id: 'templates', label: tabLabels.templates, icon: <FileText className="h-4 w-4" /> },
     ] },
-    { id: 'organization', label: label('Организация', 'Organization'), tabs: [
-      { id: 'folders', label: label('Папки', 'Folders'), icon: <FolderPlus className="h-4 w-4" /> },
-      { id: 'labels', label: label('Метки', 'Labels'), icon: <Tag className="h-4 w-4" /> },
-      { id: 'filters', label: label('Фильтры', 'Filters'), icon: <Filter className="h-4 w-4" /> },
-      { id: 'subscriptions', label: label('Подписки', 'Subscriptions'), icon: <Rss className="h-4 w-4" /> },
-      { id: 'archive', label: label('Автоархивация', 'Auto-archive'), icon: <Archive className="h-4 w-4" /> },
+    { id: 'organization', label: groupLabels.organization, tabs: [
+      { id: 'folders', label: tabLabels.folders, icon: <FolderPlus className="h-4 w-4" /> },
+      { id: 'labels', label: tabLabels.labels, icon: <Tag className="h-4 w-4" /> },
+      { id: 'filters', label: tabLabels.filters, icon: <Filter className="h-4 w-4" /> },
+      { id: 'subscriptions', label: tabLabels.subscriptions, icon: <Rss className="h-4 w-4" /> },
+      { id: 'archive', label: tabLabels.archive, icon: <Archive className="h-4 w-4" /> },
     ] },
-    { id: 'interface', label: label('Интерфейс', 'Interface'), tabs: [
-      { id: 'theme', label: label('Тема', 'Theme'), icon: themeIcon },
-      { id: 'interface', label: label('Вид списка', 'List appearance'), icon: <Layout className="h-4 w-4" /> },
-      { id: 'language', label: label('Язык и регион', 'Language and region'), icon: <Globe className="h-4 w-4" /> },
-      { id: 'notifications', label: label('Уведомления', 'Notifications'), icon: <Bell className="h-4 w-4" /> },
-      { id: 'accessibility', label: label('Доступность', 'Accessibility'), icon: <Accessibility className="h-4 w-4" /> },
-      { id: 'hotkeys', label: label('Сочетания клавиш', 'Keyboard shortcuts'), icon: <Keyboard className="h-4 w-4" /> },
+    { id: 'interface', label: groupLabels.interface, tabs: [
+      { id: 'theme', label: tabLabels.theme, icon: themeIcon },
+      { id: 'interface', label: tabLabels.interface, icon: <Layout className="h-4 w-4" /> },
+      { id: 'language', label: tabLabels.language, icon: <Globe className="h-4 w-4" /> },
+      { id: 'notifications', label: tabLabels.notifications, icon: <Bell className="h-4 w-4" /> },
+      { id: 'accessibility', label: tabLabels.accessibility, icon: <Accessibility className="h-4 w-4" /> },
+      { id: 'hotkeys', label: tabLabels.hotkeys, icon: <Keyboard className="h-4 w-4" /> },
     ] },
-    { id: 'data', label: label('Контакты и данные', 'Contacts and data'), tabs: [
-      { id: 'contacts', label: label('Контакты', 'Contacts'), icon: <Users className="h-4 w-4" /> },
-      { id: 'import', label: label('Импорт', 'Import'), icon: <Upload className="h-4 w-4" /> },
-      { id: 'backup', label: label('Резервные копии', 'Backup and restore'), icon: <Database className="h-4 w-4" /> },
+    { id: 'data', label: groupLabels.data, tabs: [
+      { id: 'contacts', label: tabLabels.contacts, icon: <Users className="h-4 w-4" /> },
+      { id: 'import', label: tabLabels.import, icon: <Upload className="h-4 w-4" /> },
+      { id: 'backup', label: tabLabels.backup, icon: <Database className="h-4 w-4" /> },
     ] },
-    { id: 'security', label: label('Безопасность', 'Security'), tabs: [
-      { id: 'pgp', label: 'PGP/GPG', icon: <Key className="h-4 w-4" /> },
+    { id: 'security', label: groupLabels.security, tabs: [
+      { id: 'pgp', label: tabLabels.pgp, icon: <Key className="h-4 w-4" /> },
     ] },
-    { id: 'system', label: label('Система', 'System'), tabs: [
-      { id: 'stalwart', label: label('Подключение Stalwart', 'Stalwart connection'), icon: <Database className="h-4 w-4" /> },
-      { id: 'sieve', label: label('Sieve-скрипты', 'Sieve scripts'), icon: <Code2 className="h-4 w-4" /> },
-      { id: 'monitoring', label: label('Мониторинг', 'Monitoring'), icon: <Activity className="h-4 w-4" /> },
-      { id: 'statistics', label: label('Статистика', 'Statistics'), icon: <BarChart3 className="h-4 w-4" /> },
+    { id: 'system', label: groupLabels.system, tabs: [
+      { id: 'stalwart', label: tabLabels.stalwart, icon: <Database className="h-4 w-4" /> },
+      { id: 'sieve', label: tabLabels.sieve, icon: <Code2 className="h-4 w-4" /> },
+      { id: 'monitoring', label: tabLabels.monitoring, icon: <Activity className="h-4 w-4" /> },
+      { id: 'statistics', label: tabLabels.statistics, icon: <BarChart3 className="h-4 w-4" /> },
     ] },
   ];
 }
@@ -873,12 +883,12 @@ function FiltersTab() {
   const [editingRule, setEditingRule] = useState<AutoSortRule | undefined>();
   const [isSyncingSieve, setIsSyncingSieve] = useState(false);
   const [isResettingProcessed, setIsResettingProcessed] = useState(false);
-  const { data: filters = [], isLoading: filtersLoading } = useQuery({
+  const { data: filters = [], isLoading: filtersLoading, error: filtersError, refetch: refetchFilters } = useQuery({
     queryKey: ['saved-filters'],
     queryFn: getSavedFilters,
   });
 
-  const { data: rules = [], isLoading: rulesLoading } = useQuery({
+  const { data: rules = [], isLoading: rulesLoading, error: rulesError, refetch: refetchRules } = useQuery({
     queryKey: ['filter-rules'],
     queryFn: getFilterRules,
   });
@@ -900,8 +910,8 @@ function FiltersTab() {
       setNewFilterQuery('');
       toast.success(t('saveSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('saveError'));
+    onError: () => {
+      toast.error(t('saveError'));
     },
   });
 
@@ -911,8 +921,8 @@ function FiltersTab() {
       queryClient.invalidateQueries({ queryKey: ['saved-filters'] });
       toast.success(t('deleteSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('deleteError'));
+    onError: () => {
+      toast.error(t('deleteError'));
     },
   });
 
@@ -956,10 +966,11 @@ function FiltersTab() {
           </div>
 
           {filtersLoading && <p className="text-sm text-muted-foreground">{t('loadingFilters')}</p>}
-          {!filtersLoading && filters.length === 0 && (
+          {!filtersLoading && filtersError && <SettingsSectionError title={t('loadError')} description={t('loadErrorDescription')} retryLabel={t('retry')} onRetry={() => void refetchFilters()} />}
+          {!filtersLoading && !filtersError && filters.length === 0 && (
             <p className="text-sm text-muted-foreground">{t('noFilters')}</p>
           )}
-          {!filtersLoading && filters.length > 0 && (
+          {!filtersLoading && !filtersError && filters.length > 0 && (
             <div className="space-y-2">
               {filters.map((filter) => (
                 <div
@@ -1001,72 +1012,72 @@ function FiltersTab() {
                 </DialogHeader>
                 <div className="space-y-4 text-sm">
                   <div>
-                    <h3 className="font-semibold mb-2">📧 {t('syntax.addressFields')}</h3>
+                    <h3 className="font-semibold mb-2">{t('syntax.addressFields')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">from:</code> — {t('syntax.sender')}</li>
-                      <li><code className="bg-muted px-1 rounded">to:</code> — {t('syntax.recipient')}</li>
-                      <li><code className="bg-muted px-1 rounded">cc:</code> — {t('syntax.cc')}</li>
-                      <li><code className="bg-muted px-1 rounded">bcc:</code> — {t('syntax.bcc')}</li>
+                      <li><code className="bg-muted px-1 rounded">from:</code>: {t('syntax.sender')}</li>
+                      <li><code className="bg-muted px-1 rounded">to:</code>: {t('syntax.recipient')}</li>
+                      <li><code className="bg-muted px-1 rounded">cc:</code>: {t('syntax.cc')}</li>
+                      <li><code className="bg-muted px-1 rounded">bcc:</code>: {t('syntax.bcc')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📝 {t('syntax.contentFields')}</h3>
+                    <h3 className="font-semibold mb-2">{t('syntax.contentFields')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">subject:</code> — {t('syntax.subject')}</li>
-                      <li><code className="bg-muted px-1 rounded">body:</code> — {t('syntax.body')}</li>
+                      <li><code className="bg-muted px-1 rounded">subject:</code>: {t('syntax.subject')}</li>
+                      <li><code className="bg-muted px-1 rounded">body:</code>: {t('syntax.body')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📎 {t('syntax.attachments')}</h3>
+                    <h3 className="font-semibold mb-2">{t('syntax.attachments')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">has:attachment</code> — {t('syntax.hasAttachments')}</li>
-                      <li><code className="bg-muted px-1 rounded">has:image</code> — {t('syntax.hasImages')}</li>
-                      <li><code className="bg-muted px-1 rounded">has:document</code> — {t('syntax.hasDocuments')}</li>
+                      <li><code className="bg-muted px-1 rounded">has:attachment</code>: {t('syntax.hasAttachments')}</li>
+                      <li><code className="bg-muted px-1 rounded">has:image</code>: {t('syntax.hasImages')}</li>
+                      <li><code className="bg-muted px-1 rounded">has:document</code>: {t('syntax.hasDocuments')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">🏷️ {t('syntax.messageStatus')}</h3>
+                    <h3 className="font-semibold mb-2">{t('syntax.messageStatus')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">is:unread</code> — {t('syntax.unread')}</li>
-                      <li><code className="bg-muted px-1 rounded">is:read</code> — {t('syntax.read')}</li>
-                      <li><code className="bg-muted px-1 rounded">is:starred</code> — {t('syntax.starred')}</li>
-                      <li><code className="bg-muted px-1 rounded">is:important</code> — {t('syntax.important')}</li>
+                      <li><code className="bg-muted px-1 rounded">is:unread</code>: {t('syntax.unread')}</li>
+                      <li><code className="bg-muted px-1 rounded">is:read</code>: {t('syntax.read')}</li>
+                      <li><code className="bg-muted px-1 rounded">is:starred</code>: {t('syntax.starred')}</li>
+                      <li><code className="bg-muted px-1 rounded">is:important</code>: {t('syntax.important')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📅 {t('syntax.date')}</h3>
+                    <h3 className="font-semibold mb-2">{t('syntax.date')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">after:2024-01-01</code> — {t('syntax.afterDate')}</li>
-                      <li><code className="bg-muted px-1 rounded">before:7d</code> — {t('syntax.beforeDate')}</li>
-                      <li><code className="bg-muted px-1 rounded">after:today</code> — {t('syntax.today')}</li>
-                      <li><code className="bg-muted px-1 rounded">after:yesterday</code> — {t('syntax.yesterday')}</li>
+                      <li><code className="bg-muted px-1 rounded">after:2024-01-01</code>: {t('syntax.afterDate')}</li>
+                      <li><code className="bg-muted px-1 rounded">before:7d</code>: {t('syntax.beforeDate')}</li>
+                      <li><code className="bg-muted px-1 rounded">after:today</code>: {t('syntax.today')}</li>
+                      <li><code className="bg-muted px-1 rounded">after:yesterday</code>: {t('syntax.yesterday')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📏 {t('syntax.size')}</h3>
+                    <h3 className="font-semibold mb-2">{t('syntax.size')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">size:&gt;1MB</code> — {t('syntax.larger1mb')}</li>
-                      <li><code className="bg-muted px-1 rounded">size:&gt;500KB</code> — {t('syntax.larger500kb')}</li>
+                      <li><code className="bg-muted px-1 rounded">size:&gt;1MB</code>: {t('syntax.larger1mb')}</li>
+                      <li><code className="bg-muted px-1 rounded">size:&gt;500KB</code>: {t('syntax.larger500kb')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">✨ {t('syntax.operators')}</h3>
+                    <h3 className="font-semibold mb-2">{t('syntax.operators')}</h3>
                     <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                      <li><code className="bg-muted px-1 rounded">*</code> — {t('syntax.wildcard')}</li>
-                      <li><code className="bg-muted px-1 rounded">OR</code> — {t('syntax.logicalOr')}</li>
-                      <li><code className="bg-muted px-1 rounded">-</code> — {t('syntax.negation')}</li>
-                      <li><code className="bg-muted px-1 rounded">&quot;exact phrase&quot;</code> — {t('syntax.exactMatch')}</li>
+                      <li><code className="bg-muted px-1 rounded">*</code>: {t('syntax.wildcard')}</li>
+                      <li><code className="bg-muted px-1 rounded">OR</code>: {t('syntax.logicalOr')}</li>
+                      <li><code className="bg-muted px-1 rounded">-</code>: {t('syntax.negation')}</li>
+                      <li><code className="bg-muted px-1 rounded">&quot;exact phrase&quot;</code>: {t('syntax.exactMatch')}</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-semibold mb-2">📚 {t('syntax.examples')}</h3>
+                    <h3 className="font-semibold mb-2">{t('syntax.examples')}</h3>
                     <div className="space-y-2 text-muted-foreground">
                       <div>
                         <code className="bg-muted px-2 py-1 rounded block mb-1">from:amazon</code>
@@ -1101,7 +1112,7 @@ function FiltersTab() {
 
                   <div className="pt-2 border-t">
                     <p className="text-xs text-muted-foreground">
-                      💡 {t('syntax.tip')}
+                      {t('syntax.tip')}
                     </p>
                   </div>
                 </div>
@@ -1128,8 +1139,8 @@ function FiltersTab() {
                 await syncRulesToSieve();
                 queryClient.invalidateQueries({ queryKey: ['sieve-scripts'] });
                 toast.success(t('syncSuccess'));
-              } catch (error) {
-                toast.error(error instanceof Error ? error.message : t('syncError'));
+              } catch {
+                toast.error(t('syncError'));
               } finally {
                 setIsSyncingSieve(false);
               }
@@ -1148,8 +1159,8 @@ function FiltersTab() {
                 const res = await fetch('/api/mail/filters/rules/reset-processed', { method: 'POST' });
                 if (!res.ok) throw new Error(t('resetError'));
                 toast.success(t('resetSuccess'));
-              } catch (error) {
-                toast.error(error instanceof Error ? error.message : t('resetError'));
+              } catch {
+                toast.error(t('resetError'));
               } finally {
                 setIsResettingProcessed(false);
               }
@@ -1161,10 +1172,11 @@ function FiltersTab() {
         </div>
         <div className="space-y-4">
           {rulesLoading && <p className="text-sm text-muted-foreground">{t('rulesLoading')}</p>}
-          {!rulesLoading && rules.length === 0 && (
+          {!rulesLoading && rulesError && <SettingsSectionError title={t('rulesLoadError')} description={t('loadErrorDescription')} retryLabel={t('retry')} onRetry={() => void refetchRules()} />}
+          {!rulesLoading && !rulesError && rules.length === 0 && (
             <p className="text-sm text-muted-foreground">{t('noRules')}</p>
           )}
-          {!rulesLoading && rules.length > 0 && (
+          {!rulesLoading && !rulesError && rules.length > 0 && (
             <div className="space-y-2">
               {rules.map((rule) => (
                 <div
@@ -1205,8 +1217,8 @@ function FiltersTab() {
                           deleteFilterRule(rule.id).then(() => {
                             queryClient.invalidateQueries({ queryKey: ['filter-rules'] });
                             toast.success(t('ruleDeleteSuccess'));
-                          }).catch((error: Error) => {
-                            toast.error(error.message || t('ruleDeleteError'));
+                          }).catch(() => {
+                            toast.error(t('ruleDeleteError'));
                           });
                         }
                       }}
@@ -1250,8 +1262,8 @@ function FiltersTab() {
             } else {
               toast.success(t('ruleSavedSieve'));
             }
-          } catch (error) {
-            toast.error(error instanceof Error ? error.message : t('ruleSaveError'));
+          } catch {
+            toast.error(t('ruleSaveError'));
           }
         }}
         folders={folders}
@@ -1574,6 +1586,7 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
   const queryClient = useQueryClient();
   const router = useRouter();
   const t = useTranslations('settings.advanced');
+  const languageT = useTranslations('settings.language');
   const common = useTranslations('common');
   const [forwardingEnabled, setForwardingEnabled] = useState(() => initialSettings.forwarding?.enabled || false);
   const [forwardingEmail, setForwardingEmail] = useState(() => initialSettings.forwarding?.email || '');
@@ -1708,8 +1721,8 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
                   onChange={(e) => setLanguage(e.target.value as 'ru' | 'en')}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="ru">Русский</option>
-                  <option value="en">English</option>
+                  <option value="ru">{languageT('russian')}</option>
+                  <option value="en">{languageT('english')}</option>
                 </select>
               </div>
 
@@ -1789,19 +1802,20 @@ function AdvancedTab({ initialSettings, section = 'mail' }: { readonly initialSe
 }
 
 function ImportTab() {
+  const t = useTranslations('settings.import');
   const [importOpen, setImportOpen] = useState(false);
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Импорт писем</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('heading')}</h2>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Импортируйте письма из EML файлов в ваш почтовый ящик. Вы можете выбрать папку для импорта.
+            {t('description')}
           </p>
           <Button onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
-            Импортировать письма
+            {t('open')}
           </Button>
         </div>
       </div>
@@ -1812,14 +1826,15 @@ function ImportTab() {
 
 function SieveTab() {
   const queryClient = useQueryClient();
+  const t = useTranslations('settings.sieve');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingScript, setEditingScript] = useState<SieveScript | undefined>(undefined);
 
-  const { data: scripts = [], isLoading } = useQuery<SieveScript[]>({
+  const { data: scripts = [], isLoading, error, refetch } = useQuery<SieveScript[]>({
     queryKey: ['sieve-scripts'],
     queryFn: async () => {
       const res = await fetch('/api/mail/sieve');
-      if (!res.ok) throw new Error('Не удалось загрузить Sieve-скрипты');
+      if (!res.ok) throw new Error('sieve_unavailable');
       return res.json();
     },
   });
@@ -1833,30 +1848,30 @@ function SieveTab() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Ошибка сохранения');
+        throw new Error(data.message || t('saveError'));
       }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sieve-scripts'] });
-      toast.success('Sieve-скрипт сохранён');
+      toast.success(t('saveSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка сохранения Sieve-скрипта');
+    onError: () => {
+      toast.error(t('saveError'));
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/mail/sieve?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Не удалось удалить скрипт');
+      if (!res.ok) throw new Error(t('deleteError'));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sieve-scripts'] });
-      toast.success('Sieve-скрипт удалён');
+      toast.success(t('deleteSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка удаления');
+    onError: () => {
+      toast.error(t('deleteError'));
     },
   });
 
@@ -1874,21 +1889,25 @@ function SieveTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Sieve-скрипты</h2>
+          <h2 className="text-lg font-semibold">{t('heading')}</h2>
           <p className="text-sm text-muted-foreground">
-            Скрипты выполняются на сервере Stalwart при доставке новых писем
+            {t('description')}
           </p>
         </div>
         <Button onClick={handleCreate} size="sm">
           <Plus className="h-4 w-4 mr-1" />
-          Создать скрипт
+          {t('create')}
         </Button>
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
+      {isLoading && <SettingsSectionLoading label={t('loading')} />}
 
-      {!isLoading && scripts.length === 0 && (
-        <p className="text-sm text-muted-foreground">Нет Sieve-скриптов. Создайте первый.</p>
+      {!isLoading && error && (
+        <SettingsSectionError title={t('loadError')} description={t('loadErrorDescription')} retryLabel={t('retry')} onRetry={() => void refetch()} />
+      )}
+
+      {!isLoading && !error && scripts.length === 0 && (
+        <p className="text-sm text-muted-foreground">{t('empty')}</p>
       )}
 
       <div className="space-y-2">
@@ -1900,9 +1919,9 @@ function SieveTab() {
             <div className="flex items-center gap-3 min-w-0">
               <Code2 className="h-4 w-4 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{script.name || 'Скрипт без названия'}</p>
+                <p className="text-sm font-medium truncate">{script.name || t('unnamed')}</p>
                 {script.isActive && (
-                  <span className="text-xs text-green-600 font-medium">Активен</span>
+                  <span className="text-xs text-[hsl(var(--status-success))] font-medium">{t('active')}</span>
                 )}
               </div>
             </div>
@@ -1975,8 +1994,8 @@ function FoldersTab() {
       setNewFolderParentId('');
       toast.success(t('createSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('createError'));
+    onError: () => {
+      toast.error(t('createError'));
     },
   });
 
@@ -2000,8 +2019,8 @@ function FoldersTab() {
       setEditFolderParentId('');
       toast.success(t('updateSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('updateError'));
+    onError: () => {
+      toast.error(t('updateError'));
     },
   });
 
@@ -2011,8 +2030,8 @@ function FoldersTab() {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       toast.success(t('deleteSuccess'));
     },
-    onError: (error: Error) => {
-      toast.error(error.message || t('deleteError'));
+    onError: () => {
+      toast.error(t('deleteError'));
     },
   });
 
@@ -2141,20 +2160,35 @@ function FoldersTab() {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const locale = useLocale();
-  const [activeTab, setActiveTab] = useState<TabId>('signature');
-  const { data: settings, isLoading } = useQuery({
+  const shell = useTranslations('settings.shell');
+  const tabs = useTranslations('settings.tabs');
+  const stalwartT = useTranslations('settings.stalwart');
+  const routeSection = getSettingsSectionFromPathname(pathname);
+  const activeTab = routeSection || 'signature';
+  const { data: settings, isLoading, error, refetch } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
   });
-  
+
   const currentTheme = settings?.theme || 'system';
-  const tabGroups = getTabGroups(currentTheme, locale);
+  const tabLabels = Object.fromEntries(
+    SETTINGS_SECTION_IDS.map((id) => [id, tabs(id)]),
+  ) as Record<TabId, string>;
+  const tabGroups = getTabGroups(currentTheme, tabLabels, {
+    mail: shell('groups.mail'),
+    organization: shell('groups.organization'),
+    interface: shell('groups.interface'),
+    data: shell('groups.data'),
+    security: shell('groups.security'),
+    system: shell('groups.system'),
+  });
   const activeTabLabel = tabGroups.flatMap((group) => group.tabs).find((tab) => tab.id === activeTab)?.label;
 
-  if (isLoading || !settings) {
+  if (isLoading) {
     return (
-      <div className="mail-app-shell min-h-dvh p-6" aria-busy="true" aria-label="Загрузка настроек">
+      <div className="mail-app-shell min-h-dvh p-6" aria-busy="true" aria-label={shell('loading')}>
         <div className="mx-auto grid max-w-6xl grid-cols-[17rem_minmax(0,1fr)] gap-8">
           <div className="space-y-4 border-r border-border pr-6">
             <Skeleton className="h-8 w-36" />
@@ -2170,22 +2204,42 @@ export default function SettingsPage() {
     );
   }
 
+  if (error || !settings) {
+    return (
+      <main className="mail-app-shell min-h-dvh p-6">
+        <div className="mx-auto max-w-2xl pt-16">
+          <SettingsSectionError
+            title={shell('loadError')}
+            description={shell('loadErrorDescription')}
+            retryLabel={shell('retry')}
+            onRetry={() => void refetch()}
+          />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div className="mail-app-shell flex min-h-dvh flex-col">
       <header className="mail-panel-muted border-b border-border px-4 py-3">
         <div className="mx-auto flex max-w-[1440px] items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/mail`)}>
+          <Button variant="ghost" size="icon" className="max-lg:hidden" onClick={() => router.push(`/${locale}/mail`)} aria-label={shell('backToMail')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
+          {routeSection && (
+            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => router.push(`/${locale}/settings`)} aria-label={shell('backToSections')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">{locale === 'ru' ? 'Настройки' : 'Settings'}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{shell('title')}</h1>
             <p className="text-xs text-muted-foreground">{activeTabLabel}</p>
           </div>
         </div>
       </header>
       <div className="mx-auto grid min-h-0 w-full max-w-[1440px] flex-1 grid-cols-[17rem_minmax(0,1fr)] max-lg:grid-cols-1">
-        <aside className="mail-sidebar-surface overflow-y-auto border-r border-border max-lg:max-h-[42dvh] max-lg:border-b max-lg:border-r-0">
-          <nav className="space-y-5 p-4" aria-label={locale === 'ru' ? 'Разделы настроек' : 'Settings sections'}>
+        <aside className="mail-sidebar-surface overflow-y-auto border-r border-border max-lg:hidden">
+          <nav className="space-y-5 p-4" aria-label={shell('navigationLabel')}>
             {tabGroups.map((group) => (
               <section key={group.id} aria-labelledby={`settings-group-${group.id}`}>
                 <h2 id={`settings-group-${group.id}`} className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">
@@ -2193,14 +2247,14 @@ export default function SettingsPage() {
                 </h2>
                 <div className="space-y-0.5">
                   {group.tabs.map((tab) => (
-                    <button
+                    <Link
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
+                      href={getSettingsSectionHref(locale, tab.id)}
                       aria-current={activeTab === tab.id ? 'page' : undefined}
                       className={`flex min-h-9 w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${activeTab === tab.id ? 'mail-selected-surface font-medium text-foreground' : 'text-muted-foreground hover:mail-hover-surface hover:text-foreground'}`}
                     >
                       {tab.icon}<span>{tab.label}</span>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               </section>
@@ -2208,7 +2262,23 @@ export default function SettingsPage() {
           </nav>
         </aside>
         <main id="main-content" className="mail-panel-surface min-w-0 overflow-y-auto px-6 pb-12 pt-8 max-sm:px-4">
-          <div className="mx-auto max-w-3xl">
+          {!routeSection && (
+            <nav className="mx-auto max-w-3xl space-y-6 lg:hidden" aria-label={shell('navigationLabel')}>
+              {tabGroups.map((group) => (
+                <section key={group.id} aria-labelledby={`mobile-settings-group-${group.id}`}>
+                  <h2 id={`mobile-settings-group-${group.id}`} className="mb-2 text-xs font-medium text-muted-foreground">{group.label}</h2>
+                  <div className="divide-y divide-border border-y border-border">
+                    {group.tabs.map((tab) => (
+                      <Link key={tab.id} href={getSettingsSectionHref(locale, tab.id)} className="flex min-h-12 items-center gap-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {tab.icon}<span className="flex-1">{tab.label}</span><ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </nav>
+          )}
+          <div className={`mx-auto max-w-3xl ${routeSection ? '' : 'max-lg:hidden'}`}>
             {activeTab === 'signature' && <SignatureTab initialSettings={settings} />}
             {activeTab === 'theme' && <ThemeTab initialSettings={settings} />}
             {activeTab === 'autoReply' && <AutoReplyTab initialSettings={settings} />}
@@ -2234,13 +2304,13 @@ export default function SettingsPage() {
             {activeTab === 'stalwart' && (
               <section className="space-y-5">
                 <div>
-                  <h2 className="text-xl font-semibold">{locale === 'ru' ? 'Подключение Stalwart' : 'Stalwart connection'}</h2>
+                  <h2 className="text-xl font-semibold">{stalwartT('heading')}</h2>
                   <p className="mt-2 max-w-prose text-sm leading-6 text-muted-foreground">
-                    {locale === 'ru' ? 'Параметры сервера открываются в отдельной защищённой системной поверхности.' : 'Server controls open in a separate protected system surface.'}
+                    {stalwartT('description')}
                   </p>
                 </div>
                 <Button onClick={() => router.push(`/${locale}/settings/stalwart`)}>
-                  {locale === 'ru' ? 'Открыть настройки Stalwart' : 'Open Stalwart settings'}
+                  {stalwartT('openAdmin')}
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </section>
