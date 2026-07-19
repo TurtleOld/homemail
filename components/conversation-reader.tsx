@@ -22,7 +22,6 @@ interface ConversationReaderProps {
   onStar?: (starred: boolean) => void;
   onMarkRead?: (read: boolean) => void;
   onToggleImportant?: (important: boolean) => void;
-  allowRemoteImages?: boolean;
   inlineComposer?: React.ReactNode;
 }
 
@@ -50,7 +49,6 @@ export function ConversationReader({
   onStar,
   onMarkRead,
   onToggleImportant,
-  allowRemoteImages,
   inlineComposer,
 }: ConversationReaderProps) {
   const t = useTranslations('conversationReader');
@@ -110,7 +108,6 @@ export function ConversationReader({
                   onStar={onStar}
                   onMarkRead={onMarkRead}
                   onToggleImportant={onToggleImportant}
-                  allowRemoteImages={allowRemoteImages}
                   inlineComposer={inlineComposer}
                 />
               </div>

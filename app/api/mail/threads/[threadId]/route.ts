@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getRedesignFeatureFlags } from '@/lib/feature-flags';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { getSession } from '@/lib/session';
 import { protectMessageForDelivery } from '@/lib/protected-message-content';
@@ -43,13 +42,12 @@ export async function GET(
     return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
   }
 
-  const features = getRedesignFeatureFlags();
-  return NextResponse.json(features.protectedMessageContent ? {
+  return NextResponse.json({
     ...thread,
     messages: thread.messages.map((message) => protectMessageForDelivery(
       message,
       session.accountId,
-      { remoteImagesEnabled: features.remoteImageFetching },
+      { remoteImagesEnabled: true },
     )),
-  } : thread);
+  });
 }

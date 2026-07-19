@@ -41,7 +41,6 @@ import { MessageTranslator } from '@/components/message-translator';
 import { DeliveryTracking } from '@/components/delivery-tracking';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
-import { useProtectedMessageContentEnabled } from '@/components/product-shell/shell-feature-context';
 
 interface MessageViewerProps {
   message: MessageDetail | null;
@@ -53,7 +52,6 @@ interface MessageViewerProps {
   onStar?: (starred: boolean) => void;
   onMarkRead?: (read: boolean) => void;
   onToggleImportant?: (important: boolean) => void;
-  allowRemoteImages?: boolean;
   isLoading?: boolean;
   hasSelection?: boolean;
   isMobile?: boolean;
@@ -96,7 +94,6 @@ export function MessageViewer({
   onStar,
   onMarkRead,
   onToggleImportant,
-  allowRemoteImages = false,
   isLoading = false,
   hasSelection = false,
   isMobile = false,
@@ -111,10 +108,8 @@ export function MessageViewer({
   const localeSettings = useLocaleSettings();
   const t = useTranslations('messageViewer');
   const tCommon = useTranslations('common');
-  const protectedMessageContentEnabled = useProtectedMessageContentEnabled();
   const markedAsReadRef = useRef<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const [localAllowImages, setLocalAllowImages] = useState(false);
   const [iframeHeight, setIframeHeight] = useState(300);
   const [previewAttachment, setPreviewAttachment] = useState<{
     id: string;
@@ -166,22 +161,6 @@ export function MessageViewer({
     }
   }, []);
 
-  const hasRemoteImages = useMemo(() => {
-    if (!body) return false;
-    try {
-      const htmlBody = body.html;
-      if (!htmlBody || typeof htmlBody !== 'string') return false;
-      return /<img[^>]+src=["'](https?:\/\/[^"']+)["'][^>]*>/gi.test(htmlBody);
-    } catch (error) {
-      console.error('Error checking remote images:', error);
-      return false;
-    }
-  }, [body]);
-
-  const effectiveAllowImages = protectedMessageContentEnabled
-    ? false
-    : allowRemoteImages || localAllowImages;
-
   const sanitizedHtml = useMemo(() => {
     if (!body) return '';
 
@@ -190,7 +169,7 @@ export function MessageViewer({
       const textBody = body.text;
 
       if (htmlBody && typeof htmlBody === 'string' && htmlBody.trim().length > 0) {
-        return sanitizeHtml(htmlBody, effectiveAllowImages);
+        return sanitizeHtml(htmlBody, false);
       }
       if (textBody && typeof textBody === 'string' && textBody.trim().length > 0) {
         const escaped = textBody
@@ -208,7 +187,7 @@ export function MessageViewer({
     }
 
     return '';
-  }, [body, effectiveAllowImages]);
+  }, [body]);
 
   const isDark = useMemo(() => {
     if (typeof document === 'undefined') return false;
@@ -241,10 +220,8 @@ export function MessageViewer({
       '<head>',
       '<meta charset="utf-8">',
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
-      protectedMessageContentEnabled
-        ? // `'self'` would resolve to the srcDoc document's opaque origin, not this app's origin.
-          `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${typeof window !== 'undefined' ? window.location.origin : "'self'"} data:; style-src 'unsafe-inline'">`
-        : '',
+      // `'self'` would resolve to the srcDoc document's opaque origin, not this app's origin.
+      `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${typeof window !== 'undefined' ? window.location.origin : "'self'"} data:; style-src 'unsafe-inline'">`,
       '<style>',
       '* { box-sizing: border-box; }',
       `html, body { margin: 0; padding: 0; background: ${shellBg}; }`,
@@ -307,7 +284,7 @@ export function MessageViewer({
       `<body><div class="email-shell"><div class="email-content${isTableLayout ? ' email-content--table-layout' : ''}">${sanitizedHtml}</div></div></body>`,
       '</html>',
     ].join('');
-  }, [sanitizedHtml, isDark, isTableLayout, layout, protectedMessageContentEnabled]);
+  }, [sanitizedHtml, isDark, isTableLayout, layout]);
 
   const messageLabelObjects = useMemo(() => {
     if (!message?.labels) return [];
@@ -878,18 +855,6 @@ export function MessageViewer({
       {/* Scrollable body */}
       <div className={cn('flex flex-1 flex-col', embedded ? 'overflow-visible' : 'overflow-auto')}>
         {layout === 'legacy' && attachmentSection}
-        {hasRemoteImages && !effectiveAllowImages && (
-          <div className="border-b border-border/70 bg-[hsl(var(--surface-panel-muted)/0.92)] px-4 py-2 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLocalAllowImages(true)}
-              className="h-8 rounded-xl border-border/80 bg-background/90 text-foreground shadow-sm hover:mail-hover-surface"
-            >
-              {t('showImages')}
-            </Button>
-          </div>
-        )}
         {iframeSrcDoc ? (
           <iframe
             ref={iframeRef}

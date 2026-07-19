@@ -6,15 +6,12 @@ import { Toaster } from '@/components/ui/toast';
 import { PerformanceReporter } from '@/components/performance-reporter';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
-import { ProductShellFeatureProvider } from '@/components/product-shell/shell-feature-context';
 import { RouteAwareShell } from '@/components/product-shell/route-aware-shell';
 
 export function Providers({
   children,
-  protectedMessageContentEnabled = false,
 }: {
   children: React.ReactNode;
-  protectedMessageContentEnabled?: boolean;
 }) {
   const [queryClient] = useState(
     () =>
@@ -144,17 +141,13 @@ export function Providers({
   }, []);
 
   return (
-    <ProductShellFeatureProvider
-      protectedMessageContentEnabled={protectedMessageContentEnabled}
-    >
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider delayDuration={300}>
-          <RouteAwareShell>{children}</RouteAwareShell>
-          <PerformanceReporter />
-          <PWAInstallPrompt />
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ProductShellFeatureProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider delayDuration={300}>
+        <RouteAwareShell>{children}</RouteAwareShell>
+        <PerformanceReporter />
+        <PWAInstallPrompt />
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 }

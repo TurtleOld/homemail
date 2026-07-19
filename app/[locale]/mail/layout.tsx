@@ -155,7 +155,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     () => initialUrlState.quickFilter
   );
   const [filterGroup, setFilterGroup] = useState<FilterGroup | undefined>();
-  const [allowRemoteImages, setAllowRemoteImages] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [minimizedDrafts, setMinimizedDrafts] = useState<MinimizedDraft[]>([]);
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
@@ -1709,7 +1708,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     onStar={handleReaderStar}
                     onMarkRead={handleReaderRead}
                     onToggleImportant={handleReaderImportant}
-                    allowRemoteImages={allowRemoteImages}
                     inlineComposer={inlineReplyComposer}
                   />
                 ) : (
@@ -1724,7 +1722,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   onStar={handleReaderStar}
                   onMarkRead={handleReaderRead}
                   onToggleImportant={handleReaderImportant}
-                  allowRemoteImages={allowRemoteImages}
                   isLoading={isMessageLoading}
                   hasSelection={!!selectedMessageId}
                   error={messageError}

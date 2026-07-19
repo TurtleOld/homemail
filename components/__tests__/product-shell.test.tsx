@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ProductShellFeatureProvider } from '@/components/product-shell/shell-feature-context';
 import { RouteAwareShell } from '@/components/product-shell/route-aware-shell';
 import { WorkspaceFrame } from '@/components/product-shell/workspace-frame';
 import {
@@ -20,9 +19,7 @@ describe('product shell feature boundary', () => {
   it('adds a route-aware boundary unconditionally', () => {
     pathname = '/ru/settings/stalwart';
     const { container } = render(
-      <ProductShellFeatureProvider>
-        <RouteAwareShell><main>System content</main></RouteAwareShell>
-      </ProductShellFeatureProvider>
+      <RouteAwareShell><main>System content</main></RouteAwareShell>
     );
 
     expect(container.querySelector('[data-product-shell="enabled"]'))

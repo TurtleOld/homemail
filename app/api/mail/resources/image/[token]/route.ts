@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { getClientIp } from '@/lib/client-ip';
-import { isRedesignFeatureEnabled } from '@/lib/feature-flags';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
 import { fetchProtectedImage, ProtectedImageError, validateImageBytes } from '@/lib/protected-image-fetcher';
@@ -49,7 +48,6 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  if (!isRedesignFeatureEnabled('protectedMessageContent')) return placeholder('feature_disabled', token, false);
 
   const session = await getSession(request);
   if (!session) return placeholder('unauthorized', token, false);
@@ -62,7 +60,6 @@ export async function GET(
 
   try {
     if (payload.kind === 'external') {
-      if (!isRedesignFeatureEnabled('remoteImageFetching')) return placeholder('remote_fetch_disabled', token);
       const result = await fetchProtectedImage(payload.url);
       logger.info('[ProtectedImage]', {
         event: 'image_fetched',

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
-  featureEnabled: vi.fn(),
   getSession: vi.fn(),
   verifyToken: vi.fn(),
   fetchImage: vi.fn(),
@@ -13,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
 }));
 
-vi.mock('@/lib/feature-flags', () => ({ isRedesignFeatureEnabled: mocks.featureEnabled }));
 vi.mock('@/lib/session', () => ({ getSession: mocks.getSession }));
 vi.mock('@/lib/protected-message-content', () => ({ verifyImageResourceToken: mocks.verifyToken }));
 vi.mock('@/lib/protected-image-fetcher', async (importOriginal) => {
@@ -45,18 +43,9 @@ describe('protected image resource route', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     process.env.MAIL_PROVIDER = 'stalwart';
-    mocks.featureEnabled.mockImplementation((flag: string) => flag === 'protectedMessageContent' || flag === 'remoteImageFetching');
     mocks.getSession.mockResolvedValue({ accountId: 'account-1' });
     mocks.checkRateLimit.mockReturnValue({ allowed: true });
     mocks.getProvider.mockReturnValue({ getAttachment: mocks.getAttachment });
-  });
-
-  it('returns a quiet placeholder when the protected path is disabled', async () => {
-    mocks.featureEnabled.mockReturnValue(false);
-    const response = await GET(request(), { params: Promise.resolve({ token: 'signed-token' }) });
-    expect(response.status).toBe(200);
-    expect(response.headers.get('X-HomeMail-Image-Status')).toBe('placeholder');
-    expect(mocks.verifyToken).not.toHaveBeenCalled();
   });
 
   it('rejects a valid token from a different mailbox without fetching', async () => {

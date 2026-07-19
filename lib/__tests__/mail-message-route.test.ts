@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   getProvider: vi.fn(),
   getMessage: vi.fn(),
   readStorage: vi.fn(),
-  getFeatureFlags: vi.fn(),
   protectMessage: vi.fn(),
 }));
 
@@ -16,7 +15,6 @@ vi.mock('@/lib/get-provider', () => ({
   getMailProvider: mocks.getProvider,
 }));
 vi.mock('@/lib/storage', () => ({ readStorage: mocks.readStorage }));
-vi.mock('@/lib/feature-flags', () => ({ getRedesignFeatureFlags: mocks.getFeatureFlags }));
 vi.mock('@/lib/protected-message-content', () => ({ protectMessageForDelivery: mocks.protectMessage }));
 
 import { GET } from '@/app/api/mail/messages/[id]/route';
@@ -35,20 +33,10 @@ describe('mail message protected-content boundary', () => {
     mocks.getProvider.mockReturnValue({ getMessage: mocks.getMessage });
     mocks.getMessage.mockResolvedValue({ ...message });
     mocks.readStorage.mockResolvedValue({});
-    mocks.getFeatureFlags.mockReturnValue({ protectedMessageContent: false, remoteImageFetching: false });
     mocks.protectMessage.mockReturnValue({ ...message, body: { html: '<img src="/internal">' } });
   });
 
-  it('keeps the legacy response unchanged while the feature is disabled', async () => {
-    const response = await GET(new NextRequest('https://app.example.test/api/mail/messages/message-1'), {
-      params: Promise.resolve({ id: 'message-1' }),
-    });
-    expect(response.status).toBe(200);
-    expect(mocks.protectMessage).not.toHaveBeenCalled();
-  });
-
-  it('rewrites through the authenticated mailbox scope when enabled', async () => {
-    mocks.getFeatureFlags.mockReturnValue({ protectedMessageContent: true, remoteImageFetching: true });
+  it('rewrites through the authenticated mailbox scope', async () => {
     const response = await GET(new NextRequest('https://app.example.test/api/mail/messages/message-1'), {
       params: Promise.resolve({ id: 'message-1' }),
     });

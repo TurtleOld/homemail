@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import { MessageList } from '../message-list';
 import { MessageViewer } from '../message-viewer';
 import type { MessageListItem, MessageDetail } from '@/lib/types';
-import { ProductShellFeatureProvider } from '@/components/product-shell/shell-feature-context';
 
 const mockListMessage: MessageListItem = {
   id: 'msg-1',
@@ -217,17 +216,14 @@ describe('Mail foundation smoke coverage', () => {
     expect(screen.getByTitle('Message content')).toHaveStyle({ height: '300px' });
   });
 
-  it('never leaves a sender image URL reachable in protected mode', () => {
+  it('never leaves a sender image URL reachable', () => {
     renderWithQueryClient(
-      <ProductShellFeatureProvider protectedMessageContentEnabled>
-        <MessageViewer
-          message={{
-            ...mockDetailMessage,
-            body: { html: '<img src="https://tracker.example/open.gif">' },
-          }}
-          allowRemoteImages
-        />
-      </ProductShellFeatureProvider>
+      <MessageViewer
+        message={{
+          ...mockDetailMessage,
+          body: { html: '<img src="https://tracker.example/open.gif">' },
+        }}
+      />
     );
 
     const frame = screen.getByTitle('Message content');
