@@ -11,6 +11,7 @@ import { MessageViewer } from '@/components/message-viewer';
 import { ConversationReader } from '@/components/conversation-reader';
 import { QuickFilters } from '@/components/quick-filters';
 import { SearchBar } from '@/components/search-bar';
+import { AccountMenu } from '@/components/account-menu';
 import type {
   Folder,
   Account,
@@ -1294,7 +1295,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
             >
               <Sidebar
                 folders={folders}
-                account={account || null}
                 selectedFolderId={selectedFolderId}
                 onFolderSelect={handleFolderSelect}
                 onCompose={() => {
@@ -1362,6 +1362,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 placeholder={t('searchPlaceholder')}
                 className="mx-auto w-full max-w-2xl"
               />
+              <AccountMenu account={account || null} />
             </header>
           )}
           {!isOnline && (

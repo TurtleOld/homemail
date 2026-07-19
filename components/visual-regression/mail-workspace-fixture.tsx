@@ -8,6 +8,7 @@ import { MessageList } from '@/components/message-list';
 import { MessageViewer } from '@/components/message-viewer';
 import { SearchBar } from '@/components/search-bar';
 import { QuickFilters } from '@/components/quick-filters';
+import { AccountMenu } from '@/components/account-menu';
 import { Button } from '@/components/ui/button';
 import type { Folder, MessageDetail, MessageListItem, QuickFilterType } from '@/lib/types';
 
@@ -90,7 +91,6 @@ export function MailWorkspaceFixture({ screen }: { screen: 'list' | 'reader' }) 
       <div className="hidden flex-shrink-0 lg:block">
         <Sidebar
           folders={localizedFolders}
-          account={{ id: 'fixture', email: 'alexander@example.test', displayName: 'Alexander Pavlov' }}
           selectedFolderId="inbox"
           onFolderSelect={() => {}}
           onCompose={() => {}}
@@ -108,11 +108,11 @@ export function MailWorkspaceFixture({ screen }: { screen: 'list' | 'reader' }) 
           )}
           <h1 className="w-28 truncate text-sm font-semibold">{inboxLabel}</h1>
           <SearchBar value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} className="mx-auto w-full max-w-2xl" />
+          <AccountMenu account={{ id: 'fixture', email: 'alexander@example.test', displayName: 'Alexander Pavlov' }} />
         </header>
         {screen === 'list' ? (
           <>
-            <div className="flex min-h-11 items-center gap-2 border-b border-border bg-surface-subtle px-3">
-              <h2 className="mr-auto text-sm font-semibold">{inboxLabel}</h2>
+            <div className="flex min-h-11 items-center justify-end gap-2 border-b border-border bg-surface-subtle px-3">
               <QuickFilters activeFilter={filter} onFilterChange={setFilter} />
               <Button variant="secondary" size="sm" className="h-8 rounded-control px-2 shadow-none">
                 <MessageSquare className="mr-1 h-4 w-4" />{t('threads')}

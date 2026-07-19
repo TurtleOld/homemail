@@ -1,45 +1,29 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import type { Folder, Account, QuickFilterType } from '@/lib/types';
+import type { Folder, QuickFilterType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Inbox,
   Send,
   FileText,
   Trash2,
   AlertTriangle,
-  Settings,
-  LogOut,
   Plus,
   ChevronLeft,
   ChevronRight,
   X,
-  User,
   RefreshCw,
   Mail,
   Star,
   Paperclip,
-  ChevronsUpDown,
-  ServerCog,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 
 interface SidebarProps {
   folders: Folder[];
-  account: Account | null;
   selectedFolderId: string | null;
   onFolderSelect: (folderId: string) => void;
   onCompose: () => void;
@@ -63,7 +47,6 @@ const folderIcons: Record<string, React.ReactNode> = {
 
 export function Sidebar({
   folders,
-  account,
   selectedFolderId,
   onFolderSelect,
   onCompose,
@@ -75,77 +58,10 @@ export function Sidebar({
   onRefreshFolders,
   layout = 'legacy',
 }: SidebarProps) {
-  const router = useRouter();
-  const locale = useLocale();
   const t = useTranslations('sidebar');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const queryClient = useQueryClient();
-  const { data: accountsData } = useQuery<{
-    accounts: Array<{ id: string; email: string; displayName?: string; isActive?: boolean }>;
-  }>({
-    queryKey: ['user-accounts'],
-    queryFn: async () => {
-      const res = await fetch('/api/accounts');
-      if (!res.ok) {
-        throw new Error('Failed to load accounts');
-      }
-      return res.json();
-    },
-    staleTime: 60 * 1000,
-  });
-
-  const switchAccountMutation = useMutation({
-    mutationFn: async (accountId: string) => {
-      const res = await fetch('/api/accounts/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to switch account');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['account'] });
-      queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
-      toast.success(t('accountSwitched'));
-      router.refresh();
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || t('accountSwitchError'));
-    },
-  });
-
-  const handleSwitchAccount = (accountId: string) => {
-    if (accountId === account?.id) {
-      return;
-    }
-    switchAccountMutation.mutate(accountId);
-  };
-
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push(`/${locale}/login`);
-    router.refresh();
-  };
-
-  const handleSettings = () => {
-    router.push(`/${locale}/settings`);
-  };
-
-  const handleStalwartManagement = () => {
-    router.push(`/${locale}/settings/stalwart`);
-  };
-
-  const otherAccounts = (accountsData?.accounts || []).filter(
-    (availableAccount) => availableAccount.id !== account?.id
-  );
 
   const organizedFolders = useMemo(() => {
     const folderMap = new Map<string, Folder & { children: Folder[] }>();
@@ -303,17 +219,6 @@ export function Sidebar({
             })}
           </nav>
         </div>
-        <div className="border-t border-border p-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="w-full"
-            onClick={handleSettings}
-            title={t('settingsLabel')}
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-        </div>
       </aside>
     );
   }
@@ -428,82 +333,6 @@ export function Sidebar({
         <nav className="space-y-1 p-2">
           {organizedFolders.map((folder) => renderFolderItem(folder))}
         </nav>
-      </div>
-      <div className="border-t border-border p-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className={cn('h-auto min-h-12 w-full justify-start gap-3 px-2.5 py-2 text-left touch-manipulation hover:mail-hover-surface', layout === 'list-first' ? 'rounded-control' : 'rounded-xl')}
-              aria-label={t('accountMenu')}
-            >
-              {account ? (
-                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-semibold text-primary-foreground shadow-sm">
-                  {(account.displayName || account.email || '?')[0].toUpperCase()}
-                </div>
-              ) : (
-                <Settings className="h-4 w-4 flex-shrink-0" />
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-foreground">
-                  {account?.displayName || account?.email || t('defaultAccount')}
-                </span>
-                <span className="block truncate text-[11px] leading-4 text-muted-foreground">
-                  {account?.displayName && account.displayName !== account.email
-                    ? account.email
-                    : t('currentMailbox')}
-                </span>
-              </span>
-              <ChevronsUpDown
-                className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            sideOffset={8}
-            className="w-64 rounded-xl border-border p-1.5 shadow-[0_18px_44px_-24px_hsl(var(--shadow-soft)/0.55)]"
-          >
-            {otherAccounts.length > 0 && (
-              <>
-                <DropdownMenuLabel className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground">
-                  {t('switchMailbox')}
-                </DropdownMenuLabel>
-                {otherAccounts.map((availableAccount) => (
-                  <DropdownMenuItem
-                    key={availableAccount.id}
-                    onClick={() => handleSwitchAccount(availableAccount.id)}
-                    disabled={switchAccountMutation.isPending}
-                    className="min-h-10 rounded-lg px-2"
-                  >
-                    <User className="mr-2 h-4 w-4 flex-shrink-0" strokeWidth={1.8} />
-                    <span className="truncate">
-                      {availableAccount.displayName || availableAccount.email}
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-              </>
-            )}
-            <DropdownMenuItem onClick={handleSettings} className="min-h-10 rounded-lg px-2">
-              <Settings className="mr-2 h-4 w-4" strokeWidth={1.8} />
-              {t('mailSettings')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={handleStalwartManagement}
-              className="min-h-10 rounded-lg px-2"
-            >
-              <ServerCog className="mr-2 h-4 w-4" strokeWidth={1.8} />
-              {t('manageInStalwart')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="min-h-10 rounded-lg px-2">
-              <LogOut className="mr-2 h-4 w-4" strokeWidth={1.8} />
-              {t('logout')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </aside>
   );

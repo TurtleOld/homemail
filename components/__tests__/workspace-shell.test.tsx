@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Sidebar } from '../sidebar';
 import { SearchBar } from '../search-bar';
+import { AccountMenu } from '../account-menu';
 
 const push = vi.fn();
 
@@ -56,7 +57,6 @@ describe('Workspace shell', () => {
     renderWithQueryClient(
       <Sidebar
         folders={[{ id: 'inbox-id', name: 'Primary inbox', role: 'inbox', unreadCount: 4 }]}
-        account={null}
         selectedFolderId="inbox-id"
         onFolderSelect={onFolderSelect}
         onCompose={vi.fn()}
@@ -114,13 +114,8 @@ describe('Workspace shell', () => {
     );
 
     renderWithQueryClient(
-      <Sidebar
-        folders={[]}
+      <AccountMenu
         account={{ id: 'account-1', email: 'alexander@example.com', displayName: 'Alexander' }}
-        selectedFolderId={null}
-        onFolderSelect={vi.fn()}
-        onCompose={vi.fn()}
-        onQuickFilterChange={vi.fn()}
       />
     );
 
