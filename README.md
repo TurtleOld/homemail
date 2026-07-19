@@ -13,7 +13,7 @@ docker compose -f docker-compose.production.yml up -d
 
 Подробнее в [DEPLOYMENT.md](./DEPLOYMENT.md)
 
-Настраиваете семейную идентификацию (Family/HomeMail administrator, Stalwart service credential) впервые? См. [docs/FAMILY-IDENTITY-FIRST-RUN.md](./docs/FAMILY-IDENTITY-FIRST-RUN.md).
+Назначаете администратора HomeMail впервые? См. [QUICKSTART.md](./QUICKSTART.md#настройка-администратора-homemail).
 
 ## Технологии
 
