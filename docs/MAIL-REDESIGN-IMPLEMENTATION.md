@@ -1,6 +1,6 @@
 # HomeMail redesign implementation log
 
-Status: Phase 0 through Phase 5 complete (Phase 5 against a scope narrowed mid-phase by ADR 0008/0009 — see "Phase 5 decision" for what changed and why); Phase 6 not started
+Status: Phase 0 through Phase 6 complete (Phase 5 and Phase 6 use the scope narrowed by ADR 0008/0009; see the corresponding decision sections); Phase 7 not started
 
 Last updated: 2026-07-19
 
@@ -1106,3 +1106,47 @@ What was actually delivered, and why it constitutes a legitimate, deliberately-c
 - **Legacy access and rollback compatibility were never put at risk**: every increment in this phase was additive or flag-gated (except the monitoring feature, shipped without a flag by explicit user choice since it is read-only and non-mutating per ADR 0010); no existing session, login path, or stored data format was changed or removed. The existing basic/OAuth login flow, mailbox access, and settings behavior are unchanged from before this phase began.
 
 What was not built, and is not planned under the current scope: family-member/mailbox provisioning from HomeMail, activation and recovery link state machines, member/mailbox/instance-scoped settings UI beyond what already existed, and any HomeMail-internal role or permission concept. Any future work in these areas requires a fresh ADR revisiting ADR 0008/0009, not an assumption that Phase 5's original prompt still describes the intended product.
+
+## Phase 6: Align organization and system capabilities
+
+Completed on 2026-07-19 against the scope established by ADR 0008, ADR 0009, and ADR 0010. This phase aligned the user-owned mailbox capabilities and the read-only system surfaces; it did not perform Phase 7 cutover or cleanup.
+
+### Phase 6 decision
+
+The original Phase 6 plan grouped backup, restore, domain/mailbox management, DKIM, TLS, and other Stalwart-adjacent surfaces as if HomeMail might gain an administrative capability. That premise is no longer valid. ADR 0008 removed HomeMail roles and instance scope; ADR 0009 permanently assigned every Stalwart mutation to Stalwart Web Admin or operator tooling; ADR 0010 retained only narrow read-only monitoring. Phase 6 therefore closes with the following explicit outcome:
+
+- HomeMail gained no administrative mutation capability, no member/mailbox/instance authorization layer for server administration, and no replacement for the removed `StalwartAdminOperation` contract.
+- Domain and mailbox lifecycle, DKIM, TLS, Stalwart configuration, server backup, and server restore remain unimplemented in HomeMail. They are not deferred UI work: under the current ADRs they are deliberately absent. Adding any one of them requires a new ADR that explicitly revisits ADR 0008/0009.
+- The Backup and Restore Settings route is now presentation-only operator guidance. It points operators to `docs/MAIL-REDESIGN-PHASE0-RUNBOOK.md` and exposes no backup or restore action. The legacy `/api/backup` contract was not deleted in this phase, preserving rollback compatibility and avoiding Phase 7 cleanup; it has no action in the redesigned Settings surface.
+- The Stalwart Settings entry is a separate-login link to Stalwart Web Admin plus a link to HomeMail's existing read-only monitoring. HomeMail does not hold, proxy, or broker an administrator session.
+- Existing read-only Stalwart monitoring remains shipped without a feature flag, exactly as ADR 0010 records. Phase 6 did not duplicate it or retroactively gate it.
+- Existing user-owned mailbox mutations (filters, Sieve scripts, imports, templates, subscriptions, contacts, PGP keys, folders, and manual archive) keep their provider and storage contracts. This phase changed their presentation and failure handling, not the meaning of existing stored data. No new high-impact data behavior was introduced, so no new feature flag was added.
+
+### Capability and presentation changes
+
+- Added stable localized route IDs under `/{locale}/settings/{section}` for every Settings section. Desktop keeps the grouped settings navigation; mobile uses `/settings` as the route list and opens a selected section on its own screen with a localized back action.
+- Added shared Settings section header, loading skeleton, empty state, failure state, and retry patterns. Filters, templates, subscriptions, import, PGP, Sieve, statistics, monitoring, contacts, archive, accessibility, and hotkeys now use these patterns where their data flow requires them.
+- Reworked statistics into a read-only, responsive data view with validated response shape, bounded retry, locale-aware dates, an overflow-contained activity table, empty states, and a generic failure boundary.
+- Reworked monitoring presentation without changing its read-only contract: removed the duplicated timer refresh path, localized status and security-event vocabulary, retained explicit manual retry, hid raw upstream errors, and made queue/report failures independent with `Promise.allSettled`. A successful queue read now remains visible if the report endpoint fails, and vice versa.
+- Localized all visible strings introduced or retained in the audited Settings components. `messages/en.json` and `messages/ru.json` have the same Settings key tree. Protocol names, addresses, user names, and user-authored content remain untranslated by design.
+- Removed raw API/provider error messages from Settings toasts and failure panels. Statistics logging now records only the exception type; Stalwart monitoring records only classified failure codes. Neither path logs credentials, request authorization, provider URLs, or response bodies.
+- Import keeps per-file success/failure accounting and localized partial-result feedback. Contacts import retains its imported/skipped result. Monitoring now exposes partial queue/report availability instead of collapsing both reads into one failure.
+
+### Verification performed
+
+- `npx tsc --noEmit`: passed.
+- `npx eslint` over every Phase 6 source, route, fixture, and test file: passed.
+- Full `npx vitest run --maxWorkers=1 --no-file-parallelism`: 45 files, 241 tests passed.
+- Localization tests verify identical recursive Settings catalog keys, a localized label for every route ID, no Cyrillic literals in Settings runtime source after comments are removed, and no visible en/em dash characters in the audited runtime/catalog surface.
+- Stalwart monitoring negative tests cover missing credentials, invalid success-shaped responses, network failure, and an independently failing report endpoint; component tests cover reachable, unavailable, partial, and non-Stalwart states.
+- Statistics route negative tests cover missing session, unavailable Stalwart/provider reads, and invalid provider responses. Every failure returns a controlled generic boundary rather than provider detail.
+- `npm run build`: passed. The first sandboxed attempt failed because Turbopack could not bind an internal port; the same build passed outside that sandbox restriction. The only emitted notices were the existing middleware deprecation, standalone-start, experimental type-stripping, and stale Browserslist data notices.
+- `PLAYWRIGHT_USE_BUILD=1 npx playwright test e2e/settings-capabilities.spec.ts`: 8 tests passed. The browser gate visits every Settings route in both Russian and English, resolves the route's catalog label without missing-message errors, checks named headings and retry actions, verifies generic monitoring/statistics failures, tests 390 px horizontal containment, and compares four ru/en monitoring/statistics screenshots. The first run found a real mobile statistics overflow; the grid min-size was corrected and the ordinary non-update regression run passed.
+
+### Constraints and next safe step
+
+- No disposable Stalwart mutation environment was needed or used. Presentation states use generated fixtures. The real read-only monitoring contract and production response shape were already verified in Phase 5; Phase 6 added failure isolation around that confirmed contract without touching production.
+- Backup/restore evidence remains the Phase 0 operator procedure. Phase 6 did not claim a HomeMail recovery UI, live restore rehearsal, DKIM/TLS management, or mailbox/domain administration.
+- The legacy Settings implementation still shares one client module behind the new route-backed URLs. Splitting every section into its own bundle is a possible later maintainability improvement, but is not required for the Phase 6 behavioral, localization, responsive, or failure-isolation exit gate and was not used as a pretext for Phase 7 cleanup.
+- Phase 6 is complete: every listed Settings surface has ru/en route coverage, common presentation patterns are applied where relevant, no administrative mutation capability or authorization model was introduced, and both sensitive read-only paths have concrete negative and retry tests.
+- The next safe step is a separate Phase 7 review: inspect the Phase 6 diff and baselines, decide cutover evidence and cleanup scope explicitly, and only then authorize final cutover or deletion. No Phase 7 action was performed here.
