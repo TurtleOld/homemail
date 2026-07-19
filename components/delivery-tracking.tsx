@@ -29,7 +29,7 @@ export function DeliveryTracking({ messageId }: DeliveryTrackingProps) {
     queryKey: ['delivery-tracking', messageId],
     queryFn: () => getDeliveryTracking(messageId),
     enabled: !!messageId,
-    refetchInterval: 30000,
+    refetchInterval: (query) => (query.state.data ? 30000 : false),
   });
 
   if (isLoading) {
