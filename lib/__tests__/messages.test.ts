@@ -33,7 +33,6 @@ describe('locale message catalogs', () => {
       'app/[locale]/settings/stalwart/page.tsx',
       'components/accessibility-settings.tsx',
       'components/auto-archive-settings.tsx',
-      'components/backup-restore.tsx',
       'components/contacts-manager.tsx',
       'components/custom-hotkeys-settings.tsx',
       'components/email-import.tsx',

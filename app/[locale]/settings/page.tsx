@@ -20,7 +20,6 @@ import { LabelsManager } from '@/components/labels-manager';
 import { EmailImport } from '@/components/email-import';
 import { EmailTemplatesManager } from '@/components/email-templates-manager';
 import { StatisticsDashboard } from '@/components/statistics-dashboard';
-import { BackupRestore } from '@/components/backup-restore';
 import { AutoArchiveSettings } from '@/components/auto-archive-settings';
 import { AccessibilitySettings } from '@/components/accessibility-settings';
 import { CustomHotkeysSettings } from '@/components/custom-hotkeys-settings';
@@ -196,7 +195,6 @@ function getTabGroups(
     { id: 'data', label: groupLabels.data, tabs: [
       { id: 'contacts', label: tabLabels.contacts, icon: <Users className="h-4 w-4" /> },
       { id: 'import', label: tabLabels.import, icon: <Upload className="h-4 w-4" /> },
-      { id: 'backup', label: tabLabels.backup, icon: <Database className="h-4 w-4" /> },
     ] },
     { id: 'security', label: groupLabels.security, tabs: [
       { id: 'pgp', label: tabLabels.pgp, icon: <Key className="h-4 w-4" /> },
@@ -2297,7 +2295,6 @@ export default function SettingsPage() {
             {activeTab === 'templates' && <EmailTemplatesManager />}
             {activeTab === 'import' && <ImportTab />}
             {activeTab === 'statistics' && <StatisticsDashboard />}
-            {activeTab === 'backup' && <BackupRestore />}
             {activeTab === 'archive' && <AutoArchiveSettings />}
             {activeTab === 'monitoring' && <MonitoringDashboard />}
             {activeTab === 'language' && <LanguageTab initialSettings={settings} />}

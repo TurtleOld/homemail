@@ -321,7 +321,6 @@
       "templates": "Templates",
       "import": "Import",
       "statistics": "Statistics",
-      "backup": "Backup",
       "archive": "Archive",
       "monitoring": "Monitoring",
       "language": "Language",
@@ -847,19 +846,6 @@
         "path_traversal_attempt": "Path traversal attempt"
       },
       "severities": { "low": "Low", "medium": "Medium", "high": "High", "critical": "Critical" }
-    },
-    "backup": {
-      "heading": "Backup and restore",
-      "description": "Production backup and recovery remain operator procedures outside HomeMail.",
-      "operatorHeading": "Operator verification",
-      "stepInventory": "Confirm the actual HomeMail and Stalwart mounts and immutable rollback images.",
-      "stepBackup": "Create separate verified backups of HomeMail data and Stalwart state.",
-      "stepRestore": "Restore only into isolated destinations with generated or copied backup data.",
-      "stepVerify": "Run read-only smoke checks before accepting the recovery evidence.",
-      "runbookHeading": "Phase 0 runbook",
-      "runbookDescription": "Use the reviewed operator procedure. HomeMail does not perform server restore operations.",
-      "runbookLink": "Open the runbook",
-      "boundary": "No backup or restore action is exposed here. Stalwart and deployment recovery stay in Stalwart Web Admin and operator tooling."
     },
     "stalwart": {
       "heading": "Stalwart connection",

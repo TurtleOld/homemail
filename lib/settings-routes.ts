@@ -16,7 +16,6 @@ export const SETTINGS_SECTION_IDS = [
   'hotkeys',
   'contacts',
   'import',
-  'backup',
   'pgp',
   'sieve',
   'monitoring',
