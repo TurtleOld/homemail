@@ -1,4 +1,3 @@
-export type HomeMailRole = 'administrator' | 'member';
 export type HomeMailIdentityStatus = 'pending' | 'active' | 'suspended';
 export type MailboxAssignmentStatus = 'active' | 'suspended';
 
@@ -11,7 +10,6 @@ export interface HomeMailIdentity {
   id: string;
   oidc: OidcIdentityReference;
   displayName: string;
-  role: HomeMailRole;
   status: HomeMailIdentityStatus;
 }
 

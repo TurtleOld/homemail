@@ -1,12 +1,10 @@
 import type { ConfigurationScope } from './configuration-scope';
-import type { HomeMailRole } from './home-identity';
 
 export type AuthorizationMode = 'legacy-compatibility' | 'identity';
 
 export interface AuthorizationSubject {
   mode: AuthorizationMode;
   memberId: string;
-  role: HomeMailRole;
   activeMailboxId: string;
   assignedMailboxIds: ReadonlySet<string>;
 }
@@ -16,8 +14,7 @@ export type AuthorizationAction =
   | 'mailbox.write'
   | 'mailbox.activate'
   | 'settings.read'
-  | 'settings.write'
-  | 'instance.administer';
+  | 'settings.write';
 
 export interface AuthorizationRequest {
   action: AuthorizationAction;
@@ -30,7 +27,6 @@ export interface AuthorizationDecision {
     | 'allowed'
     | 'member-scope-mismatch'
     | 'mailbox-unassigned'
-    | 'administrator-required'
     | 'scope-action-mismatch';
 }
 
@@ -43,20 +39,13 @@ const deny = (reason: Exclude<AuthorizationDecision['reason'], 'allowed'>): Auth
 /**
  * Central authorization policy. Resource ownership is derived from the authenticated
  * subject. A client-provided member identifier or mailbox identifier is only a
- * requested resource and never authorization evidence.
+ * requested resource and never authorization evidence. HomeMail has no internal
+ * role distinction (ADR 0008): every signed-in family member has equal standing.
  */
 export function authorize(
   subject: AuthorizationSubject,
   request: AuthorizationRequest,
 ): AuthorizationDecision {
-  if (request.scope.kind === 'instance') {
-    return request.action === 'instance.administer' && subject.role === 'administrator'
-      ? allow()
-      : request.action === 'instance.administer'
-        ? deny('administrator-required')
-        : deny('scope-action-mismatch');
-  }
-
   if (request.scope.kind === 'member') {
     if (request.action !== 'settings.read' && request.action !== 'settings.write') {
       return deny('scope-action-mismatch');

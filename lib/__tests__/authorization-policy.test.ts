@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { authorize, requireAuthorization, AuthorizationDeniedError } from '@/lib/authorization-policy';
-import { instanceScope, mailboxScope, memberScope } from '@/lib/configuration-scope';
+import { mailboxScope, memberScope } from '@/lib/configuration-scope';
 import {
   legacyAuthorizationSubject,
   legacySettingsAccountId,
@@ -11,7 +11,6 @@ describe('authorization policy', () => {
   const member = {
     mode: 'identity' as const,
     memberId: 'member-1',
-    role: 'member' as const,
     activeMailboxId: 'mailbox-1',
     assignedMailboxIds: new Set(['mailbox-1', 'mailbox-2']),
   };
@@ -40,18 +39,6 @@ describe('authorization policy', () => {
     })).toEqual({ allowed: false, reason: 'member-scope-mismatch' });
   });
 
-  it('requires the administrator role for instance scope', () => {
-    expect(authorize(member, {
-      action: 'instance.administer',
-      scope: instanceScope,
-    })).toEqual({ allowed: false, reason: 'administrator-required' });
-
-    expect(authorize({ ...member, role: 'administrator' }, {
-      action: 'instance.administer',
-      scope: instanceScope,
-    }).allowed).toBe(true);
-  });
-
   it('throws a generic forbidden error without revealing the resource', () => {
     expect(() => requireAuthorization(member, {
       action: 'mailbox.read',
@@ -73,7 +60,6 @@ describe('authorization policy', () => {
       mode: 'legacy-compatibility',
       memberId: 'legacy:person@example.test',
       activeMailboxId: 'primary-account',
-      role: 'member',
     });
     expect([...subject.assignedMailboxIds]).toEqual(expect.arrayContaining([
       'primary-account',

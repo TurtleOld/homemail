@@ -10,10 +10,6 @@ import { logger } from '@/lib/logger';
 import { getClientIp } from '@/lib/client-ip';
 import { SecurityLogger } from '@/lib/security-logger';
 import { buildPublicUrl } from '@/lib/public-url';
-import { isRedesignFeatureEnabled } from '@/lib/feature-flags';
-import { validateOidcIdToken } from '@/lib/oidc-id-token-validator';
-import { HttpJwksProvider } from '@/lib/oidc-jwks-provider';
-import { bootstrapAdministratorIfConfigured } from '@/lib/admin-bootstrap';
 
 /**
  * Read the user's preferred locale from their saved settings.
@@ -122,9 +118,9 @@ export async function GET(request: NextRequest) {
     });
 
     // 2. Validate and consume state (one-time use, CSRF protection)
-    const consumedState = await consumeOAuthState(state);
+    const codeVerifier = await consumeOAuthState(state);
 
-    if (!consumedState) {
+    if (!codeVerifier) {
       // Check if state was recently consumed by another worker process (duplicate request scenario).
       // Next.js production runs multiple workers, each with separate memory - the in-memory Set
       // guard doesn't work across workers, so we use the file-based consumedAt marker instead.
@@ -200,7 +196,7 @@ export async function GET(request: NextRequest) {
     tokenBody.append('code', code);
     tokenBody.append('redirect_uri', redirectUri);
     tokenBody.append('client_id', clientId);
-    tokenBody.append('code_verifier', consumedState.codeVerifier); // PKCE proof
+    tokenBody.append('code_verifier', codeVerifier); // PKCE proof
 
     const tokenResponse = await fetch(endpoints.token_endpoint, {
       method: 'POST',
@@ -235,44 +231,6 @@ export async function GET(request: NextRequest) {
     }
 
     logger.info('[OAuth Callback] Tokens received successfully');
-
-    // 5b. Optional family-identity linking: validate the ID token and bootstrap
-    // the administrator identity if configured. This never affects the
-    // existing access-token login below — any failure here is logged and
-    // swallowed, not surfaced to the user or allowed to interrupt sign-in.
-    if (isRedesignFeatureEnabled('familyIdentity') && typeof tokenData.id_token === 'string') {
-      try {
-        const publicIssuer = publicUrl.replace(/\/$/, '');
-        const jwksUri = endpoints.jwks_uri ?? `${publicIssuer}/auth/jwks.json`;
-        const validated = await validateOidcIdToken(tokenData.id_token, {
-          issuer: endpoints.issuer ?? publicIssuer,
-          audience: clientId,
-          nonce: consumedState.nonce ?? '',
-          jwks: new HttpJwksProvider(jwksUri),
-        });
-
-        logger.info('[OAuth Callback] ID token validated for family identity', {
-          issuer: validated.issuer,
-          hasEmail: !!validated.email,
-        });
-
-        const outcome = await bootstrapAdministratorIfConfigured({
-          issuer: validated.issuer,
-          subject: validated.subject,
-          email: validated.email,
-        });
-
-        if (outcome.kind === 'bootstrapped') {
-          logger.info('[OAuth Callback] Bootstrapped HomeMail administrator identity', {
-            identityId: outcome.identity.id,
-          });
-        }
-      } catch (identityError) {
-        logger.warn('[OAuth Callback] Family-identity linking failed; continuing with legacy sign-in', {
-          message: identityError instanceof Error ? identityError.message : String(identityError),
-        });
-      }
-    }
 
     // 6. Get user info from JMAP session
     // Create JMAP client directly with access token (no need for OAuthJMAPClient yet)

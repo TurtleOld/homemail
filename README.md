@@ -13,8 +13,6 @@ docker compose -f docker-compose.production.yml up -d
 
 Подробнее в [DEPLOYMENT.md](./DEPLOYMENT.md)
 
-Назначаете администратора HomeMail впервые? См. [QUICKSTART.md](./QUICKSTART.md#настройка-администратора-homemail).
-
 ## Технологии
 
 - **Next.js 16.x** (App Router) + React 19 + TypeScript

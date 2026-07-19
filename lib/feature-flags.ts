@@ -7,7 +7,6 @@ export const REDESIGN_FEATURE_FLAG_NAMES = [
   'listFirstMail',
   'protectedMessageContent',
   'remoteImageFetching',
-  'familyIdentity',
 ] as const;
 
 export type RedesignFeatureFlagName = (typeof REDESIGN_FEATURE_FLAG_NAMES)[number];
@@ -23,7 +22,6 @@ const ENV_BY_FLAG: Record<RedesignFeatureFlagName, string> = {
   listFirstMail: 'HOMEMAIL_FEATURE_LIST_FIRST_MAIL',
   protectedMessageContent: 'HOMEMAIL_FEATURE_PROTECTED_MESSAGE_CONTENT',
   remoteImageFetching: 'HOMEMAIL_FEATURE_REMOTE_IMAGE_FETCHING',
-  familyIdentity: 'HOMEMAIL_FEATURE_FAMILY_IDENTITY',
 };
 
 function enabled(value: string | undefined): boolean {
@@ -46,7 +44,6 @@ export function getRedesignFeatureFlags(
     listFirstMail: enabled(environment[ENV_BY_FLAG.listFirstMail]),
     protectedMessageContent: enabled(environment[ENV_BY_FLAG.protectedMessageContent]),
     remoteImageFetching: enabled(environment[ENV_BY_FLAG.remoteImageFetching]),
-    familyIdentity: enabled(environment[ENV_BY_FLAG.familyIdentity]),
   });
 }
 

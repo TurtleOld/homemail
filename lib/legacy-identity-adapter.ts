@@ -19,7 +19,6 @@ export function legacyAuthorizationSubject(
   return {
     mode: 'legacy-compatibility',
     memberId: `legacy:${session.email}`,
-    role: 'member',
     activeMailboxId: session.accountId,
     assignedMailboxIds,
   };

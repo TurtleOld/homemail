@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { instanceScope, mailboxScope, memberScope } from '@/lib/configuration-scope';
+import { mailboxScope, memberScope } from '@/lib/configuration-scope';
 import { oidcIdentityKey } from '@/lib/home-identity';
 
 describe('identity and configuration domain boundaries', () => {
@@ -12,9 +12,8 @@ describe('identity and configuration domain boundaries', () => {
       .toThrow();
   });
 
-  it('keeps member, mailbox, and instance configuration scopes explicit', () => {
+  it('keeps member and mailbox configuration scopes explicit', () => {
     expect(memberScope('member-1')).toEqual({ kind: 'member', memberId: 'member-1' });
     expect(mailboxScope('mailbox-1')).toEqual({ kind: 'mailbox', mailboxId: 'mailbox-1' });
-    expect(instanceScope).toEqual({ kind: 'instance' });
   });
 });

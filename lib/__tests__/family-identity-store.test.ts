@@ -18,52 +18,26 @@ describe('family identity store', () => {
     delete process.env.DATA_DIR;
   });
 
-  it('creates the first administrator identity and finds it back by oidc reference', async () => {
-    const { bootstrapAdministratorIdentity, findIdentityByOidc, findAdministratorIdentity } =
-      await import('@/lib/family-identity-store');
+  it('creates an identity and finds it back by oidc reference', async () => {
+    const { createIdentity, findIdentityByOidc } = await import('@/lib/family-identity-store');
 
     const reference = { issuer: 'https://auth.pavlovteam.ru', subject: 'e' };
-    const created = await bootstrapAdministratorIdentity(reference, 'Alexander Pavlov');
+    const created = await createIdentity(reference, 'Alexander Pavlov');
 
-    expect(created.role).toBe('administrator');
     expect(created.status).toBe('active');
     expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
 
     const foundByOidc = await findIdentityByOidc(reference);
     expect(foundByOidc).toEqual(created);
-
-    const administrator = await findAdministratorIdentity();
-    expect(administrator).toEqual(created);
   });
 
-  it('rejects a second administrator bootstrap once one exists', async () => {
-    const { bootstrapAdministratorIdentity, DuplicateAdministratorError } =
-      await import('@/lib/family-identity-store');
+  it('rejects creating a second identity for the same (issuer, subject) pair', async () => {
+    const { createIdentity, DuplicateOidcIdentityError } = await import('@/lib/family-identity-store');
 
-    await bootstrapAdministratorIdentity({ issuer: 'https://auth.pavlovteam.ru', subject: 'e' }, 'First Admin');
-
-    await expect(
-      bootstrapAdministratorIdentity({ issuer: 'https://auth.pavlovteam.ru', subject: 'f' }, 'Second Admin'),
-    ).rejects.toBeInstanceOf(DuplicateAdministratorError);
-  });
-
-  it('rejects bootstrapping an (issuer, subject) pair already registered to a non-administrator identity', async () => {
-    const { bootstrapAdministratorIdentity, DuplicateOidcIdentityError } =
-      await import('@/lib/family-identity-store');
-    const { writeStorage } = await import('@/lib/storage');
-
-    // A member identity for this (issuer, subject) pair already exists, but no
-    // administrator does yet — this seeds that exact state directly, since
-    // bootstrapAdministratorIdentity itself only ever creates administrators.
     const reference = { issuer: 'https://auth.pavlovteam.ru', subject: 'e' };
-    await writeStorage('homeIdentities', {
-      version: 1,
-      identities: [
-        { id: 'existing-member', oidc: reference, displayName: 'Existing Member', role: 'member', status: 'active' },
-      ],
-    });
+    await createIdentity(reference, 'First Sign-in');
 
-    await expect(bootstrapAdministratorIdentity(reference, 'Alexander Pavlov')).rejects.toBeInstanceOf(
+    await expect(createIdentity(reference, 'Second Sign-in')).rejects.toBeInstanceOf(
       DuplicateOidcIdentityError,
     );
   });
@@ -87,7 +61,7 @@ describe('family identity store', () => {
 
   it('persists identities across a fresh module import (real file, not just an in-memory cache)', async () => {
     const first = await import('@/lib/family-identity-store');
-    await first.bootstrapAdministratorIdentity({ issuer: 'https://auth.pavlovteam.ru', subject: 'e' }, 'Alexander Pavlov');
+    await first.createIdentity({ issuer: 'https://auth.pavlovteam.ru', subject: 'e' }, 'Alexander Pavlov');
 
     vi.resetModules();
     const second = await import('@/lib/family-identity-store');

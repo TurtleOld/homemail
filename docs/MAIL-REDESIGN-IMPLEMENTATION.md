@@ -981,3 +981,34 @@ Before starting this increment, a planning gap surfaced and was resolved with th
 - `STALWART_ADMIN_API_KEY` and the real `StalwartAdminMutationTransport` implementation described in ADR 0002 do not exist yet; no code path can provision a Stalwart principal or mailbox from HomeMail. `docs/FAMILY-IDENTITY-FIRST-RUN.md` documents the intended operator sequence in advance of that work.
 - No Family, Contacts, or personal Settings workspace UI exists yet; the bootstrap administrator identity currently has no way to be observed or acted upon from inside HomeMail itself.
 - Next safe step: create the dedicated `STALWART_ADMIN_API_KEY` service credential in Stalwart (per `docs/FAMILY-IDENTITY-FIRST-RUN.md`) and implement a real `StalwartAdminMutationTransport` against Stalwart's 0.15 REST Management API behind `HOMEMAIL_FEATURE_STALWART_ADMINISTRATION`, so that family-member provisioning becomes possible before building the activation/recovery flow that depends on it.
+
+### ADR 0008: roles and instance scope removed from HomeMail (2026-07-19)
+
+Before any real provisioning transport was built, the user reconsidered the target deployment model while reviewing what increment 2 had just shipped: one small, trusted family sharing a single HomeMail instance, where the person running the server already holds the real Stalwart administrator credentials for domain, mailbox, and server configuration. A second, HomeMail-internal `administrator` role for that same small trusted group added an authorization boundary with no corresponding capability behind it — HomeMail could not yet act on Stalwart at all, so the role granted nothing an ordinary `member` did not already have. The user decided to remove the role distinction entirely rather than let it sit as unused scaffolding until a future provisioning feature might justify it.
+
+This is recorded in `docs/adr/0008-remove-homemail-roles-and-instance-scope.md`, which formally supersedes the `administrator`/`member` role distinction and the `instance` configuration scope from ADR 0005 (`docs/adr/0005-scope-configuration-to-member-mailbox-or-instance.md`, now marked partially superseded). The `member` and `mailbox` scopes ADR 0005 defines are unaffected and remain in force.
+
+#### Removed
+
+- `HomeMailRole` and the `role` field on `HomeMailIdentity` (`lib/home-identity.ts`).
+- The `instance` variant of `ConfigurationScope` and the `instance.administer` authorization action, including the `administrator-required` denial reason (`lib/configuration-scope.ts`, `lib/authorization-policy.ts`). `authorize()` no longer special-cases any scope by role; every signed-in family member has equal standing.
+- `role: 'member'` from `legacyAuthorizationSubject` (`lib/legacy-identity-adapter.ts`) — the field no longer exists on `AuthorizationSubject`.
+- The entire explicit-administrator-bootstrap mechanism from increment 1 and its OAuth-callback wiring from increment 2: `lib/admin-bootstrap.ts`, `bootstrapAdministratorIdentity`/`findAdministratorIdentity`/`DuplicateAdministratorError` from `lib/family-identity-store.ts`, the `openid` scope/nonce/`id_token` validation/`HttpJwksProvider` wiring in `app/api/auth/oauth/authorize/route.ts` and `app/api/auth/oauth/callback/route.ts` (reverted to their pre-increment-2 state), `lib/oidc-jwks-provider.ts`, the `familyIdentity` feature flag, and `HOMEMAIL_BOOTSTRAP_ADMIN_EMAIL`. None of this had any wired consumer once the role it existed to bootstrap was removed, so it was deleted rather than left inert.
+- The "Настройка администратора HomeMail" section added to `QUICKSTART.md` this session, and its cross-link from `README.md` — both described a role and bootstrap flow that no longer exists.
+
+#### Kept
+
+- `lib/family-identity-store.ts` retains `listHomeMailIdentities`, `findIdentityByOidc`, and a renamed `createIdentity` (previously `bootstrapAdministratorIdentity`, now creating an ordinary identity record with no role) plus `listMailboxAssignmentsForMember`. This remains real, tested, unused-by-anything-yet infrastructure for a future OIDC-identity-linking increment, kept because it has no role dependency and no misleading unused wiring — unlike the bootstrap mechanism, nothing currently claims it does something it does not.
+- `STALWART_ADMIN_API_KEY` stays declared as reserved in `.env.production.example`; the plan to use a dedicated Stalwart API-key service credential for HomeMail's own future Management API calls, kept separate from any person's Stalwart login, is unaffected by this ADR.
+
+#### Verification performed
+
+- `npx tsc --noEmit`: passed.
+- Full `npx vitest run --maxWorkers=1 --no-file-parallelism`: 41 files, 224 tests passed (down from 45 files/243 tests after increment 2, reflecting the removed admin-bootstrap and OIDC-linking test files plus the simplified authorization-policy and domain-boundaries tests).
+- `npx eslint .`: 0 errors; the same 11 pre-existing warnings in unrelated files remain.
+
+#### Known limitations and next safe step
+
+- HomeMail now has no in-app concept of who may perform sensitive actions once any future capability needs one (e.g. driving Stalwart provisioning from HomeMail's own UI). Per ADR 0008, that must be a fresh, deliberate design decision with its own ADR when such a capability is actually built — not an assumption that the removed role still applies.
+- No instance-administration surface exists in HomeMail; Stalwart integration, backup/restore, monitoring, and security policy remain the server operator's direct responsibility through Stalwart Web Admin and operator tooling, not through HomeMail.
+- Next safe step unchanged in substance from increment 2, minus the role: implement a real `StalwartAdminMutationTransport` against Stalwart's 0.15 REST Management API behind `HOMEMAIL_FEATURE_STALWART_ADMINISTRATION`, authenticating with a dedicated `STALWART_ADMIN_API_KEY` service credential, before building any family-member provisioning or activation/recovery flow that depends on it.

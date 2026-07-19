@@ -20,13 +20,6 @@ const MAILBOX_ASSIGNMENTS_KEY = 'mailboxAssignments';
 const EMPTY_IDENTITIES: IdentityRecordFile = { version: SCHEMA_VERSION, identities: [] };
 const EMPTY_ASSIGNMENTS: MailboxAssignmentRecordFile = { version: SCHEMA_VERSION, assignments: [] };
 
-export class DuplicateAdministratorError extends Error {
-  constructor() {
-    super('An administrator identity already exists');
-    this.name = 'DuplicateAdministratorError';
-  }
-}
-
 export class DuplicateOidcIdentityError extends Error {
   constructor() {
     super('An identity already exists for this (issuer, subject) pair');
@@ -54,22 +47,18 @@ export async function findIdentityByOidc(
   return identities.find((identity) => oidcIdentityKey(identity.oidc) === key) ?? null;
 }
 
-export async function findAdministratorIdentity(): Promise<HomeMailIdentity | null> {
-  const { identities } = await readIdentities();
-  return identities.find((identity) => identity.role === 'administrator') ?? null;
-}
-
 /**
- * Creates the sole HomeMail administrator identity for a verified (issuer, subject)
- * pair, unless an administrator or an identity for that pair already exists.
+ * Creates a HomeMail identity record for a verified (issuer, subject) pair,
+ * unless one already exists for that pair. HomeMail has no internal role
+ * distinction (ADR 0008): every identity created here has equal standing.
  *
- * Read-modify-write against the same on-disk file: the existing-administrator
- * and existing-(issuer,subject) checks are re-evaluated against freshly read
- * state immediately before the write, so two concurrent bootstrap attempts
- * cannot both create an administrator record. The loser observes its own
- * duplicate error rather than silently overwriting the winner.
+ * Read-modify-write against the same on-disk file: the existing-(issuer,subject)
+ * check is re-evaluated against freshly read state immediately before the
+ * write, so two concurrent creation attempts for the same pair cannot both
+ * succeed. The loser observes its own duplicate error rather than silently
+ * overwriting the winner.
  */
-export async function bootstrapAdministratorIdentity(
+export async function createIdentity(
   reference: OidcIdentityReference,
   displayName: string,
 ): Promise<HomeMailIdentity> {
@@ -77,11 +66,9 @@ export async function bootstrapAdministratorIdentity(
 
   // Re-read immediately before writing rather than reusing an earlier read:
   // this narrows (without eliminating) the window in which two concurrent
-  // bootstrap attempts could both pass the check before either writes.
+  // creation attempts for the same pair could both pass the check before
+  // either writes.
   const file = await readIdentities();
-  if (file.identities.some((identity) => identity.role === 'administrator')) {
-    throw new DuplicateAdministratorError();
-  }
   if (file.identities.some((identity) => oidcIdentityKey(identity.oidc) === key)) {
     throw new DuplicateOidcIdentityError();
   }
@@ -90,7 +77,6 @@ export async function bootstrapAdministratorIdentity(
     id: crypto.randomUUID(),
     oidc: reference,
     displayName,
-    role: 'administrator',
     status: 'active',
   };
 
