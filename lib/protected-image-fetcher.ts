@@ -142,6 +142,32 @@ function readHeader(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+type NodeLookupCallback = (
+  err: NodeJS.ErrnoException | null,
+  address: string | Array<{ address: string; family: number }>,
+  family?: number,
+) => void;
+
+/**
+ * Builds Node's `lookup` request option for a single pinned address.
+ *
+ * Node's http/https client calls this with `options.all: true` under Happy
+ * Eyeballs (the default for dual-stack hosts) and expects the callback to
+ * receive an address array in that case, not a single (address, family)
+ * pair — passing the wrong shape throws ERR_INVALID_IP_ADDRESS deep inside
+ * Node's connect path.
+ */
+export function pinnedLookup(pinnedAddress: string) {
+  const family = net.isIP(pinnedAddress);
+  return (_hostname: string, options: { all?: boolean } | unknown, callback: NodeLookupCallback) => {
+    if (typeof options === 'object' && options !== null && (options as { all?: boolean }).all) {
+      callback(null, [{ address: pinnedAddress, family }]);
+      return;
+    }
+    callback(null, pinnedAddress, family);
+  };
+}
+
 async function defaultRequestHop(url: URL, pinnedAddress: string, deadline: number): Promise<HopResponse> {
   return new Promise((resolve, reject) => {
     const remaining = deadline - Date.now();
@@ -153,7 +179,7 @@ async function defaultRequestHop(url: URL, pinnedAddress: string, deadline: numb
         Accept: 'image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9',
         'User-Agent': 'HomeMail-Image-Proxy/1.0',
       },
-      lookup: (_hostname, _options, callback) => callback(null, pinnedAddress, net.isIP(pinnedAddress)),
+      lookup: pinnedLookup(pinnedAddress),
       servername: net.isIP(originalHostname) ? undefined : originalHostname,
       agent: false,
       timeout: Math.min(remaining, TIMEOUT_MS),

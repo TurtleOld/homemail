@@ -3,6 +3,7 @@ import {
   clearProtectedImageCache,
   fetchProtectedImage,
   isPublicImageAddress,
+  pinnedLookup,
   ProtectedImageError,
 } from '@/lib/protected-image-fetcher';
 
@@ -91,5 +92,31 @@ describe('protected image fetcher', () => {
     expect((await fetchProtectedImage('https://images.example/a.png', dependencies)).cacheStatus).toBe('hit');
     expect((await fetchProtectedImage('https://images.example/b.png', dependencies)).cacheStatus).toBe('miss');
     expect(calls).toBe(2);
+  });
+
+  describe('pinnedLookup', () => {
+    // Node's http/https client invokes `lookup` with `options.all: true` under
+    // Happy Eyeballs (the default for dual-stack hosts), expecting the callback
+    // to receive an address array, not a single (address, family) pair. Getting
+    // this wrong throws ERR_INVALID_IP_ADDRESS deep inside Node's connect path,
+    // which is what made every real HTTPS image fetch fail in production.
+    it('resolves with an address array when Node passes options.all: true', async () => {
+      const lookup = pinnedLookup('93.184.216.34');
+      const [err, addresses] = await new Promise<unknown[]>((resolve) => {
+        lookup('93.184.216.34', { all: true }, (...args: unknown[]) => resolve(args));
+      });
+      expect(err).toBeNull();
+      expect(addresses).toEqual([{ address: '93.184.216.34', family: 4 }]);
+    });
+
+    it('resolves with a single (address, family) pair for the non-all callback shape', async () => {
+      const lookup = pinnedLookup('93.184.216.34');
+      const [err, address, family] = await new Promise<unknown[]>((resolve) => {
+        lookup('93.184.216.34', {}, (...args: unknown[]) => resolve(args));
+      });
+      expect(err).toBeNull();
+      expect(address).toBe('93.184.216.34');
+      expect(family).toBe(4);
+    });
   });
 });
