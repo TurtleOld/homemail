@@ -1036,3 +1036,25 @@ This is recorded in `docs/adr/0009-keep-stalwart-administration-out-of-homemail.
 - No code changes were made in this step — it is a scope decision only, recorded before design work continued into the read-only monitoring feature.
 - `StalwartAdminOperation`'s mutation variants remain declared in `lib/stalwart-admin-adapter.ts` from Phase 1 but are now confirmed unplanned; a future cleanup pass may remove them, but that was not done here to avoid mixing an unrelated code change into this scope decision.
 - Next safe step: design and implement the read-only Stalwart monitoring feature — data sources (`/api/queue/messages`, `/api/queue/reports`, and any other confirmed-safe read-only signal), the HomeMail UI surface for it, and the authentication/authorization boundary for `STALWART_ADMIN_API_KEY`, explicitly excluding `/api/settings/*` from whatever scope that key is granted.
+
+### ADR 0010: read-only Stalwart monitoring designed; unused mutation adapter removed (2026-07-19)
+
+Continuing directly from the ADR 0009 scope decision, the read-only monitoring feature was designed before any implementation. `/api/queue/messages` and `/api/queue/reports` were confirmed by direct query against the real 0.15.3 dev instance to return `{"data": {"items": [...], "total": N, ...}}`. An attempt to also confirm the exact per-item shape (individual queued message/report fields) by provoking a real queue entry — sending a message to a nonexistent external domain from a throwaway test principal on the dev instance — failed to produce one: the dev network has no outbound internet access, so the delivery attempt failed immediately as a permanent failure rather than being retried and queued, and internal delivery between two throwaway accounts completed too fast to observe an in-flight entry. Both throwaway test principals were created and deleted as part of this check, leaving the dev instance unchanged.
+
+Given that, the design (`docs/adr/0010-read-only-stalwart-monitoring-in-settings.md`) deliberately limits the first increment to only the directly confirmed fields — `total` counts and empty/non-empty state for the mail queue and report backlog — shown identically to every signed-in family member in a new Settings view, with no role gating (consistent with ADR 0008). Per-item detail is explicitly deferred until its real shape can be confirmed against genuine data, rather than built against unverified field names from a source (an AI-assisted code lookup) that had already proven unreliable once earlier in this same investigation (it returned 0.16-shaped API paths that don't exist on the running 0.15.3 server).
+
+#### Removed
+
+- `lib/stalwart-admin-adapter.ts` and its test (`StalwartAdminAdapter`, `StalwartAdminMutationTransport`, `detectStalwart015Capabilities`, and the full `StalwartAdminOperation` mutation set from Phase 1). It had no consumer, and per ADR 0009 none of its mutation operations (`principal.create/update/suspend/delete`, `mailbox.create`, `credential.update`, `oauth.revoke`) are planned; keeping it would have been the same premature-scaffolding problem ADR 0008 already corrected once for roles.
+- The `stalwartAdministration` feature flag (`HOMEMAIL_FEATURE_STALWART_ADMINISTRATION`), renamed in place to `stalwartMonitoring` (`HOMEMAIL_FEATURE_STALWART_MONITORING`) rather than removed outright, since a Stalwart-facing capability is still planned — just a narrower, read-only one.
+
+#### Verification performed
+
+- `npx tsc --noEmit`: passed.
+- Full `npx vitest run --maxWorkers=1 --no-file-parallelism`: 40 files, 220 tests passed (down from 41 files/224 tests, reflecting the removed adapter test file).
+- `npx eslint .`: 0 errors; the same 11 pre-existing warnings in unrelated files remain.
+
+#### Known limitations and next safe step
+
+- No monitoring code exists yet — this step covers the design decision and the adapter cleanup only.
+- Next safe step: implement `lib/stalwart-monitoring.ts` (queue/report count reads, `Authorization: Bearer ${STALWART_ADMIN_API_KEY}`, response parsing that checks the `error` field regardless of HTTP status per the confirmed Stalwart 0.15.3 behavior), a server-side API route requiring only a valid session (no role check, since none exists), and the Settings UI surface — all behind `HOMEMAIL_FEATURE_STALWART_MONITORING`, defaulting to disabled.
