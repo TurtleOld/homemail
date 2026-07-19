@@ -16,10 +16,13 @@ const QUIET_PLACEHOLDER = Buffer.from(
 );
 
 function imageResponse(data: Buffer, mime: string, cacheControl: string, status = 'ok'): NextResponse {
+  // No explicit Content-Length: a manually-set length can go stale if a
+  // proxy or Next's own compress layer re-encodes the body, producing a
+  // truncated/corrupt image in the browser. Let the runtime compute it
+  // from the actual bytes on the wire.
   return new NextResponse(new Uint8Array(data), {
     headers: {
       'Content-Type': mime,
-      'Content-Length': String(data.length),
       'Cache-Control': cacheControl,
       'Content-Security-Policy': "default-src 'none'; sandbox",
       'Cross-Origin-Resource-Policy': 'same-origin',
