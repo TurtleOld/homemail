@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OAuthDiscovery } from '@/lib/oauth-discovery';
-import { generateCodeVerifier, generateCodeChallenge, generateState, buildAuthorizationUrl } from '@/lib/oauth-pkce';
+import { generateCodeVerifier, generateCodeChallenge, generateState, generateNonce, buildAuthorizationUrl } from '@/lib/oauth-pkce';
 import { storeOAuthState, findRecentStateByIp } from '@/lib/oauth-state-store';
 import { logger } from '@/lib/logger';
 import { getClientIp } from '@/lib/client-ip';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { SecurityLogger } from '@/lib/security-logger';
+import { isRedesignFeatureEnabled } from '@/lib/feature-flags';
 
 function uniqueUrls(urls: Array<string | undefined | null>): string[] {
   return Array.from(new Set(urls.filter((url): url is string => !!url)));
@@ -117,10 +118,18 @@ export async function GET(request: NextRequest) {
     const codeChallenge = generateCodeChallenge(codeVerifier);
     const state = generateState();
 
+    // When family identity is enabled, also request an ID token and bind a
+    // nonce to this authorization request so the callback can validate it
+    // via validateOidcIdToken. The legacy access-token-only flow is
+    // unaffected when the flag is disabled.
+    const familyIdentityEnabled = isRedesignFeatureEnabled('familyIdentity');
+    const nonce = familyIdentityEnabled ? generateNonce() : undefined;
+
     logger.info('[OAuth Authorize] Generated PKCE parameters', {
       state: state.substring(0, 8) + '...',
       verifierLength: codeVerifier.length,
       challengeLength: codeChallenge.length,
+      requestsIdToken: familyIdentityEnabled,
     });
 
     // 5. Build authorization URL
@@ -132,15 +141,18 @@ export async function GET(request: NextRequest) {
         'urn:ietf:params:jmap:core',
         'urn:ietf:params:jmap:mail',
         'offline_access',
+        ...(familyIdentityEnabled ? ['openid'] : []),
       ],
       state,
       codeChallenge,
+      nonce,
     });
 
     // 6. Store state + verifier (encrypted, temporary) with IP and URL for deduplication
     await storeOAuthState(state, codeVerifier, {
       clientIp: ip,
       authorizationUrl: authorizationUrl.toString(),
+      nonce,
     });
 
     logger.info('[OAuth Authorize] Authorization URL generated', {

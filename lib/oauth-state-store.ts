@@ -31,6 +31,7 @@ export interface OAuthState {
   consumedAt?: number; // set when consumed, kept briefly so duplicate requests can detect it
   clientIp?: string; // IP of the client that initiated this authorization
   authorizationUrl?: string; // full authorization URL for deduplication
+  nonce?: string; // OIDC nonce, only set when family-identity ID-token validation is requested
 }
 
 async function ensureDataDir(): Promise<void> {
@@ -141,7 +142,7 @@ const DEDUP_WINDOW = 5000; // 5 seconds
 export async function storeOAuthState(
   state: string,
   codeVerifier: string,
-  opts?: { clientIp?: string; authorizationUrl?: string },
+  opts?: { clientIp?: string; authorizationUrl?: string; nonce?: string },
 ): Promise<void> {
   await acquireLock();
   try {
@@ -154,6 +155,7 @@ export async function storeOAuthState(
       expiresAt: now + STATE_TTL,
       clientIp: opts?.clientIp,
       authorizationUrl: opts?.authorizationUrl,
+      nonce: opts?.nonce,
     });
     await writeStatesToFile(states);
   } finally {
@@ -202,17 +204,23 @@ export async function isStateRecentlyConsumed(state: string): Promise<boolean> {
   }
 }
 
+export interface ConsumedOAuthState {
+  codeVerifier: string;
+  nonce?: string;
+}
+
 /**
  * Retrieve and consume OAuth state (one-time use).
  *
  * Uses file locking to be safe across multiple Node.js worker processes.
- * Returns the codeVerifier if valid and not yet consumed, null otherwise.
+ * Returns the codeVerifier (and nonce, if one was stored) if valid and not
+ * yet consumed, null otherwise.
  *
  * "Already consumed" states are kept for 30 seconds with consumedAt set,
  * so that a duplicate request arriving within that window gets null (not
  * an error) and the callback handler can check the session instead.
  */
-export async function consumeOAuthState(state: string): Promise<string | null> {
+export async function consumeOAuthState(state: string): Promise<ConsumedOAuthState | null> {
   await acquireLock();
   try {
     const states = await readStatesFromFile();
@@ -235,13 +243,13 @@ export async function consumeOAuthState(state: string): Promise<string | null> {
       return null;
     }
 
-    const codeVerifier = data.codeVerifier;
+    const { codeVerifier, nonce } = data;
 
     // Mark as consumed (keep for 30s so duplicate requests can detect it)
     states.set(state, { ...data, consumedAt: Date.now(), expiresAt: Date.now() + 30_000 });
     await writeStatesToFile(states);
 
-    return codeVerifier;
+    return { codeVerifier, nonce };
   } finally {
     releaseLock();
   }

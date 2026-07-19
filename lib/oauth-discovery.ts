@@ -4,6 +4,7 @@ export interface OAuthDiscoveryResponse {
   token_endpoint: string;
   authorization_endpoint?: string;
   introspection_endpoint?: string;
+  jwks_uri?: string;
   grant_types_supported?: string[];
   scopes_supported?: string[];
   response_types_supported?: string[];

@@ -46,6 +46,15 @@ export function generateState(): string {
 }
 
 /**
+ * Generate a random OIDC nonce, bound to one authorization request and
+ * checked against the ID token's `nonce` claim to prevent token replay.
+ */
+export function generateNonce(): string {
+  const randomBytes = crypto.randomBytes(16);
+  return base64UrlEncode(randomBytes);
+}
+
+/**
  * Build authorization URL with PKCE parameters
  */
 export interface AuthorizationParams {
@@ -55,11 +64,12 @@ export interface AuthorizationParams {
   scopes: string[];
   state: string;
   codeChallenge: string;
+  nonce?: string;
 }
 
 export function buildAuthorizationUrl(params: AuthorizationParams): string {
   const url = new URL(params.authorizationEndpoint);
-  
+
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', params.clientId);
   url.searchParams.set('redirect_uri', params.redirectUri);
@@ -67,6 +77,9 @@ export function buildAuthorizationUrl(params: AuthorizationParams): string {
   url.searchParams.set('state', params.state);
   url.searchParams.set('code_challenge', params.codeChallenge);
   url.searchParams.set('code_challenge_method', 'S256');
-  
+  if (params.nonce) {
+    url.searchParams.set('nonce', params.nonce);
+  }
+
   return url.toString();
 }
