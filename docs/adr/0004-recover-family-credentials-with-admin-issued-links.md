@@ -1,6 +1,6 @@
 # ADR 0004: Recover family credentials with administrator-issued links
 
-Status: Accepted
+Status: Superseded by ADR 0009 (HomeMail never issues credential-recovery links; recovery remains a Stalwart Web Admin / operator responsibility)
 
 Date: 2026-07-18
 

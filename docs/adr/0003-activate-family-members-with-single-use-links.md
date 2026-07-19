@@ -1,6 +1,6 @@
 # ADR 0003: Activate family members with single-use links
 
-Status: Accepted
+Status: Superseded by ADR 0009 (HomeMail never provisions family members; activation remains a Stalwart Web Admin / operator responsibility)
 
 Date: 2026-07-18
 
