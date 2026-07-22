@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { AutoSortRule, FilterCondition, FilterField, FilterGroup, FilterOperator, Folder } from '@/lib/types';
 import type { FilterJob } from '@/lib/filter-job-queue';
+import { getCsrfHeader } from '@/lib/csrf-client';
 import { Plus, Trash2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -185,7 +186,7 @@ export function AutoSortRuleEditor({
     try {
       const res = await fetch('/api/mail/filters/rules/preview', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getCsrfHeader() },
         body: JSON.stringify({ conditions: filterGroup }),
       });
       if (!res.ok) {

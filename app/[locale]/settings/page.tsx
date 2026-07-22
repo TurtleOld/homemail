@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key, HelpCircle, Code2, RotateCcw } from 'lucide-react';
 import type { Folder, SavedFilter, AutoSortRule, SieveScript } from '@/lib/types';
 import type { FilterJob } from '@/lib/filter-job-queue';
+import { getCsrfHeader } from '@/lib/csrf-client';
 import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
 import { SieveScriptEditor } from '@/components/sieve-script-editor';
 import { ContactsManager } from '@/components/contacts-manager';
@@ -1297,10 +1298,12 @@ function FiltersTab() {
               // Fire-and-forget: don't await so the UI is never blocked
               fetch('/api/mail/filters/rules/apply', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...getCsrfHeader() },
                 body: JSON.stringify({ ruleId: rule.id }),
               }).catch(() => {
-                // Errors are logged server-side; background job will retry via daemon
+                // If this request itself fails (network error, CSRF rejection, etc.)
+                // no job was ever queued — there is nothing for the daemon to retry.
+                // The rule list's job-status display will simply show no apply job.
               });
             } else {
               toast.success(t('ruleSavedSieve'));
