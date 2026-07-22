@@ -2,12 +2,14 @@ import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { processNewMessage } from '@/lib/process-new-message';
 import { sendPushNotification } from '@/lib/ntfy';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
-import { getPendingJobs, markJobProcessing, markJobCompleted, markJobFailed, cleanupOldJobs } from '@/lib/filter-job-queue';
+import { getPendingJobs, markJobProcessing, markJobCompleted, markJobFailed, cleanupOldJobs, type FilterJob } from '@/lib/filter-job-queue';
 import { readStorage, writeStorage } from '@/lib/storage';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import type { AutoSortRule } from '@/lib/types';
+import type { AutoSortRule, FilterGroup } from '@/lib/types';
 import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort-rules';
+import type { MailProvider } from '@/providers/mail-provider';
+import type { Folder } from '@/lib/types';
 
 type Unsubscribe = () => void;
 
@@ -163,7 +165,135 @@ async function loadRules(accountId: string): Promise<AutoSortRule[]> {
   }
 }
 
-async function processFilterJob(jobId: string, accountId: string, ruleId: string): Promise<void> {
+function resolveDestinationFolderId(
+  rule: Pick<AutoSortRule, 'actions'>,
+  folders: Folder[]
+): { destinationFolderId: string | null; hasOnlyMoveAction: boolean } {
+  const moveToFolderAction = rule.actions.find((a) => a.type === 'moveToFolder');
+  let destinationFolderId: string | null = null;
+
+  if (moveToFolderAction && moveToFolderAction.type === 'moveToFolder' && moveToFolderAction.folderId) {
+    destinationFolderId = moveToFolderAction.folderId;
+
+    if (destinationFolderId === 'inbox' || destinationFolderId === 'sent' || destinationFolderId === 'drafts' || destinationFolderId === 'trash' || destinationFolderId === 'spam') {
+      const destinationFolder = folders.find((f) => f.role === destinationFolderId);
+      if (destinationFolder) {
+        destinationFolderId = destinationFolder.id;
+      }
+    }
+  }
+
+  const hasOnlyMoveAction = rule.actions.length === 1 && moveToFolderAction != null;
+  return { destinationFolderId, hasOnlyMoveAction };
+}
+
+function foldersToScan(
+  folders: Folder[],
+  destinationFolderId: string | null,
+  hasOnlyMoveAction: boolean
+): Folder[] {
+  return folders.filter((f) => {
+    if (f.role === 'trash' || f.role === 'sent' || f.role === 'drafts') {
+      return false;
+    }
+    if (isDeletedFolderName(f.name)) {
+      return false;
+    }
+    if (hasOnlyMoveAction && destinationFolderId && f.id === destinationFolderId) {
+      return false;
+    }
+    return true;
+  });
+}
+
+// Scans every relevant folder and returns every message id matching `conditions`,
+// grouped by the folder it currently lives in. Shared by the real apply job and
+// the read-only preview job so "how many will this affect" and "what actually got
+// affected" always run the exact same scan and the exact same matcher.
+async function scanMatchingMessages(
+  jobId: string,
+  provider: MailProvider,
+  accountId: string,
+  conditions: FilterGroup,
+  foldersToSearch: Folder[]
+): Promise<{ matchesByFolder: Map<string, string[]>; totalProcessed: number }> {
+  const matchesByFolder = new Map<string, string[]>();
+  let totalProcessed = 0;
+  // checkMessageMatchesRule only reads rule.conditions/rule.enabled/rule.name (in
+  // its error path) — a minimal stand-in avoids requiring a full persisted
+  // AutoSortRule for preview jobs.
+  const ruleStub: AutoSortRule = {
+    id: 'preview',
+    name: 'preview',
+    enabled: true,
+    conditions,
+    actions: [],
+    priority: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  for (const folder of foldersToSearch) {
+    try {
+      console.log(`[auto-sort-daemon] Job ${jobId}: Scanning folder ${folder.name}`);
+
+      let cursor: string | undefined;
+      let hasMore = true;
+
+      while (hasMore) {
+        const result = await provider.getMessages(accountId, folder.id, {
+          limit: 500,
+          ...(cursor ? { cursor } : {}),
+        });
+
+        if (!result || !result.messages || result.messages.length === 0) {
+          break;
+        }
+
+        const messages = result.messages;
+        hasMore = !!result.nextCursor;
+        cursor = result.nextCursor;
+
+        const matchedIds: string[] = [];
+
+        for (const message of messages) {
+          try {
+            const matches = await checkMessageMatchesRule(message, ruleStub, provider, accountId, folder.id);
+            if (matches) {
+              matchedIds.push(message.id);
+            }
+            totalProcessed++;
+          } catch (error) {
+            console.error(`[auto-sort-daemon] Job ${jobId}: Error checking message ${message.id}:`, error);
+            if (isRateLimitError(error)) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+          }
+        }
+
+        if (matchedIds.length > 0) {
+          const existing = matchesByFolder.get(folder.id) || [];
+          matchesByFolder.set(folder.id, [...existing, ...matchedIds]);
+        }
+
+        // Delay between pages
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+
+      // Delay between folders
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    } catch (error) {
+      console.error(`[auto-sort-daemon] Job ${jobId}: Error processing folder ${folder.id}:`, error);
+      if (isRateLimitError(error)) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    }
+  }
+
+  return { matchesByFolder, totalProcessed };
+}
+
+async function processApplyJob(jobId: string, accountId: string, ruleId: string): Promise<void> {
   console.log(`[auto-sort-daemon] Processing filter job ${jobId} for rule ${ruleId}`);
 
   try {
@@ -183,159 +313,85 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
     }
 
     const folders = await provider.getFolders(accountId);
-
-    const moveToFolderAction = rule.actions.find((a) => a.type === 'moveToFolder');
-    let destinationFolderId: string | null = null;
-
-    if (moveToFolderAction && moveToFolderAction.type === 'moveToFolder' && moveToFolderAction.folderId) {
-      destinationFolderId = moveToFolderAction.folderId;
-
-      if (destinationFolderId === 'inbox' || destinationFolderId === 'sent' || destinationFolderId === 'drafts' || destinationFolderId === 'trash' || destinationFolderId === 'spam') {
-        const destinationFolder = folders.find((f) => f.role === destinationFolderId);
-        if (destinationFolder) {
-          destinationFolderId = destinationFolder.id;
-        }
-      }
-    }
-
-    const hasOnlyMoveAction = rule.actions.length === 1 && moveToFolderAction != null;
+    const { destinationFolderId, hasOnlyMoveAction } = resolveDestinationFolderId(rule, folders);
     const nonMoveActions = rule.actions.filter((a) => a.type !== 'moveToFolder');
-
-    const foldersToSearch = folders.filter((f) => {
-      if (f.role === 'trash' || f.role === 'sent' || f.role === 'drafts') {
-        return false;
-      }
-      if (isDeletedFolderName(f.name)) {
-        return false;
-      }
-      if (hasOnlyMoveAction && destinationFolderId && f.id === destinationFolderId) {
-        return false;
-      }
-      return true;
-    });
+    const foldersToSearch = foldersToScan(folders, destinationFolderId, hasOnlyMoveAction);
 
     console.log(`[auto-sort-daemon] Job ${jobId}: Processing ${foldersToSearch.length} folders`);
 
-    let totalProcessed = 0;
+    const { matchesByFolder, totalProcessed } = await scanMatchingMessages(
+      jobId,
+      provider,
+      accountId,
+      rule.conditions,
+      foldersToSearch
+    );
+
     let totalApplied = 0;
     const BATCH_MOVE_SIZE = 50;
 
-    for (const folder of foldersToSearch) {
-      try {
-        console.log(`[auto-sort-daemon] Job ${jobId}: Processing folder ${folder.name}`);
+    for (const [folderName, matchedIds] of matchesByFolder) {
+      console.log(`[auto-sort-daemon] Job ${jobId}: ${matchedIds.length} messages matched in folder ${folderName}`);
 
-        let cursor: string | undefined;
-        let hasMore = true;
-
-        while (hasMore) {
-          const result = await provider.getMessages(accountId, folder.id, {
-            limit: 500,
-            ...(cursor ? { cursor } : {}),
-          });
-
-          if (!result || !result.messages || result.messages.length === 0) {
-            break;
-          }
-
-          const messages = result.messages;
-          hasMore = !!result.nextCursor;
-          cursor = result.nextCursor;
-
-          const matchedIds: string[] = [];
-
-          for (const message of messages) {
-            try {
-              const matches = await checkMessageMatchesRule(message, rule, provider, accountId, folder.id);
-              if (matches) {
-                matchedIds.push(message.id);
-              }
-              totalProcessed++;
-            } catch (error) {
-              console.error(`[auto-sort-daemon] Job ${jobId}: Error checking message ${message.id}:`, error);
-              if (isRateLimitError(error)) {
-                await new Promise((resolve) => setTimeout(resolve, 2000));
-              }
+      if (destinationFolderId) {
+        for (let i = 0; i < matchedIds.length; i += BATCH_MOVE_SIZE) {
+          const batch = matchedIds.slice(i, i + BATCH_MOVE_SIZE);
+          try {
+            await provider.bulkUpdateMessages(accountId, {
+              ids: batch,
+              action: 'move',
+              payload: { folderId: destinationFolderId },
+            });
+            totalApplied += batch.length;
+          } catch (error) {
+            console.error(`[auto-sort-daemon] Job ${jobId}: Batch move failed, falling back to individual:`, error);
+            if (isRateLimitError(error)) {
+              await new Promise((resolve) => setTimeout(resolve, 3000));
             }
-          }
-
-          if (matchedIds.length === 0) {
-            continue;
-          }
-
-          console.log(`[auto-sort-daemon] Job ${jobId}: ${matchedIds.length} messages matched in folder ${folder.name}`);
-
-          if (destinationFolderId) {
-            for (let i = 0; i < matchedIds.length; i += BATCH_MOVE_SIZE) {
-              const batch = matchedIds.slice(i, i + BATCH_MOVE_SIZE);
+            for (const id of batch) {
               try {
                 await provider.bulkUpdateMessages(accountId, {
-                  ids: batch,
+                  ids: [id],
                   action: 'move',
                   payload: { folderId: destinationFolderId },
                 });
-                totalApplied += batch.length;
-              } catch (error) {
-                console.error(`[auto-sort-daemon] Job ${jobId}: Batch move failed, falling back to individual:`, error);
-                if (isRateLimitError(error)) {
-                  await new Promise((resolve) => setTimeout(resolve, 3000));
-                }
-                for (const id of batch) {
-                  try {
-                    await provider.bulkUpdateMessages(accountId, {
-                      ids: [id],
-                      action: 'move',
-                      payload: { folderId: destinationFolderId },
-                    });
-                    totalApplied++;
-                  } catch (innerError) {
-                    console.error(`[auto-sort-daemon] Job ${jobId}: Individual move failed for ${id}:`, innerError);
-                  }
-                  await new Promise((resolve) => setTimeout(resolve, 100));
-                }
+                totalApplied++;
+              } catch (innerError) {
+                console.error(`[auto-sort-daemon] Job ${jobId}: Individual move failed for ${id}:`, innerError);
               }
-              if (i + BATCH_MOVE_SIZE < matchedIds.length) {
-                await new Promise((resolve) => setTimeout(resolve, 300));
-              }
+              await new Promise((resolve) => setTimeout(resolve, 100));
             }
           }
-
-          // Apply non-move actions individually (markRead, markImportant, etc.)
-          if (nonMoveActions.length > 0) {
-            for (const id of matchedIds) {
-              try {
-                for (const action of nonMoveActions) {
-                  switch (action.type) {
-                    case 'markRead':
-                      await provider.updateMessageFlags(accountId, id, { unread: false });
-                      break;
-                    case 'markImportant':
-                      await provider.updateMessageFlags(accountId, id, { starred: true });
-                      break;
-                    case 'delete':
-                      await provider.bulkUpdateMessages(accountId, { ids: [id], action: 'delete' });
-                      break;
-                  }
-                }
-                if (!destinationFolderId) {
-                  totalApplied++;
-                }
-              } catch (error) {
-                console.error(`[auto-sort-daemon] Job ${jobId}: Error applying non-move action for ${id}:`, error);
-              }
-              await new Promise((resolve) => setTimeout(resolve, 50));
-            }
+          if (i + BATCH_MOVE_SIZE < matchedIds.length) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
           }
-
-          // Delay between pages
-          await new Promise((resolve) => setTimeout(resolve, 300));
         }
+      }
 
-        // Delay between folders
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      } catch (error) {
-        console.error(`[auto-sort-daemon] Job ${jobId}: Error processing folder ${folder.id}:`, error);
-        if (isRateLimitError(error)) {
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Apply non-move actions individually (markRead, markImportant, etc.)
+      if (nonMoveActions.length > 0) {
+        for (const id of matchedIds) {
+          try {
+            for (const action of nonMoveActions) {
+              switch (action.type) {
+                case 'markRead':
+                  await provider.updateMessageFlags(accountId, id, { unread: false });
+                  break;
+                case 'markImportant':
+                  await provider.updateMessageFlags(accountId, id, { starred: true });
+                  break;
+                case 'delete':
+                  await provider.bulkUpdateMessages(accountId, { ids: [id], action: 'delete' });
+                  break;
+              }
+            }
+            if (!destinationFolderId) {
+              totalApplied++;
+            }
+          } catch (error) {
+            console.error(`[auto-sort-daemon] Job ${jobId}: Error applying non-move action for ${id}:`, error);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50));
         }
       }
     }
@@ -347,6 +403,60 @@ async function processFilterJob(jobId: string, accountId: string, ruleId: string
     console.error(`[auto-sort-daemon] Job ${jobId} failed:`, errorMessage);
     await markJobFailed(jobId, errorMessage);
   }
+}
+
+async function processPreviewJob(jobId: string, accountId: string, conditions: FilterGroup): Promise<void> {
+  console.log(`[auto-sort-daemon] Processing preview job ${jobId}`);
+
+  try {
+    const provider = process.env.MAIL_PROVIDER === 'stalwart'
+      ? getMailProviderForAccount(accountId)
+      : getMailProvider();
+
+    const folders = await provider.getFolders(accountId);
+    // A preview has no destination folder yet (the draft may not even have an
+    // action configured), so only the trash/sent/drafts exclusion applies.
+    const foldersToSearch = foldersToScan(folders, null, false);
+
+    console.log(`[auto-sort-daemon] Job ${jobId}: Previewing across ${foldersToSearch.length} folders`);
+
+    const { matchesByFolder, totalProcessed } = await scanMatchingMessages(
+      jobId,
+      provider,
+      accountId,
+      conditions,
+      foldersToSearch
+    );
+
+    let matchedCount = 0;
+    for (const ids of matchesByFolder.values()) {
+      matchedCount += ids.length;
+    }
+
+    await markJobCompleted(jobId, { processed: totalProcessed, total: totalProcessed }, matchedCount);
+    console.log(`[auto-sort-daemon] Preview job ${jobId} completed: ${matchedCount} messages matched out of ${totalProcessed}`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[auto-sort-daemon] Preview job ${jobId} failed:`, errorMessage);
+    await markJobFailed(jobId, errorMessage);
+  }
+}
+
+async function processFilterJob(job: FilterJob): Promise<void> {
+  if (job.mode === 'preview') {
+    if (!job.previewConditions) {
+      await markJobFailed(job.id, 'Preview job is missing conditions');
+      return;
+    }
+    await processPreviewJob(job.id, job.accountId, job.previewConditions);
+    return;
+  }
+
+  if (!job.ruleId) {
+    await markJobFailed(job.id, 'Apply job is missing ruleId');
+    return;
+  }
+  await processApplyJob(job.id, job.accountId, job.ruleId);
 }
 
 async function processJobQueue(): Promise<void> {
@@ -363,7 +473,7 @@ async function processJobQueue(): Promise<void> {
     const job = pendingJobs[0];
 
     await markJobProcessing(job.id);
-    await processFilterJob(job.id, job.accountId, job.ruleId);
+    await processFilterJob(job);
   } catch (error) {
     console.error('[auto-sort-daemon] Error processing job queue:', error);
   }

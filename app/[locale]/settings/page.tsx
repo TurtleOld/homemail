@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key, HelpCircle, Code2, RotateCcw } from 'lucide-react';
 import type { Folder, SavedFilter, AutoSortRule, SieveScript } from '@/lib/types';
+import type { FilterJob } from '@/lib/filter-job-queue';
 import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
 import { SieveScriptEditor } from '@/components/sieve-script-editor';
 import { ContactsManager } from '@/components/contacts-manager';
@@ -872,6 +873,49 @@ async function syncRulesToSieve(): Promise<void> {
   }
 }
 
+async function getRuleJobStatus(ruleId: string): Promise<FilterJob | null> {
+  const res = await fetch(`/api/mail/filters/rules/jobs?ruleId=${encodeURIComponent(ruleId)}`);
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error('Failed to load job status');
+  }
+  return res.json();
+}
+
+function RuleJobStatus({ ruleId, applyToExisting }: { ruleId: string; applyToExisting?: boolean }) {
+  const t = useTranslations('settings.autoSortRule');
+  const { data: job } = useQuery({
+    queryKey: ['filter-rule-job', ruleId],
+    queryFn: () => getRuleJobStatus(ruleId),
+    enabled: !!applyToExisting,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'pending' || status === 'processing' ? 3000 : false;
+    },
+  });
+
+  if (!applyToExisting || !job) {
+    return null;
+  }
+
+  if (job.status === 'pending' || job.status === 'processing') {
+    return <div className="text-xs text-muted-foreground mt-1">{t('applyJobRunning')}</div>;
+  }
+  if (job.status === 'failed') {
+    return <div className="text-xs text-destructive mt-1">{t('applyJobFailed', { error: job.error || '' })}</div>;
+  }
+  if (job.status === 'completed') {
+    return (
+      <div className="text-xs text-muted-foreground mt-1">
+        {t('applyJobCompleted', { processed: job.progress?.processed ?? 0, total: job.progress?.total ?? 0 })}
+      </div>
+    );
+  }
+  return null;
+}
+
 function FiltersTab() {
   const queryClient = useQueryClient();
   const t = useTranslations('settings.filters');
@@ -1195,6 +1239,7 @@ function FiltersTab() {
                     <div className="text-sm text-muted-foreground mt-1">
                       {t('actionCount', { count: rule.actions.length })}
                     </div>
+                    <RuleJobStatus ruleId={rule.id} applyToExisting={rule.applyToExisting} />
                   </div>
                   <div className="flex items-center gap-2">
                     <Button

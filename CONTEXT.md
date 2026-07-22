@@ -84,6 +84,10 @@ _Avoid_: Mail workspace, advanced mail
 A server-backed container that determines where a message is stored.
 _Avoid_: Quick view, filter
 
+**Auto-sort rule**:
+A mailbox setting that evaluates a saved condition against messages — both newly arriving mail and, optionally, mail already sitting in a folder — and applies one or more actions such as moving the message to a mail folder, marking it read, or marking it important.
+_Avoid_: Filter, quick view, mail rule
+
 **Quick view**:
 A reusable selection of messages that match a common condition without changing where those messages are stored.
 _Avoid_: Folder, smart folder

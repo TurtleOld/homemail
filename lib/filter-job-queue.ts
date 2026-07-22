@@ -1,13 +1,19 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import type { FilterGroup } from '@/lib/types';
 
 const jobsFilePath = join(process.cwd(), 'data', 'filter-jobs.json');
 
 export type FilterJob = {
   id: string;
   accountId: string;
-  ruleId: string;
+  // Real apply jobs reference a saved rule by id. Preview jobs ("Check matches"
+  // for a draft that may not be saved yet) carry the conditions inline instead,
+  // and ruleId is left undefined.
+  ruleId?: string;
+  mode: 'apply' | 'preview';
+  previewConditions?: FilterGroup;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   createdAt: Date;
   startedAt?: Date;
@@ -17,6 +23,8 @@ export type FilterJob = {
     processed: number;
     total: number;
   };
+  // Preview-only: count of messages that matched. Never a list of message IDs.
+  matchedCount?: number;
 };
 
 async function ensureDataDir(): Promise<void> {
@@ -58,6 +66,7 @@ export async function addJob(accountId: string, ruleId: string): Promise<FilterJ
     id: `job_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
     accountId,
     ruleId,
+    mode: 'apply',
     status: 'pending',
     createdAt: new Date(),
   };
@@ -67,6 +76,37 @@ export async function addJob(accountId: string, ruleId: string): Promise<FilterJ
 
   console.log('[filter-job-queue] Added job:', { jobId: job.id, accountId, ruleId });
   return job;
+}
+
+export async function addPreviewJob(accountId: string, conditions: FilterGroup): Promise<FilterJob> {
+  const jobs = await loadJobs();
+
+  const job: FilterJob = {
+    id: `job_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+    accountId,
+    mode: 'preview',
+    previewConditions: conditions,
+    status: 'pending',
+    createdAt: new Date(),
+  };
+
+  jobs.push(job);
+  await saveJobs(jobs);
+
+  console.log('[filter-job-queue] Added preview job:', { jobId: job.id, accountId });
+  return job;
+}
+
+export async function getJob(jobId: string): Promise<FilterJob | undefined> {
+  const jobs = await loadJobs();
+  return jobs.find((job) => job.id === jobId);
+}
+
+export async function getLatestJobForRule(accountId: string, ruleId: string): Promise<FilterJob | undefined> {
+  const jobs = await loadJobs();
+  const matching = jobs.filter((job) => job.accountId === accountId && job.ruleId === ruleId && job.mode === 'apply');
+  matching.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return matching[0];
 }
 
 export async function getPendingJobs(): Promise<FilterJob[]> {
@@ -104,11 +144,16 @@ export async function markJobProcessing(jobId: string): Promise<void> {
   });
 }
 
-export async function markJobCompleted(jobId: string, progress?: { processed: number; total: number }): Promise<void> {
+export async function markJobCompleted(
+  jobId: string,
+  progress?: { processed: number; total: number },
+  matchedCount?: number
+): Promise<void> {
   await updateJob(jobId, {
     status: 'completed',
     completedAt: new Date(),
     progress,
+    ...(matchedCount !== undefined ? { matchedCount } : {}),
   });
 }
 
