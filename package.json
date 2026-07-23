@@ -46,7 +46,7 @@
     "mailparser": "^3.9.12",
     "next": "^16.2.11",
     "next-intl": "^4.9.2",
-    "nodemailer": "^8.0.4",
+    "nodemailer": "^9.0.1",
     "openpgp": "^6.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
