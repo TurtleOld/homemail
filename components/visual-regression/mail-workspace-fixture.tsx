@@ -94,8 +94,6 @@ export function MailWorkspaceFixture({ screen }: { screen: 'list' | 'reader' }) 
           selectedFolderId="inbox"
           onFolderSelect={() => {}}
           onCompose={() => {}}
-          activeQuickFilter={filter}
-          onQuickFilterChange={setFilter}
           layout="list-first"
         />
       </div>

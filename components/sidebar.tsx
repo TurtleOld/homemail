@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import type { Folder, QuickFilterType } from '@/lib/types';
+import type { Folder } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Inbox,
@@ -14,9 +14,6 @@ import {
   ChevronRight,
   X,
   RefreshCw,
-  Mail,
-  Star,
-  Paperclip,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -27,8 +24,6 @@ interface SidebarProps {
   selectedFolderId: string | null;
   onFolderSelect: (folderId: string) => void;
   onCompose: () => void;
-  activeQuickFilter?: QuickFilterType;
-  onQuickFilterChange: (filter?: QuickFilterType) => void;
   isMobile?: boolean;
   onClose?: () => void;
   onDropMessage?: (messageId: string, folderId: string) => void;
@@ -50,8 +45,6 @@ export function Sidebar({
   selectedFolderId,
   onFolderSelect,
   onCompose,
-  activeQuickFilter,
-  onQuickFilterChange,
   isMobile = false,
   onClose,
   onDropMessage,
@@ -83,20 +76,6 @@ export function Sidebar({
 
     return rootFolders;
   }, [folders]);
-
-  const quickViews: Array<{
-    type: QuickFilterType | undefined;
-    label: string;
-    icon: React.ReactNode;
-  }> = [
-    { type: 'unread', label: t('quickUnread'), icon: <Mail className="h-4 w-4" /> },
-    { type: 'starred', label: t('quickStarred'), icon: <Star className="h-4 w-4" /> },
-    {
-      type: 'hasAttachments',
-      label: t('quickAttachments'),
-      icon: <Paperclip className="h-4 w-4" />,
-    },
-  ];
 
   const renderFolderItem = useCallback(
     (folder: Folder & { children?: Folder[] }, level = 0) => {
@@ -280,31 +259,6 @@ export function Sidebar({
         </Button>
       </div>
       <div className="flex-1 overflow-auto">
-        <div className="border-b border-border px-2 py-3">
-          <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-            {t('quickViewsSection')}
-          </p>
-          <nav className="space-y-0.5" aria-label={t('quickViewsSection')}>
-            {quickViews.map((view) => (
-              <button
-                key={view.type}
-                type="button"
-                onClick={() =>
-                  onQuickFilterChange(activeQuickFilter === view.type ? undefined : view.type)
-                }
-                className={cn(
-                  'flex min-h-9 w-full items-center gap-3 rounded-control px-2 text-left text-sm text-foreground/80 hover:mail-hover-surface hover:text-foreground',
-                  activeQuickFilter === view.type &&
-                    'mail-selected-surface font-medium text-foreground'
-                )}
-                aria-current={activeQuickFilter === view.type ? 'page' : undefined}
-              >
-                {view.icon}
-                <span className="truncate">{view.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
         <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
           <span className="text-xs font-medium text-muted-foreground">{t('foldersSection')}</span>
           {onRefreshFolders && (

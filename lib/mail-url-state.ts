@@ -14,15 +14,7 @@ const QUICK_FILTERS = new Set<QuickFilterType>([
   'read',
   'starred',
   'important',
-  'drafts',
-  'sent',
-  'incoming',
-  'bounce',
-  'bulk',
   'hasAttachments',
-  'attachmentsImages',
-  'attachmentsDocuments',
-  'attachmentsArchives',
 ]);
 
 function clean(value: string | null): string | undefined {

@@ -61,7 +61,6 @@ import { FilterQueryParser } from '@/lib/filter-parser';
 import { useSwipeable } from 'react-swipeable';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { getMailViewport } from '@/lib/mail-responsive';
-import { getQuickFilterFolderRole } from '@/lib/quick-filter-utils';
 import {
   buildMailListHref,
   buildMailMessageHref,
@@ -1017,22 +1016,11 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   };
 
   const handleQuickFilterChange = (filter?: QuickFilterType) => {
-    const folderRole = getQuickFilterFolderRole(filter);
-    const targetFolder = folderRole
-      ? folders.find((folder) => folder.role === folderRole)
-      : undefined;
-
-    const nextFolderId = targetFolder?.id || selectedFolderId || undefined;
-    if (targetFolder && targetFolder.id !== selectedFolderId) {
-      setSelectedFolderId(targetFolder.id);
-      setSelectedIds(new Set());
-    }
-
     setQuickFilter(filter);
     setFilterGroup(undefined);
     navigateToList({
       ...currentMailUrlState,
-      folderId: nextFolderId,
+      folderId: selectedFolderId || undefined,
       quickFilter: filter,
     });
     if (isMobile || isTablet) setSidebarOpen(false);
@@ -1306,8 +1294,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   setComposeOpen(true);
                   if (isNavigationOverlay) setSidebarOpen(false);
                 }}
-                activeQuickFilter={quickFilter}
-                onQuickFilterChange={handleQuickFilterChange}
                 isMobile={isNavigationOverlay}
                 onClose={() => setSidebarOpen(false)}
                 onDropMessage={handleMoveMessage}

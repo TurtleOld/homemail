@@ -121,15 +121,7 @@ export type QuickFilterType =
   | 'read'
   | 'starred'
   | 'important'
-  | 'drafts'
-  | 'sent'
-  | 'incoming'
-  | 'bounce'
-  | 'bulk'
-  | 'hasAttachments'
-  | 'attachmentsImages'
-  | 'attachmentsDocuments'
-  | 'attachmentsArchives';
+  | 'hasAttachments';
 
 export type FilterField =
   | 'from'

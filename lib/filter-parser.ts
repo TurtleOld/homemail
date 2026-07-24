@@ -24,21 +24,10 @@ export class FilterQueryParser {
   private static readonly QUICK_FILTERS: Record<string, QuickFilterType> = {
     'has:attachment': 'hasAttachments',
     'has:attachments': 'hasAttachments',
-    'has:image': 'attachmentsImages',
-    'has:images': 'attachmentsImages',
-    'has:document': 'attachmentsDocuments',
-    'has:documents': 'attachmentsDocuments',
-    'has:archive': 'attachmentsArchives',
-    'has:archives': 'attachmentsArchives',
     'is:unread': 'unread',
     'is:read': 'read',
     'is:starred': 'starred',
     'is:important': 'important',
-    'is:draft': 'drafts',
-    'is:sent': 'sent',
-    'is:incoming': 'incoming',
-    'is:bounce': 'bounce',
-    'is:bulk': 'bulk',
   };
 
   static parse(query: string): { quickFilter?: QuickFilterType; filterGroup?: FilterGroup } {

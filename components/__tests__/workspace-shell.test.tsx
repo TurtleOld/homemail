@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,10 +19,6 @@ vi.mock('next-intl', () => ({
       appHeading: 'Mail',
       compose: 'Compose',
       foldersSection: 'Folders',
-      quickViewsSection: 'Quick views',
-      quickUnread: 'Unread',
-      quickStarred: 'Starred',
-      quickAttachments: 'With attachments',
       settingsLabel: 'Settings',
       defaultAccount: 'Account',
       accountMenu: 'Account menu',
@@ -50,9 +46,8 @@ describe('Workspace shell', () => {
     );
   });
 
-  it('renders quick views above server folders and changes scope without selecting a folder', () => {
+  it('uses server folders as the only sidebar message navigation', () => {
     const onFolderSelect = vi.fn();
-    const onQuickFilterChange = vi.fn();
 
     renderWithQueryClient(
       <Sidebar
@@ -60,22 +55,14 @@ describe('Workspace shell', () => {
         selectedFolderId="inbox-id"
         onFolderSelect={onFolderSelect}
         onCompose={vi.fn()}
-        activeQuickFilter="unread"
-        onQuickFilterChange={onQuickFilterChange}
       />
     );
 
-    const quickViews = screen.getByRole('navigation', { name: 'Quick views' });
-    const folders = screen.getByText('Folders');
-    expect(
-      quickViews.compareDocumentPosition(folders) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(within(quickViews).queryByText('Inbox')).not.toBeInTheDocument();
+    expect(screen.queryByText('Quick views')).not.toBeInTheDocument();
     expect(screen.getByText('Primary inbox')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Starred' }));
-    expect(onQuickFilterChange).toHaveBeenCalledWith('starred');
-    expect(onFolderSelect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /Primary inbox/ }));
+    expect(onFolderSelect).toHaveBeenCalledWith('inbox-id');
   });
 
   it('exposes the global search as a semantic search region', () => {

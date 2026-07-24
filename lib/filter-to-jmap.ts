@@ -67,32 +67,11 @@ function applyQuickFilter(
     case 'hasAttachments':
       filter.hasAttachment = true;
       break;
-    case 'attachmentsImages':
-      filter.hasAttachment = true;
-      break;
-    case 'attachmentsDocuments':
-      filter.hasAttachment = true;
-      break;
-    case 'attachmentsArchives':
-      filter.hasAttachment = true;
-      break;
     case 'starred':
       filter.hasKeyword = '$flagged';
       break;
     case 'important':
       filter.hasKeyword = '$important';
-      break;
-    case 'drafts':
-      break;
-    case 'sent':
-      break;
-    case 'incoming':
-      break;
-    case 'bounce':
-      filter.text = 'bounce delivery-status notification';
-      break;
-    case 'bulk':
-      filter.text = 'List-Id Precedence: bulk unsubscribe';
       break;
   }
 }

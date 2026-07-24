@@ -122,37 +122,6 @@ if (
   } catch {}
 }
 
-function checkAttachmentType(bodyStructure: any, mimeTypes: string[]): boolean {
-  if (!bodyStructure) return false;
-
-  const checkPart = (part: any): boolean => {
-    if (!part) return false;
-
-    if (part.disposition === 'attachment' || (part.disposition === 'inline' && part.name)) {
-      const partType = (part.type || '').toLowerCase();
-      if (mimeTypes.some((mime) => partType.startsWith(mime.toLowerCase()))) {
-        return true;
-      }
-    }
-
-    if (part.subParts && Array.isArray(part.subParts)) {
-      for (const subPart of part.subParts) {
-        if (checkPart(subPart)) return true;
-      }
-    }
-
-    if (part.parts && Array.isArray(part.parts)) {
-      for (const subPart of part.parts) {
-        if (checkPart(subPart)) return true;
-      }
-    }
-
-    return false;
-  };
-
-  return checkPart(bodyStructure);
-}
-
 export class StalwartJMAPProvider implements MailProvider {
   private async getClient(accountId: string): Promise<JMAPClient> {
     if (getAuthMode() === 'basic') {
@@ -468,16 +437,7 @@ export class StalwartJMAPProvider implements MailProvider {
         const allEmailIds = allEmailsQuery.ids;
         if (allEmailIds.length > 0) {
           const quickFilterType = parsedMessageFilter?.quickFilter;
-          const needsAttachmentTypeFilter =
-            quickFilterType === 'attachmentsImages' ||
-            quickFilterType === 'attachmentsDocuments' ||
-            quickFilterType === 'attachmentsArchives';
-
           const properties = ['id', 'hasAttachment', 'keywords'];
-
-          if (needsAttachmentTypeFilter) {
-            properties.push('bodyStructure');
-          }
 
           const allEmails = await client.getEmails(allEmailIds, {
             accountId: actualAccountId,
@@ -488,39 +448,6 @@ export class StalwartJMAPProvider implements MailProvider {
 
           if (cleanFilter.hasAttachment === true || quickFilterType === 'hasAttachments') {
             filteredEmails = filteredEmails.filter((email) => email.hasAttachment === true);
-          }
-
-          if (quickFilterType === 'attachmentsImages') {
-            filteredEmails = filteredEmails.filter((email) => {
-              if (!email.hasAttachment || !email.bodyStructure) return false;
-              const hasImage = checkAttachmentType(email.bodyStructure, ['image/']);
-              return hasImage;
-            });
-          } else if (quickFilterType === 'attachmentsDocuments') {
-            filteredEmails = filteredEmails.filter((email) => {
-              if (!email.hasAttachment || !email.bodyStructure) return false;
-              const hasDocument = checkAttachmentType(email.bodyStructure, [
-                'application/pdf',
-                'application/msword',
-                'application/vnd.openxmlformats-officedocument',
-                'application/vnd.ms-excel',
-                'application/vnd.ms-powerpoint',
-                'text/',
-              ]);
-              return hasDocument;
-            });
-          } else if (quickFilterType === 'attachmentsArchives') {
-            filteredEmails = filteredEmails.filter((email) => {
-              if (!email.hasAttachment || !email.bodyStructure) return false;
-              const hasArchive = checkAttachmentType(email.bodyStructure, [
-                'application/zip',
-                'application/x-rar-compressed',
-                'application/x-7z-compressed',
-                'application/x-tar',
-                'application/gzip',
-              ]);
-              return hasArchive;
-            });
           }
 
           if (cleanFilter.hasKeyword) {

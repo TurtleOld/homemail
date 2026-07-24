@@ -214,7 +214,7 @@ export function SearchBar({
                   <code>is:starred</code> - помеченные
                 </li>
                 <li>
-                  <code>is:draft</code> - черновики
+                  <code>is:important</code> - важные
                 </li>
               </ul>
             </div>
