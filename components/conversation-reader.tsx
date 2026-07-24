@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Forward, Reply, ReplyAll } from 'lucide-react';
 import type { MessageDetail, MessageThreadDetail } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatExactDateTime } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
 import { MessageViewer } from '@/components/message-viewer';
 import { Button } from '@/components/ui/button';
@@ -139,7 +139,11 @@ export function ConversationReader({
               <span className="truncate text-sm text-muted-foreground max-md:col-span-2 max-md:row-start-2">
                 {plainPreview(message)}
               </span>
-              <time className="text-xs text-muted-foreground" dateTime={new Date(message.date).toISOString()}>
+              <time
+                className="text-xs text-muted-foreground"
+                dateTime={new Date(message.date).toISOString()}
+                title={formatExactDateTime(message.date, localeSettings)}
+              >
                 {formatDate(message.date, localeSettings)}
               </time>
             </a>

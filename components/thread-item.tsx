@@ -3,7 +3,7 @@
 import { useState, memo } from 'react';
 import type { MessageListItem } from '@/lib/types';
 import type { ThreadGroup } from '@/lib/thread-utils';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatExactDateTime } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
 import { Star, Paperclip, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -170,7 +170,11 @@ export const ThreadItem = memo(function ThreadItem({
                 {thread.unreadCount > 0 && <span className="rounded-small bg-primary/12 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-primary">{thread.unreadCount}</span>}
               </span>
             </div>
-            <time dateTime={new Date(thread.latestDate).toISOString()} className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1">
+            <time
+              dateTime={new Date(thread.latestDate).toISOString()}
+              title={formatExactDateTime(thread.latestDate, localeSettings)}
+              className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
+            >
               {formatDate(thread.latestDate, localeSettings)}
             </time>
           </div>
@@ -201,6 +205,7 @@ export const ThreadItem = memo(function ThreadItem({
             )}
             <time
               dateTime={new Date(thread.latestDate).toISOString()}
+              title={formatExactDateTime(thread.latestDate, localeSettings)}
               className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
             >
               {formatDate(thread.latestDate, localeSettings)}

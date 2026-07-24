@@ -81,6 +81,27 @@ export function formatDate(
   return formatted;
 }
 
+export function formatExactDateTime(
+  date: Date | string,
+  options?: { timezone?: string }
+): string {
+  const value = typeof date === 'string' ? new Date(date) : date;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: options?.timezone,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value || '';
+
+  return `${part('day')}-${part('month')}-${part('year')} ${part('hour')}:${part('minute')}:${part('second')}`;
+}
+
 export function validateEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const nameEmailRegex = /^(.+?)\s*<([^\s@]+@[^\s@]+\.[^\s@]+)>$/;

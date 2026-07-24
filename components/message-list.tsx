@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import type { MessageListItem, Label } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatExactDateTime } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
 import { Star, Paperclip, AlertCircle, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -234,7 +234,11 @@ export const MessageItem = memo(function MessageItem({
                 ))}
               </span>
             </div>
-            <time dateTime={new Date(message.date).toISOString()} className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1">
+            <time
+              dateTime={new Date(message.date).toISOString()}
+              title={formatExactDateTime(message.date, localeSettings)}
+              className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
+            >
               {formatDate(message.date, localeSettings)}
             </time>
           </div>
@@ -250,7 +254,11 @@ export const MessageItem = memo(function MessageItem({
               {message.flags.important && <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />}
               {message.flags.starred && <Star className="h-3.5 w-3.5 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" strokeWidth={1.8} />}
             </div>
-            <time dateTime={new Date(message.date).toISOString()} className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+            <time
+              dateTime={new Date(message.date).toISOString()}
+              title={formatExactDateTime(message.date, localeSettings)}
+              className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+            >
               {formatDate(message.date, localeSettings)}
             </time>
           </div>

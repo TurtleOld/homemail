@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { formatDate } from '../utils';
+import { formatDate, formatExactDateTime } from '../utils';
 
 describe('formatDate', () => {
   beforeEach(() => {
@@ -45,5 +45,13 @@ describe('formatDate', () => {
   it('должен поддерживать английский язык', () => {
     const date = new Date('2024-12-20T11:59:30Z');
     expect(formatDate(date, { language: 'en' })).toBe('just now');
+  });
+});
+
+describe('formatExactDateTime', () => {
+  it('formats an exact timestamp as DD-MM-YYYY HH:MM:SS', () => {
+    expect(
+      formatExactDateTime('2026-07-24T12:04:05Z', { timezone: 'Europe/Moscow' })
+    ).toBe('24-07-2026 15:04:05');
   });
 });
