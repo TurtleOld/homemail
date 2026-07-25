@@ -80,7 +80,7 @@ export const ThreadItem = memo(function ThreadItem({
           count: thread.messages.length,
         })}
         className={cn(
-          'group relative flex cursor-pointer items-center gap-2.5 px-3 transition-colors duration-150 hover:mail-hover-surface focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary',
+          'group relative flex cursor-pointer items-center gap-2.5 px-3 transition-[background-color,transform,box-shadow] duration-150 hover:z-[1] hover:mail-hover-surface hover:-translate-y-0.5 hover:shadow-md focus-within:z-[1] focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary',
           layout === 'list-first' && 'min-h-message-row py-1.5 max-md:min-h-16 max-md:py-2',
           layout === 'legacy' && density === 'compact' && 'min-h-12 py-1.5',
           layout === 'legacy' && density === 'comfortable' && 'min-h-16 py-2.5',
@@ -173,11 +173,13 @@ export const ThreadItem = memo(function ThreadItem({
         >
           <Star className={cn('h-4 w-4', thread.hasStarred && 'fill-current')} strokeWidth={1.8} />
         </button>
-        {thread.hasImportant && (
-          <span title={t('important')} aria-label={t('important')} className="flex-shrink-0">
-            <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
-          </span>
-        )}
+        <span
+          title={thread.hasImportant ? t('important') : undefined}
+          aria-label={thread.hasImportant ? t('important') : undefined}
+          className={cn('flex-shrink-0', !thread.hasImportant && 'invisible')}
+        >
+          <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
+        </span>
         {layout === 'list-first' ? (
           <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
             <span className={cn('min-w-0 truncate text-sm', thread.unreadCount > 0 ? 'font-semibold' : 'font-normal')}>

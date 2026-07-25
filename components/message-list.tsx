@@ -143,7 +143,7 @@ export const MessageItem = memo(function MessageItem({
         }
       }}
       className={cn(
-        'group relative flex cursor-pointer items-center border-b border-border/70 transition-colors duration-150 hover:mail-hover-surface active:bg-[hsl(var(--surface-hover))] touch-manipulation focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
+        'group relative flex cursor-pointer items-center border-b border-border/70 transition-[background-color,transform,box-shadow] duration-150 hover:z-[1] hover:mail-hover-surface hover:-translate-y-0.5 hover:shadow-md active:bg-[hsl(var(--surface-hover))] active:translate-y-0 active:shadow-none touch-manipulation focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
         layout === 'list-first'
           ? 'min-h-message-row gap-2 px-3 py-1.5 max-md:min-h-16 max-md:py-2'
           : densityClasses[density],
@@ -208,7 +208,7 @@ export const MessageItem = memo(function MessageItem({
 
       {layout === 'list-first' ? (
         <>
-          <div className="flex flex-shrink-0 items-center gap-0.5">
+          <div className="flex w-[3.25rem] flex-shrink-0 items-center gap-0.5">
             <button
               type="button"
               onClick={(e) => {
@@ -226,14 +226,16 @@ export const MessageItem = memo(function MessageItem({
             >
               <Star className={cn('h-4 w-4', message.flags.starred && 'fill-current')} strokeWidth={1.8} />
             </button>
-            {message.flags.important && (
-              <span title={t('important')} aria-label={t('important')}>
-                <AlertCircle
-                  className="h-3.5 w-3.5 flex-shrink-0 text-[hsl(var(--status-warning))]"
-                  strokeWidth={1.8}
-                />
-              </span>
-            )}
+            <span
+              title={message.flags.important ? t('important') : undefined}
+              aria-label={message.flags.important ? t('important') : undefined}
+              className={cn('flex-shrink-0', !message.flags.important && 'invisible')}
+            >
+              <AlertCircle
+                className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]"
+                strokeWidth={1.8}
+              />
+            </span>
           </div>
           <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
             <span className={cn('min-w-0 truncate text-sm', message.flags.unread ? 'font-semibold' : 'font-normal')}>
@@ -288,11 +290,13 @@ export const MessageItem = memo(function MessageItem({
             >
               <Star className={cn('h-4 w-4', message.flags.starred && 'fill-current')} strokeWidth={1.8} />
             </button>
-            {message.flags.important && (
-              <span title={t('important')} aria-label={t('important')}>
-                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
-              </span>
-            )}
+            <span
+              title={message.flags.important ? t('important') : undefined}
+              aria-label={message.flags.important ? t('important') : undefined}
+              className={cn('flex-shrink-0', !message.flags.important && 'invisible')}
+            >
+              <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
+            </span>
             <span className={cn('min-w-0 flex-1 truncate text-sm', message.flags.unread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
               {message.from.name || message.from.email}
             </span>
