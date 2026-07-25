@@ -35,8 +35,8 @@ test.describe('product shell fixture', () => {
     await expect(page.getByRole('button', { name: 'Close navigation' })).toBeHidden();
   });
 
-  test('keeps the dedicated Contacts workspace unavailable while the shell flag is off', async ({ page }) => {
-    const response = await page.goto('/en/contacts');
-    expect(response?.status()).toBe(404);
+  test('redirects to login when visiting Contacts unauthenticated', async ({ page }) => {
+    await page.goto('/en/contacts');
+    await expect(page).toHaveURL(/\/en\/login\?redirect=\/en\/contacts/);
   });
 });
