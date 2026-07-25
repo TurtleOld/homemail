@@ -237,7 +237,7 @@ export const MessageItem = memo(function MessageItem({
             <time
               dateTime={new Date(message.date).toISOString()}
               title={formatExactDateTime(message.date, localeSettings)}
-              className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
+              className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
             >
               {formatDate(message.date, localeSettings)}
             </time>
@@ -257,7 +257,7 @@ export const MessageItem = memo(function MessageItem({
             <time
               dateTime={new Date(message.date).toISOString()}
               title={formatExactDateTime(message.date, localeSettings)}
-              className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+              className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground"
             >
               {formatDate(message.date, localeSettings)}
             </time>

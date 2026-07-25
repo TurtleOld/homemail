@@ -11,40 +11,40 @@ describe('formatDate', () => {
     vi.useRealTimers();
   });
 
-  it('должен форматировать дату "только что" для недавних сообщений', () => {
+  it('должен форматировать время HH:MM для сообщений за сегодня', () => {
     const date = new Date('2024-12-20T11:59:30Z');
-    expect(formatDate(date, { language: 'ru' })).toBe('только что');
+    expect(formatDate(date, { language: 'ru', timezone: 'UTC' })).toBe('11:59');
   });
 
-  it('должен форматировать дату "X мин назад"', () => {
-    const date = new Date('2024-12-20T11:55:00Z');
-    expect(formatDate(date, { language: 'ru' })).toBe('5 мин назад');
-  });
-
-  it('должен форматировать дату "вчера"', () => {
+  it('должен форматировать вчерашнюю дату как день и короткий месяц', () => {
     const date = new Date('2024-12-19T12:00:00Z');
-    expect(formatDate(date, { language: 'ru' })).toBe('вчера');
+    expect(formatDate(date, { language: 'ru', timezone: 'UTC' })).toBe('19 дек');
   });
 
-  it('должен форматировать дату с учетом формата DD.MM.YYYY', () => {
+  it('должен форматировать дату недельной давности как день и короткий месяц', () => {
     const date = new Date('2024-12-15T12:00:00Z');
-    const result = formatDate(date, { language: 'ru', dateFormat: 'DD.MM.YYYY' });
-    // For dates within last 7 days, UI uses relative formatting.
-    expect(result).toBe('5 дн назад');
+    const result = formatDate(date, { language: 'ru', timezone: 'UTC' });
+    expect(result).toBe('15 дек');
+  });
+
+  it('должен добавлять год для дат из прошлых лет', () => {
+    const date = new Date('2023-03-14T12:00:00Z');
+    const result = formatDate(date, { language: 'ru', timezone: 'UTC' });
+    expect(result).toBe('14 мар 2023');
   });
 
   it('должен форматировать дату с учетом часового пояса', () => {
     const date = new Date('2024-12-20T10:00:00Z');
-    const result = formatDate(date, { 
-      language: 'ru', 
-      timezone: 'Europe/Moscow' 
+    const result = formatDate(date, {
+      language: 'ru',
+      timezone: 'Europe/Moscow',
     });
     expect(result).toBeTruthy();
   });
 
   it('должен поддерживать английский язык', () => {
-    const date = new Date('2024-12-20T11:59:30Z');
-    expect(formatDate(date, { language: 'en' })).toBe('just now');
+    const date = new Date('2024-12-19T12:00:00Z');
+    expect(formatDate(date, { language: 'en', timezone: 'UTC' })).toBe('19 Dec');
   });
 });
 

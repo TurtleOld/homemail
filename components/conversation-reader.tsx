@@ -140,7 +140,7 @@ export function ConversationReader({
                 {plainPreview(message)}
               </span>
               <time
-                className="text-xs text-muted-foreground"
+                className="min-w-[4.5rem] text-right font-mono text-xs tabular-nums text-muted-foreground"
                 dateTime={new Date(message.date).toISOString()}
                 title={formatExactDateTime(message.date, localeSettings)}
               >

@@ -5,6 +5,27 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const DATE_LOCALES: Record<'ru' | 'en', string> = {
+  ru: 'ru-RU',
+  en: 'en-US',
+};
+
+function isSameDay(a: Date, b: Date, timezone?: string): boolean {
+  const partsFor = (date: Date) =>
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+  return partsFor(a) === partsFor(b);
+}
+
+/**
+ * Formats a message date the way Gmail/Outlook do: same-day messages show
+ * a localized HH:MM time, everything else shows a localized short date
+ * (day + short month name, plus year when it isn't the current year).
+ */
 export function formatDate(
   date: Date | string,
   options?: {
@@ -16,69 +37,37 @@ export function formatDate(
 ): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const language = options?.language || 'ru';
-  const dateFormat = options?.dateFormat || 'DD.MM.YYYY';
   const timeFormat = options?.timeFormat || '24h';
   const timezone = options?.timezone;
+  const locale = DATE_LOCALES[language];
 
-  const translations = {
-    ru: {
-      justNow: 'только что',
-      minutesAgo: (m: number) => `${m} мин назад`,
-      hoursAgo: (h: number) => `${h} ч назад`,
-      yesterday: 'вчера',
-      daysAgo: (d: number) => `${d} дн назад`,
-    },
-    en: {
-      justNow: 'just now',
-      minutesAgo: (m: number) => `${m} min ago`,
-      hoursAgo: (h: number) => `${h} h ago`,
-      yesterday: 'yesterday',
-      daysAgo: (d: number) => `${d} days ago`,
-    },
-  };
-
-  const t = translations[language];
-
-  if (days === 0) {
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    if (hours === 0) {
-      const minutes = Math.floor(diff / (1000 * 60));
-      return minutes <= 1 ? t.justNow : t.minutesAgo(minutes);
-    }
-    return t.hoursAgo(hours);
+  if (isSameDay(d, now, timezone)) {
+    return new Intl.DateTimeFormat(locale, {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: timeFormat === '12h',
+    }).format(d);
   }
 
-  if (days === 1) return t.yesterday;
-  if (days < 7) return t.daysAgo(days);
+  const isCurrentYear = d.getFullYear() === now.getFullYear();
 
-  const dateToFormat = timezone ? new Date(d.toLocaleString('en-US', { timeZone: timezone })) : d;
-  const year = dateToFormat.getFullYear();
-  const month = String(dateToFormat.getMonth() + 1).padStart(2, '0');
-  const day = String(dateToFormat.getDate()).padStart(2, '0');
+  const parts = new Intl.DateTimeFormat(locale, {
+    timeZone: timezone,
+    day: 'numeric',
+    month: 'short',
+    year: isCurrentYear ? undefined : 'numeric',
+  }).formatToParts(d);
 
-  let formatted: string;
-  switch (dateFormat) {
-    case 'DD.MM.YYYY':
-      formatted = `${day}.${month}.${year}`;
-      break;
-    case 'MM/DD/YYYY':
-      formatted = `${month}/${day}/${year}`;
-      break;
-    case 'YYYY-MM-DD':
-      formatted = `${year}-${month}-${day}`;
-      break;
-    default:
-      formatted = `${day}.${month}.${year}`;
-  }
+  const partValue = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value || '';
 
-  if (dateToFormat.getFullYear() === now.getFullYear() && days < 365) {
-    return formatted.replace(`.${year}`, '').replace(`/${year}`, '').replace(`${year}-`, '');
-  }
+  const day = partValue('day');
+  const month = partValue('month').replace(/\.$/, '');
+  const year = partValue('year');
 
-  return formatted;
+  return year ? `${day} ${month} ${year}` : `${day} ${month}`;
 }
 
 export function formatExactDateTime(

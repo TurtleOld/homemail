@@ -173,7 +173,7 @@ export const ThreadItem = memo(function ThreadItem({
             <time
               dateTime={new Date(thread.latestDate).toISOString()}
               title={formatExactDateTime(thread.latestDate, localeSettings)}
-              className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
+              className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
             >
               {formatDate(thread.latestDate, localeSettings)}
             </time>
@@ -206,7 +206,7 @@ export const ThreadItem = memo(function ThreadItem({
             <time
               dateTime={new Date(thread.latestDate).toISOString()}
               title={formatExactDateTime(thread.latestDate, localeSettings)}
-              className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+              className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground"
             >
               {formatDate(thread.latestDate, localeSettings)}
             </time>
