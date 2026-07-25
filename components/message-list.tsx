@@ -218,16 +218,16 @@ export const MessageItem = memo(function MessageItem({
               </span>
             </div>
             <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
-              <span className={cn('min-w-0 truncate text-sm', message.flags.unread ? 'font-semibold' : 'font-normal')}>
+              <span className={cn('min-w-0 truncate font-serif text-sm', message.flags.unread ? 'font-semibold' : 'font-medium')}>
                 {message.from.name || message.from.email}
               </span>
               <div className="flex min-w-0 items-baseline gap-1.5 max-md:col-span-2 max-md:row-start-2">
                 {messageHref ? (
-                  <Link href={messageHref} onClick={(event) => event.stopPropagation()} className={cn('min-w-0 truncate text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', message.flags.unread && 'font-medium')}>
+                  <Link href={messageHref} onClick={(event) => event.stopPropagation()} className={cn('min-w-0 truncate font-serif text-[13.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', message.flags.unread && 'font-semibold')}>
                     {message.subject || tCommon('noSubject')}
                   </Link>
                 ) : (
-                  <span className={cn('min-w-0 truncate text-[13px]', message.flags.unread && 'font-medium')}>{message.subject || tCommon('noSubject')}</span>
+                  <span className={cn('min-w-0 truncate font-serif text-[13.5px]', message.flags.unread && 'font-semibold')}>{message.subject || tCommon('noSubject')}</span>
                 )}
                 {message.snippet && (
                   <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
+import { Source_Serif_4 } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -8,6 +9,12 @@ import { routing } from '@/i18n/routing';
 import { getTranslations } from 'next-intl/server';
 import { Providers } from '../providers';
 import '../globals.css';
+
+const sourceSerif = Source_Serif_4({
+  subsets: ['latin', 'cyrillic'],
+  weight: ['500', '600'],
+  variable: '--font-source-serif',
+});
 
 export async function generateMetadata({
   params,
@@ -51,12 +58,12 @@ export default async function LocaleLayout({
   return (
     <html
       lang={locale}
-      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${sourceSerif.variable}`}
       suppressHydrationWarning
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#3b82f6" />
+        <meta name="theme-color" content="#8a5a2b" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Mail" />

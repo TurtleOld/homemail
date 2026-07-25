@@ -561,13 +561,13 @@ export function MessageViewer({
           )}
           <div className="flex-1 min-w-0">
             {!hideSubject && (
-              <h2 className="text-xl font-semibold max-md:text-base break-words leading-tight">
+              <h2 className="font-serif text-xl font-semibold max-md:text-base break-words leading-tight">
                 {message.subject || tCommon('noSubject')}
               </h2>
             )}
             <div className="mt-2 space-y-1 text-sm text-muted-foreground max-md:text-xs">
               <div className="break-words">
-                <span className="font-medium text-foreground">
+                <span className="font-serif font-semibold text-foreground">
                   {message.from?.name || message.from?.email}
                 </span>
                 {message.from?.name && (
