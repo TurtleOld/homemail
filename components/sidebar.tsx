@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Folder } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,6 +12,8 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   X,
   RefreshCw,
 } from 'lucide-react';
@@ -61,6 +63,7 @@ export function Sidebar({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showCustomFolders, setShowCustomFolders] = useState(false);
 
   const organizedFolders = useMemo(() => {
     const folderMap = new Map<string, Folder & { children: Folder[] }>();
@@ -82,6 +85,24 @@ export function Sidebar({
 
     return rootFolders;
   }, [folders]);
+
+  const systemFolders = useMemo(
+    () => organizedFolders.filter((folder) => folder.role !== 'custom'),
+    [organizedFolders]
+  );
+  const customFolders = useMemo(
+    () => organizedFolders.filter((folder) => folder.role === 'custom'),
+    [organizedFolders]
+  );
+
+  useEffect(() => {
+    if (!selectedFolderId || showCustomFolders) return;
+    const containsSelected = (folder: Folder & { children?: Folder[] }): boolean =>
+      folder.id === selectedFolderId || (folder.children ?? []).some(containsSelected);
+    if (customFolders.some(containsSelected)) {
+      setShowCustomFolders(true);
+    }
+  }, [selectedFolderId, customFolders, showCustomFolders]);
 
   const renderFolderItem = useCallback(
     (folder: Folder & { children?: Folder[] }, level = 0) => {
@@ -177,7 +198,7 @@ export function Sidebar({
         </div>
         <div className="flex-1 overflow-auto p-2">
           <nav className="space-y-2">
-            {organizedFolders.map((folder) => {
+            {[...systemFolders, ...(showCustomFolders ? customFolders : [])].map((folder) => {
               const renderCollapsedFolder = (f: Folder & { children?: Folder[] }) => (
                 <div key={f.id}>
                   <button
@@ -202,6 +223,19 @@ export function Sidebar({
               );
               return renderCollapsedFolder(folder);
             })}
+            {customFolders.length > 0 && (
+              <button
+                onClick={() => setShowCustomFolders((prev) => !prev)}
+                className="flex w-full items-center justify-center rounded-xl p-2 text-sm text-muted-foreground transition-colors hover:mail-hover-surface hover:text-foreground"
+                title={showCustomFolders ? t('showLessFolders') : t('showMoreFolders')}
+              >
+                {showCustomFolders ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
+            )}
           </nav>
         </div>
       </aside>
@@ -291,7 +325,26 @@ export function Sidebar({
           )}
         </div>
         <nav className="space-y-1 p-2">
-          {organizedFolders.map((folder) => renderFolderItem(folder))}
+          {systemFolders.map((folder) => renderFolderItem(folder))}
+          {customFolders.length > 0 && (
+            <>
+              {showCustomFolders && customFolders.map((folder) => renderFolderItem(folder))}
+              <button
+                onClick={() => setShowCustomFolders((prev) => !prev)}
+                className={cn(
+                  'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted-foreground transition-colors duration-150 hover:mail-hover-surface hover:text-foreground',
+                  layout === 'list-first' ? 'rounded-control' : 'rounded-xl'
+                )}
+              >
+                {showCustomFolders ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+                <span>{showCustomFolders ? t('showLessFolders') : t('showMoreFolders')}</span>
+              </button>
+            </>
+          )}
         </nav>
       </div>
     </aside>

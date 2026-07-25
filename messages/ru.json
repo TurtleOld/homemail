@@ -225,6 +225,8 @@
     "compose": "Написать",
     "searchPlaceholder": "Поиск...",
     "foldersSection": "Папки",
+    "showMoreFolders": "Ещё",
+    "showLessFolders": "Скрыть",
     "refreshFolders": "Обновить папки",
     "foldersRefreshed": "Папки обновлены",
     "refreshError": "Ошибка обновления",

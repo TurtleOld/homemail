@@ -225,6 +225,8 @@
     "compose": "Compose",
     "searchPlaceholder": "Search...",
     "foldersSection": "Folders",
+    "showMoreFolders": "More",
+    "showLessFolders": "Less",
     "refreshFolders": "Refresh folders",
     "foldersRefreshed": "Folders refreshed",
     "refreshError": "Refresh error",
