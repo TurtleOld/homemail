@@ -35,6 +35,7 @@
     "refresh": "Refresh",
     "refreshed": "Refreshed",
     "refreshError": "Refresh error",
+    "listOptions": "Filters and view",
     "selected": "Selected: {count}",
     "selectionActions": "Actions for selected messages",
     "clearSelection": "Clear selection",

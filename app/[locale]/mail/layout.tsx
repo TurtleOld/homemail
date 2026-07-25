@@ -45,6 +45,7 @@ import {
   MoreHorizontal,
   Tag,
   RefreshCw,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -1231,6 +1232,181 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     />
   ) : null;
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['folders'] }),
+        refetchFolders(),
+        queryClient.invalidateQueries({ queryKey: ['messages'] }),
+        refetchMessages(),
+      ]);
+      toast.success(t('refreshed'));
+    } catch (error) {
+      toast.error(t('refreshError'));
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
+  const bulkActionsToolbar = selectedIds.size > 0 ? (
+    <div
+      className="flex min-w-0 items-center gap-1"
+      role="toolbar"
+      aria-label={t('selectionActions')}
+    >
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => {
+          setSelectedIds(new Set());
+          setAllMessagesSelected(false);
+        }}
+        className="h-8 w-8 flex-shrink-0 max-md:h-11 max-md:w-11"
+        aria-label={t('clearSelection')}
+        title={t('clearSelection')}
+      >
+        <X className="h-4 w-4" strokeWidth={1.8} />
+      </Button>
+      {isInboxFolder && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleBulkAction('archive')}
+          className="h-8 w-8 max-md:h-11 max-md:w-11"
+          aria-label={t('archiveAria')}
+          title={t('archive')}
+        >
+          <Archive className="h-4 w-4" strokeWidth={1.8} />
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => handleBulkAction(shouldMarkRead ? 'markRead' : 'markUnread')}
+        className="h-8 w-8 max-md:h-11 max-md:w-11"
+        aria-label={shouldMarkRead ? t('markReadAria') : t('markUnreadAria')}
+        title={shouldMarkRead ? t('markRead') : t('markUnread')}
+      >
+        {shouldMarkRead ? (
+          <MailOpen className="h-4 w-4" strokeWidth={1.8} />
+        ) : (
+          <Mail className="h-4 w-4" strokeWidth={1.8} />
+        )}
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 max-md:h-11 max-md:w-11"
+            aria-label={t('moveAria')}
+            title={t('move')}
+          >
+            <FolderIcon className="h-4 w-4" strokeWidth={1.8} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">
+          {folders
+            .filter((folder) => folder.id !== selectedFolderId)
+            .map((folder) => (
+              <DropdownMenuItem
+                key={folder.id}
+                onClick={() => handleBulkAction('move', { folderId: folder.id })}
+                className="min-h-10"
+              >
+                {folderIcons[folder.role] || folderIcons.custom}
+                <span className="ml-2">{getLocalizedFolderName(folder, tFolderRoles)}</span>
+              </DropdownMenuItem>
+            ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => handleBulkAction('delete')}
+        className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive max-md:h-11 max-md:w-11"
+        aria-label={t('deleteAria')}
+        title={t('delete')}
+      >
+        <Trash2 className="h-4 w-4" strokeWidth={1.8} />
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 max-md:h-11 max-md:w-11"
+            aria-label={t('moreActions')}
+            title={t('moreActions')}
+          >
+            <MoreHorizontal className="h-4 w-4" strokeWidth={1.8} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {isSpamFolder && inboxFolder && (
+            <DropdownMenuItem
+              onClick={() => handleBulkAction('move', { folderId: inboxFolder.id })}
+            >
+              <Inbox className="mr-2 h-4 w-4" strokeWidth={1.8} />
+              {t('notSpam')}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={allMessagesSelected}>
+              <Tag className="mr-2 h-4 w-4" strokeWidth={1.8} />
+              {t('labels')}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="max-h-[280px] overflow-y-auto">
+              {labels.length > 0 ? (
+                labels.map((label) => (
+                  <DropdownMenuCheckboxItem
+                    key={label.id}
+                    checked={
+                      selectedMessages.length > 0 &&
+                      selectedMessages.every((message) =>
+                        message.labels?.includes(label.id)
+                      )
+                    }
+                    onCheckedChange={() => handleBulkLabel(label.id)}
+                  >
+                    <span
+                      className="mr-2 h-2 w-2 rounded-full border border-border"
+                      style={{
+                        backgroundColor: label.color || 'hsl(var(--primary))',
+                      }}
+                    />
+                    {label.name}
+                  </DropdownMenuCheckboxItem>
+                ))
+              ) : (
+                <DropdownMenuItem disabled>{t('noLabels')}</DropdownMenuItem>
+              )}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuItem onClick={() => handleBulkAction('star')}>
+            <Star className="mr-2 h-4 w-4" strokeWidth={1.8} />
+            {t('star')}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              handleBulkAction(
+                allSelectedImportant ? 'unmarkImportant' : 'markImportant'
+              )
+            }
+          >
+            <AlertCircle className="mr-2 h-4 w-4" strokeWidth={1.8} />
+            {t('important')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleBulkExport}>
+            <FileDown className="mr-2 h-4 w-4" strokeWidth={1.8} />
+            {t('export')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  ) : null;
+
   return (
     <div
       id="main-content"
@@ -1349,6 +1525,69 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 placeholder={t('searchPlaceholder')}
                 className="mx-auto w-full max-w-2xl"
               />
+              {!selectedMessageId && (
+                <div className="flex flex-shrink-0 items-center gap-2 max-md:hidden">
+                  <QuickFilters
+                    activeFilter={quickFilter}
+                    onFilterChange={handleQuickFilterChange}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg shadow-none"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    title={t('refresh')}
+                    aria-label={t('refresh')}
+                  >
+                    <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} strokeWidth={1.8} />
+                  </Button>
+                  <Button
+                    variant={conversationView ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={handlePresentationChange}
+                    className="h-8 rounded-lg px-2 shadow-none"
+                    title={conversationView ? t('switchToNormal') : t('switchToThread')}
+                    aria-label={conversationView ? t('switchToNormal') : t('switchToThread')}
+                  >
+                    <MessageSquare className="mr-1 h-4 w-4" strokeWidth={1.8} />
+                    <span>{t('threads')}</span>
+                  </Button>
+                </div>
+              )}
+              {!selectedMessageId && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="hidden h-9 w-9 flex-shrink-0 rounded-lg shadow-none max-md:flex"
+                      title={t('listOptions')}
+                      aria-label={t('listOptions')}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" strokeWidth={1.8} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64 p-2">
+                    <QuickFilters
+                      activeFilter={quickFilter}
+                      onFilterChange={handleQuickFilterChange}
+                    />
+                    <DropdownMenuItem
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      className="mt-1"
+                    >
+                      <RefreshCw className={cn('mr-2 h-4 w-4', isRefreshing && 'animate-spin')} strokeWidth={1.8} />
+                      {t('refresh')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handlePresentationChange}>
+                      <MessageSquare className="mr-2 h-4 w-4" strokeWidth={1.8} />
+                      {conversationView ? t('switchToNormal') : t('switchToThread')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <AccountMenu account={account || null} />
             </header>
           )}
@@ -1386,215 +1625,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 suppressHydrationWarning
                 {...(isMobile ? swipeHandlers : {})}
               >
-                <div className="mail-panel-muted flex min-h-12 flex-shrink-0 items-center border-b border-border px-2 py-1.5 transition-colors duration-200">
-                  {selectedIds.size > 0 ? (
-                    <div
-                      className="flex min-w-0 flex-1 items-center gap-1"
-                      role="toolbar"
-                      aria-label={t('selectionActions')}
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedIds(new Set());
-                          setAllMessagesSelected(false);
-                        }}
-                        className="h-8 w-8 flex-shrink-0 max-md:h-11 max-md:w-11"
-                        aria-label={t('clearSelection')}
-                        title={t('clearSelection')}
-                      >
-                        <X className="h-4 w-4" strokeWidth={1.8} />
-                      </Button>
-                      <span
-                        className="mr-auto min-w-7 truncate px-1 font-mono text-xs font-medium tabular-nums text-foreground"
-                        aria-live="polite"
-                      >
-                        {selectedIds.size}
-                      </span>
-                      {isInboxFolder && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleBulkAction('archive')}
-                          className="h-8 w-8 max-md:h-11 max-md:w-11"
-                          aria-label={t('archiveAria')}
-                          title={t('archive')}
-                        >
-                          <Archive className="h-4 w-4" strokeWidth={1.8} />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleBulkAction(shouldMarkRead ? 'markRead' : 'markUnread')}
-                        className="h-8 w-8 max-md:h-11 max-md:w-11"
-                        aria-label={shouldMarkRead ? t('markReadAria') : t('markUnreadAria')}
-                        title={shouldMarkRead ? t('markRead') : t('markUnread')}
-                      >
-                        {shouldMarkRead ? (
-                          <MailOpen className="h-4 w-4" strokeWidth={1.8} />
-                        ) : (
-                          <Mail className="h-4 w-4" strokeWidth={1.8} />
-                        )}
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 max-md:h-11 max-md:w-11"
-                            aria-label={t('moveAria')}
-                            title={t('move')}
-                          >
-                            <FolderIcon className="h-4 w-4" strokeWidth={1.8} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">
-                          {folders
-                            .filter((folder) => folder.id !== selectedFolderId)
-                            .map((folder) => (
-                              <DropdownMenuItem
-                                key={folder.id}
-                                onClick={() => handleBulkAction('move', { folderId: folder.id })}
-                                className="min-h-10"
-                              >
-                                {folderIcons[folder.role] || folderIcons.custom}
-                                <span className="ml-2">{getLocalizedFolderName(folder, tFolderRoles)}</span>
-                              </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleBulkAction('delete')}
-                        className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive max-md:h-11 max-md:w-11"
-                        aria-label={t('deleteAria')}
-                        title={t('delete')}
-                      >
-                        <Trash2 className="h-4 w-4" strokeWidth={1.8} />
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 max-md:h-11 max-md:w-11"
-                            aria-label={t('moreActions')}
-                            title={t('moreActions')}
-                          >
-                            <MoreHorizontal className="h-4 w-4" strokeWidth={1.8} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {isSpamFolder && inboxFolder && (
-                            <DropdownMenuItem
-                              onClick={() => handleBulkAction('move', { folderId: inboxFolder.id })}
-                            >
-                              <Inbox className="mr-2 h-4 w-4" strokeWidth={1.8} />
-                              {t('notSpam')}
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger disabled={allMessagesSelected}>
-                              <Tag className="mr-2 h-4 w-4" strokeWidth={1.8} />
-                              {t('labels')}
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent className="max-h-[280px] overflow-y-auto">
-                              {labels.length > 0 ? (
-                                labels.map((label) => (
-                                  <DropdownMenuCheckboxItem
-                                    key={label.id}
-                                    checked={
-                                      selectedMessages.length > 0 &&
-                                      selectedMessages.every((message) =>
-                                        message.labels?.includes(label.id)
-                                      )
-                                    }
-                                    onCheckedChange={() => handleBulkLabel(label.id)}
-                                  >
-                                    <span
-                                      className="mr-2 h-2 w-2 rounded-full border border-border"
-                                      style={{
-                                        backgroundColor: label.color || 'hsl(var(--primary))',
-                                      }}
-                                    />
-                                    {label.name}
-                                  </DropdownMenuCheckboxItem>
-                                ))
-                              ) : (
-                                <DropdownMenuItem disabled>{t('noLabels')}</DropdownMenuItem>
-                              )}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuSub>
-                          <DropdownMenuItem onClick={() => handleBulkAction('star')}>
-                            <Star className="mr-2 h-4 w-4" strokeWidth={1.8} />
-                            {t('star')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              handleBulkAction(
-                                allSelectedImportant ? 'unmarkImportant' : 'markImportant'
-                              )
-                            }
-                          >
-                            <AlertCircle className="mr-2 h-4 w-4" strokeWidth={1.8} />
-                            {t('important')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={handleBulkExport}>
-                            <FileDown className="mr-2 h-4 w-4" strokeWidth={1.8} />
-                            {t('export')}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  ) : (
-                    <div className="flex min-w-0 flex-1 items-center justify-end gap-2 max-md:gap-1">
-                      <QuickFilters
-                        activeFilter={quickFilter}
-                        onFilterChange={handleQuickFilterChange}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-lg shadow-none"
-                        onClick={async () => {
-                          setIsRefreshing(true);
-                          try {
-                            await Promise.all([
-                              queryClient.invalidateQueries({ queryKey: ['folders'] }),
-                              refetchFolders(),
-                              queryClient.invalidateQueries({ queryKey: ['messages'] }),
-                              refetchMessages(),
-                            ]);
-                            toast.success(t('refreshed'));
-                          } catch (error) {
-                            toast.error(t('refreshError'));
-                          } finally {
-                            setTimeout(() => setIsRefreshing(false), 500);
-                          }
-                        }}
-                        disabled={isRefreshing}
-                        title={t('refresh')}
-                        aria-label={t('refresh')}
-                      >
-                        <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} strokeWidth={1.8} />
-                      </Button>
-                      <Button
-                        variant={conversationView ? 'secondary' : 'ghost'}
-                        size="sm"
-                        onClick={handlePresentationChange}
-                        className="h-8 rounded-lg px-2 shadow-none"
-                        title={conversationView ? t('switchToNormal') : t('switchToThread')}
-                        aria-label={conversationView ? t('switchToNormal') : t('switchToThread')}
-                      >
-                        <MessageSquare className="mr-1 h-4 w-4 max-md:mr-0" strokeWidth={1.8} />
-                        <span className="max-md:hidden">{t('threads')}</span>
-                      </Button>
-                    </div>
-                  )}
-                </div>
                 <div className="flex-1 min-h-0">
                   <MessageList
                     key={listScopeKey}
@@ -1605,6 +1635,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     density={settings?.ui?.density || 'comfortable'}
                     groupBy={settings?.ui?.groupBy || 'none'}
                     layout="list-first"
+                    toolbarActions={bulkActionsToolbar}
                     onClearSelection={() => {
                       setSelectedIds(new Set());
                       setAllMessagesSelected(false);

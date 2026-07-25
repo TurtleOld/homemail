@@ -43,6 +43,7 @@ interface MessageListProps {
   density?: 'compact' | 'comfortable' | 'spacious';
   groupBy?: 'none' | 'date' | 'sender';
   layout?: 'legacy' | 'list-first';
+  toolbarActions?: React.ReactNode;
 }
 
 async function getLabels(): Promise<Label[]> {
@@ -313,6 +314,7 @@ export function MessageList({
   density = 'comfortable',
   groupBy = 'none',
   layout = 'legacy',
+  toolbarActions,
 }: MessageListProps) {
   const conversationScrollRef = useRef<HTMLDivElement>(null);
   const t = useTranslations('messageList');
@@ -567,10 +569,11 @@ export function MessageList({
               : t('totalCount', { count: messages.length })}
           </span>
           {isFetchingMore && (
-            <span className="ml-auto text-xs text-muted-foreground max-md:text-[10px]">
+            <span className="text-xs text-muted-foreground max-md:text-[10px]">
               {t('loadingMore')}
             </span>
           )}
+          {toolbarActions && <div className="ml-auto flex min-w-0 items-center">{toolbarActions}</div>}
         </div>
         {onSelectAllInFolder && selectedIds.size > 0 && !allMessagesSelected && hasMore && (
           <div className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground max-md:flex-wrap">

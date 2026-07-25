@@ -93,7 +93,12 @@ export function Sidebar({
   const renderFolderItem = (folder: Folder & { children?: Folder[] }, level = 0): React.ReactNode => (
     <div key={folder.id}>
       <button
-        onClick={() => onFolderSelect(folder.id)}
+        onClick={() => {
+          if (folder.role !== 'custom') {
+            setShowCustomFolders(false);
+          }
+          onFolderSelect(folder.id);
+        }}
         onDragOver={(e) => {
           if (onDropMessage) {
             e.preventDefault();
@@ -192,7 +197,12 @@ export function Sidebar({
               const renderCollapsedFolder = (f: Folder & { children?: Folder[] }) => (
                 <div key={f.id}>
                   <button
-                    onClick={() => onFolderSelect(f.id)}
+                    onClick={() => {
+                      if (f.role !== 'custom') {
+                        setShowCustomFolders(false);
+                      }
+                      onFolderSelect(f.id);
+                    }}
                     className={cn(
                       'flex w-full items-center justify-center rounded-xl p-2 text-sm text-foreground/75 transition-colors hover:mail-hover-surface hover:text-foreground',
                       selectedFolderId === f.id &&

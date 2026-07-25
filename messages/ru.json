@@ -35,6 +35,7 @@
     "refresh": "Обновить",
     "refreshed": "Обновлено",
     "refreshError": "Ошибка обновления",
+    "listOptions": "Фильтры и вид",
     "selected": "Выбрано: {count}",
     "selectionActions": "Действия с выбранными письмами",
     "clearSelection": "Снять выделение",
