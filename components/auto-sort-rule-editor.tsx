@@ -10,6 +10,7 @@ import type { FilterJob } from '@/lib/filter-job-queue';
 import { getCsrfHeader } from '@/lib/csrf-client';
 import { Plus, Trash2, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { getLocalizedFolderName } from '@/lib/folder-name';
 
 interface AutoSortRuleEditorProps {
   open: boolean;
@@ -87,6 +88,7 @@ export function AutoSortRuleEditor({
   existingRule,
 }: AutoSortRuleEditorProps) {
   const t = useTranslations('settings.autoSortRule');
+  const tFolderRoles = useTranslations('folderRoles');
   const common = useTranslations('common');
   const [name, setName] = useState('');
   const [enabled, setEnabled] = useState(true);
@@ -392,7 +394,7 @@ export function AutoSortRuleEditor({
                   >
                     {folders.map((folder) => (
                       <option key={folder.id} value={folder.id}>
-                        {folder.name}
+                        {getLocalizedFolderName(folder, tFolderRoles)}
                       </option>
                     ))}
                   </select>

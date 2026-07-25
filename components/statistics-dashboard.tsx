@@ -9,6 +9,8 @@ import {
   SettingsSectionHeader,
   SettingsSectionLoading,
 } from '@/components/settings/settings-section-state';
+import { getLocalizedFolderName } from '@/lib/folder-name';
+import type { FolderRole } from '@/lib/types';
 
 interface StatisticsData {
   totalMessages: number;
@@ -17,7 +19,7 @@ interface StatisticsData {
   totalDrafts: number;
   messagesByDay: Array<{ date: string; incoming: number; outgoing: number }>;
   topSenders: Array<{ email: string; count: number }>;
-  folderStats: Array<{ id: string; name: string; unreadCount: number }>;
+  folderStats: Array<{ id: string; name: string; role: FolderRole; unreadCount: number }>;
 }
 
 async function fetchStatistics(): Promise<StatisticsData> {
@@ -33,6 +35,7 @@ async function fetchStatistics(): Promise<StatisticsData> {
 export function StatisticsDashboard() {
   const locale = useLocale();
   const t = useTranslations('settings.statistics');
+  const tFolderRoles = useTranslations('folderRoles');
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['statistics'],
     queryFn: fetchStatistics,
@@ -125,7 +128,7 @@ export function StatisticsDashboard() {
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {data.folderStats.map((folder) => (
             <div key={folder.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-3 text-sm">
-              <span className="min-w-0 truncate font-medium">{folder.name}</span>
+              <span className="min-w-0 truncate font-medium">{getLocalizedFolderName(folder, tFolderRoles)}</span>
               <span className="ml-3 shrink-0 tabular-nums text-muted-foreground">{t('unreadCount', { count: folder.unreadCount })}</span>
             </div>
           ))}

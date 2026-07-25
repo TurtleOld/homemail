@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Mail, FolderPlus, Trash2, Sun, Moon, Filter, Plus, Edit2, Users, Layout, Globe, Clock, Forward, AtSign, Star, Activity, Shield, AlertTriangle, CheckCircle2, XCircle, Tag, Upload, FileText, Bell, BarChart3, Database, Archive, Accessibility, Keyboard, ChevronRight, Rss, Key, HelpCircle, Code2, RotateCcw } from 'lucide-react';
 import type { Folder, SavedFilter, AutoSortRule, SieveScript } from '@/lib/types';
+import { getLocalizedFolderName } from '@/lib/folder-name';
 import type { FilterJob } from '@/lib/filter-job-queue';
 import { getCsrfHeader } from '@/lib/csrf-client';
 import { AutoSortRuleEditor } from '@/components/auto-sort-rule-editor';
@@ -2001,6 +2002,7 @@ function SieveTab() {
 function FoldersTab() {
   const queryClient = useQueryClient();
   const t = useTranslations('settings.folders');
+  const tFolderRoles = useTranslations('folderRoles');
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderParentId, setNewFolderParentId] = useState<string>('');
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
@@ -2126,7 +2128,7 @@ function FoldersTab() {
             {folder.children && folder.children.length > 0 && (
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             )}
-            <span className="font-medium truncate">{folder.name}</span>
+            <span className="font-medium truncate">{getLocalizedFolderName(folder, tFolderRoles)}</span>
             {folder.parentId && (
               <span className="text-xs text-muted-foreground">{t('subfolder')}</span>
             )}

@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import type { Folder } from '@/lib/types';
 import { useQuery } from '@tanstack/react-query';
+import { getLocalizedFolderName } from '@/lib/folder-name';
 
 async function getFolders(): Promise<Folder[]> {
   const res = await fetch('/api/mail/folders');
@@ -45,6 +46,7 @@ interface EmailImportProps {
 
 export function EmailImport({ open, onClose }: EmailImportProps) {
   const t = useTranslations('settings.importDialog');
+  const tFolderRoles = useTranslations('folderRoles');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('inbox');
   const queryClient = useQueryClient();
@@ -178,7 +180,7 @@ export function EmailImport({ open, onClose }: EmailImportProps) {
             >
               {folders.map((folder) => (
                 <option key={folder.id} value={folder.id}>
-                  {folder.name}
+                  {getLocalizedFolderName(folder, tFolderRoles)}
                 </option>
               ))}
             </select>

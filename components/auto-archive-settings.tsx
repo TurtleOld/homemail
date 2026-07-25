@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Archive, Calendar } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import type { Folder } from '@/lib/types';
+import { getLocalizedFolderName } from '@/lib/folder-name';
 
 async function getFolders(): Promise<Folder[]> {
   const res = await fetch('/api/mail/folders');
@@ -33,6 +34,7 @@ async function archiveMessages(folderId: string, days: number): Promise<{ archiv
 
 export function AutoArchiveSettings() {
   const t = useTranslations('settings.autoArchive');
+  const tFolderRoles = useTranslations('folderRoles');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('inbox');
   const [days, setDays] = useState<number>(30);
   const queryClient = useQueryClient();
@@ -85,7 +87,7 @@ export function AutoArchiveSettings() {
           >
             {folders.map((folder) => (
               <option key={folder.id} value={folder.id}>
-                {folder.name}
+                {getLocalizedFolderName(folder, tFolderRoles)}
               </option>
             ))}
           </select>

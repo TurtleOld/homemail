@@ -996,5 +996,12 @@
       "groupDeleteSuccess": "Группа удалена",
       "groupDeleteError": "Не удалось удалить группу"
     }
+  },
+  "folderRoles": {
+    "inbox": "Входящие",
+    "sent": "Отправленные",
+    "drafts": "Черновики",
+    "trash": "Корзина",
+    "spam": "Спам"
   }
 }

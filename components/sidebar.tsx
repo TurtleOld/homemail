@@ -18,6 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
+import { getLocalizedFolderName } from '@/lib/folder-name';
 
 interface SidebarProps {
   folders: Folder[];
@@ -52,6 +53,11 @@ export function Sidebar({
   layout = 'legacy',
 }: SidebarProps) {
   const t = useTranslations('sidebar');
+  const tFolderRoles = useTranslations('folderRoles');
+  const getFolderName = useCallback(
+    (folder: Folder) => getLocalizedFolderName(folder, tFolderRoles),
+    [tFolderRoles]
+  );
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -131,7 +137,7 @@ export function Sidebar({
             )}
           >
             {folderIcons[folder.role] || folderIcons.custom}
-            <span className="flex-1 truncate">{folder.name}</span>
+            <span className="flex-1 truncate">{getFolderName(folder)}</span>
             {folder.unreadCount > 0 && (
               <span
                 className={cn(
@@ -153,7 +159,7 @@ export function Sidebar({
         </div>
       );
     },
-    [selectedFolderId, draggedOverFolderId, onFolderSelect, onDropMessage, layout]
+    [selectedFolderId, draggedOverFolderId, onFolderSelect, onDropMessage, layout, getFolderName]
   );
 
   if (isCollapsed && !isMobile) {
@@ -183,7 +189,7 @@ export function Sidebar({
                       draggedOverFolderId === f.id &&
                         'bg-primary/12 ring-2 ring-primary/30 ring-offset-1 scale-105'
                     )}
-                    title={f.name}
+                    title={getFolderName(f)}
                   >
                     {folderIcons[f.role] || folderIcons.custom}
                   </button>

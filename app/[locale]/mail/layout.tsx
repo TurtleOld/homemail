@@ -61,6 +61,7 @@ import { FilterQueryParser } from '@/lib/filter-parser';
 import { useSwipeable } from 'react-swipeable';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { getMailViewport } from '@/lib/mail-responsive';
+import { getLocalizedFolderName } from '@/lib/folder-name';
 import {
   buildMailListHref,
   buildMailMessageHref,
@@ -127,6 +128,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
   const searchParams = useSearchParams();
   const locale = params.locale as string;
   const t = useTranslations('layout');
+  const tFolderRoles = useTranslations('folderRoles');
   const searchParamsValue = searchParams.toString();
   const initialUrlState = useMemo(
     () => parseMailListUrlState(new URLSearchParams(searchParamsValue)),
@@ -1334,7 +1336,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
               )}
               <div className="min-w-0 flex-shrink-0 max-md:hidden">
                 <p className="truncate text-sm font-semibold text-foreground">
-                  {selectedFolder?.name || t('allMail')}
+                  {selectedFolder ? getLocalizedFolderName(selectedFolder, tFolderRoles) : t('allMail')}
                 </p>
               </div>
               <SearchBar
@@ -1459,7 +1461,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                                 className="min-h-10"
                               >
                                 {folderIcons[folder.role] || folderIcons.custom}
-                                <span className="ml-2">{folder.name}</span>
+                                <span className="ml-2">{getLocalizedFolderName(folder, tFolderRoles)}</span>
                               </DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>

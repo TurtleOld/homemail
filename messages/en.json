@@ -996,5 +996,12 @@
       "groupDeleteSuccess": "Group deleted",
       "groupDeleteError": "Could not delete group"
     }
+  },
+  "folderRoles": {
+    "inbox": "Inbox",
+    "sent": "Sent",
+    "drafts": "Drafts",
+    "trash": "Trash",
+    "spam": "Spam"
   }
 }
