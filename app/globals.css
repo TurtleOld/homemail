@@ -13,7 +13,7 @@
     --surface-subtle: 32 16% 93%;
     --surface-raised: 40 30% 100%;
     --surface-hover: 32 18% 90%;
-    --surface-selected: 30 52% 88%;
+    --surface-selected: 138 32% 86%;
     --surface-unread: 32 32% 94%;
 
     /* Mail semantic content */
@@ -22,8 +22,8 @@
     --text-disabled: 22 9% 58%;
     --border-subtle: 30 18% 85%;
     --border-strong: 28 15% 70%;
-    --focus-ring: 27 68% 38%;
-    --action-primary: 27 68% 38%;
+    --focus-ring: 140 38% 32%;
+    --action-primary: 140 38% 32%;
     --action-destructive: 5 62% 45%;
     --status-success: 142 40% 33%;
     --status-warning: 33 78% 42%;
@@ -94,53 +94,53 @@
   :root.dark,
   :root[data-theme='dark'] {
     color-scheme: dark;
-    --surface-app: 22 18% 9%;
-    --surface-navigation: 22 16% 12%;
-    --surface-panel: 22 15% 14%;
-    --surface-subtle: 22 14% 17%;
-    --surface-raised: 22 14% 17%;
-    --surface-hover: 22 13% 21%;
-    --surface-selected: 27 42% 26%;
-    --surface-unread: 24 18% 18%;
-    --text-primary: 34 22% 93%;
-    --text-secondary: 28 12% 71%;
-    --text-disabled: 26 8% 49%;
-    --border-subtle: 24 12% 23%;
-    --border-strong: 24 11% 34%;
-    --focus-ring: 32 82% 64%;
-    --action-primary: 32 78% 58%;
+    --surface-app: 220 10% 9%;
+    --surface-navigation: 220 9% 12%;
+    --surface-panel: 220 8% 13%;
+    --surface-subtle: 220 8% 16%;
+    --surface-raised: 220 8% 16%;
+    --surface-hover: 220 7% 20%;
+    --surface-selected: 140 22% 22%;
+    --surface-unread: 220 8% 17%;
+    --text-primary: 40 8% 92%;
+    --text-secondary: 220 4% 68%;
+    --text-disabled: 220 4% 46%;
+    --border-subtle: 220 7% 22%;
+    --border-strong: 220 6% 32%;
+    --focus-ring: 140 30% 52%;
+    --action-primary: 140 28% 48%;
     --action-destructive: 5 68% 60%;
     --status-success: 142 38% 50%;
     --status-warning: 36 82% 58%;
     --status-starred: 40 85% 60%;
-    --shadow-color: 22 40% 3%;
-    --primary-foreground: 22 30% 10%;
+    --shadow-color: 220 30% 2%;
+    --primary-foreground: 220 20% 10%;
   }
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme]) {
       color-scheme: dark;
-      --surface-app: 22 18% 9%;
-      --surface-navigation: 22 16% 12%;
-      --surface-panel: 22 15% 14%;
-      --surface-subtle: 22 14% 17%;
-      --surface-raised: 22 14% 17%;
-      --surface-hover: 22 13% 21%;
-      --surface-selected: 27 42% 26%;
-      --surface-unread: 24 18% 18%;
-      --text-primary: 34 22% 93%;
-      --text-secondary: 28 12% 71%;
-      --text-disabled: 26 8% 49%;
-      --border-subtle: 24 12% 23%;
-      --border-strong: 24 11% 34%;
-      --focus-ring: 32 82% 64%;
-      --action-primary: 32 78% 58%;
+      --surface-app: 220 10% 9%;
+      --surface-navigation: 220 9% 12%;
+      --surface-panel: 220 8% 13%;
+      --surface-subtle: 220 8% 16%;
+      --surface-raised: 220 8% 16%;
+      --surface-hover: 220 7% 20%;
+      --surface-selected: 350 40% 22%;
+      --surface-unread: 220 8% 17%;
+      --text-primary: 40 8% 92%;
+      --text-secondary: 220 4% 68%;
+      --text-disabled: 220 4% 46%;
+      --border-subtle: 220 7% 22%;
+      --border-strong: 220 6% 32%;
+      --focus-ring: 140 30% 52%;
+      --action-primary: 140 28% 48%;
       --action-destructive: 5 68% 60%;
       --status-success: 142 38% 50%;
       --status-warning: 36 82% 58%;
       --status-starred: 40 85% 60%;
-      --shadow-color: 22 40% 3%;
-      --primary-foreground: 22 30% 10%;
+      --shadow-color: 220 30% 2%;
+      --primary-foreground: 220 20% 10%;
     }
   }
 }

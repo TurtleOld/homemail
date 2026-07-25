@@ -92,7 +92,16 @@ export function Providers({
       root.style.removeProperty('--primary');
       root.style.removeProperty('--secondary');
       root.style.removeProperty('--accent');
-      if (colors?.primary) root.style.setProperty('--primary', hexToHsl(colors.primary));
+      root.style.removeProperty('--action-primary');
+      root.style.removeProperty('--focus-ring');
+      root.style.removeProperty('--unread');
+      if (colors?.primary) {
+        const hsl = hexToHsl(colors.primary);
+        root.style.setProperty('--primary', hsl);
+        root.style.setProperty('--action-primary', hsl);
+        root.style.setProperty('--focus-ring', hsl);
+        root.style.setProperty('--unread', hsl);
+      }
       if (colors?.secondary) root.style.setProperty('--secondary', hexToHsl(colors.secondary));
       if (colors?.accent) root.style.setProperty('--accent', hexToHsl(colors.accent));
     };

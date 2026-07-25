@@ -537,10 +537,9 @@ function AutoReplyTab({ initialSettings }: { readonly initialSettings: UserSetti
 }
 
 const PRESET_THEMES = [
-  { id: 'blue', icon: '💙' },
-  { id: 'green', icon: '💚' },
-  { id: 'purple', icon: '💜' },
-  { id: 'orange', icon: '🧡' },
+  { id: 'sage', icon: '🌿' },
+  { id: 'terracotta', icon: '🧡' },
+  { id: 'wine', icon: '🍷' },
 ];
 
 function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings }) {
@@ -577,10 +576,9 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
 
   const getPresetColors = (presetId: string) => {
     const presets: Record<string, { primary?: string; secondary?: string; accent?: string }> = {
-      blue: { primary: '#3b82f6', accent: '#60a5fa' },
-      green: { primary: '#10b981', accent: '#34d399' },
-      purple: { primary: '#8b5cf6', accent: '#a78bfa' },
-      orange: { primary: '#f59e0b', accent: '#fbbf24' },
+      sage: { primary: '#589d6f', accent: '#589d6f' },
+      terracotta: { primary: '#d95f3a', accent: '#d95f3a' },
+      wine: { primary: '#b83d52', accent: '#b83d52' },
     };
     return presets[presetId] || {};
   };
