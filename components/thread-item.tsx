@@ -5,7 +5,7 @@ import type { MessageListItem } from '@/lib/types';
 import type { ThreadGroup } from '@/lib/thread-utils';
 import { formatDate, formatExactDateTime } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
-import { Star, Paperclip, ChevronDown, ChevronRight } from 'lucide-react';
+import { Star, Paperclip, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MessageItem } from './message-list';
 import { useTranslations } from 'next-intl';
@@ -19,6 +19,7 @@ interface ThreadItemProps {
   onMessageClick: (message: MessageListItem) => void;
   getMessageHref?: (message: MessageListItem) => string;
   onMessageDoubleClick?: (message: MessageListItem) => void;
+  onToggleStar?: (messageId: string, starred: boolean) => void;
   onDragStart?: (messageId: string) => void;
   isExpanded?: boolean;
   onToggleExpand?: (threadId: string) => void;
@@ -34,6 +35,7 @@ export const ThreadItem = memo(function ThreadItem({
   onMessageClick,
   getMessageHref,
   onMessageDoubleClick,
+  onToggleStar,
   onDragStart,
   isExpanded = false,
   onToggleExpand,
@@ -98,7 +100,14 @@ export const ThreadItem = memo(function ThreadItem({
             thread.unreadCount > 0 ? 'bg-[hsl(var(--unread))]' : 'bg-transparent'
           )}
         />
-        <div className="flex flex-shrink-0 items-center gap-1">
+        <div
+          className={cn(
+            'flex h-5 w-5 flex-shrink-0 items-center justify-center transition-opacity duration-150',
+            someSelected
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+          )}
+        >
           <input
             type="checkbox"
             checked={allSelected}
@@ -129,6 +138,8 @@ export const ThreadItem = memo(function ThreadItem({
               subject: latestMessage.subject || tCommon('noSubject'),
             })}
           />
+        </div>
+        {thread.messages.length > 1 && (
           <button
             type="button"
             onClick={(e) => {
@@ -144,7 +155,29 @@ export const ThreadItem = memo(function ThreadItem({
               <ChevronRight className="h-4 w-4" strokeWidth={1.8} />
             )}
           </button>
-        </div>
+        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleStar?.(latestMessage.id, !thread.hasStarred);
+          }}
+          className={cn(
+            'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent',
+            thread.hasStarred
+              ? 'text-[hsl(var(--starred))]'
+              : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-muted-foreground'
+          )}
+          aria-label={thread.hasStarred ? t('unstar') : t('star')}
+          title={thread.hasStarred ? t('unstar') : t('star')}
+        >
+          <Star className={cn('h-4 w-4', thread.hasStarred && 'fill-current')} strokeWidth={1.8} />
+        </button>
+        {thread.hasImportant && (
+          <span title={t('important')} aria-label={t('important')} className="flex-shrink-0">
+            <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
+          </span>
+        )}
         {layout === 'list-first' ? (
           <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
             <span className={cn('min-w-0 truncate text-sm', thread.unreadCount > 0 ? 'font-semibold' : 'font-normal')}>
@@ -165,8 +198,9 @@ export const ThreadItem = memo(function ThreadItem({
               )}
               <span className="ml-auto flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
                 {thread.messages.some((message) => message.flags.hasAttachments) && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} />}
-                {thread.hasStarred && <Star className="h-3.5 w-3.5 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" strokeWidth={1.8} />}
-                <span className="rounded-small bg-secondary px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground">{thread.messages.length}</span>
+                {thread.messages.length > 1 && (
+                  <span className="rounded-small bg-secondary px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground">{thread.messages.length}</span>
+                )}
                 {thread.unreadCount > 0 && <span className="rounded-small bg-primary/12 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-primary">{thread.unreadCount}</span>}
               </span>
             </div>
@@ -197,12 +231,6 @@ export const ThreadItem = memo(function ThreadItem({
                 strokeWidth={1.8}
               />
             )}
-            {thread.hasStarred && (
-              <Star
-                className="h-3.5 w-3.5 flex-shrink-0 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]"
-                strokeWidth={1.8}
-              />
-            )}
             <time
               dateTime={new Date(thread.latestDate).toISOString()}
               title={formatExactDateTime(thread.latestDate, localeSettings)}
@@ -224,7 +252,9 @@ export const ThreadItem = memo(function ThreadItem({
               </span>
             )}
             <span className="ml-auto flex flex-shrink-0 items-center gap-1 font-mono text-[10px] tabular-nums text-muted-foreground">
-              <span className="rounded bg-secondary px-1.5 py-0.5">{thread.messages.length}</span>
+              {thread.messages.length > 1 && (
+                <span className="rounded bg-secondary px-1.5 py-0.5">{thread.messages.length}</span>
+              )}
               {thread.unreadCount > 0 && (
                 <span className="rounded bg-primary/12 px-1.5 py-0.5 font-semibold text-primary">
                   {thread.unreadCount}
@@ -251,6 +281,7 @@ export const ThreadItem = memo(function ThreadItem({
               onMessageClick={onMessageClick}
               messageHref={getMessageHref?.(message)}
               onMessageDoubleClick={onMessageDoubleClick}
+              onToggleStar={onToggleStar}
               onDragStart={onDragStart}
               density={density}
               layout={layout}

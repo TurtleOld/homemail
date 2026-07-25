@@ -36,6 +36,7 @@
     "refreshed": "Обновлено",
     "refreshError": "Ошибка обновления",
     "listOptions": "Фильтры и вид",
+    "starError": "Не удалось изменить отметку",
     "selected": "Выбрано: {count}",
     "selectionActions": "Действия с выбранными письмами",
     "clearSelection": "Снять выделение",
@@ -102,6 +103,9 @@
     "collapseThread": "Свернуть переписку",
     "removeImportance": "Убрать важность",
     "markImportant": "Отметить как важное",
+    "star": "Отметить звездой",
+    "unstar": "Убрать звезду",
+    "important": "Важное",
     "groupToday": "Сегодня",
     "groupYesterday": "Вчера",
     "groupThisWeek": "На этой неделе"

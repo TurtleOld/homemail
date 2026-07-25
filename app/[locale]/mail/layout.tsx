@@ -1191,6 +1191,33 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       flags: { ...message.flags, starred },
     }));
   };
+  const handleToggleStar = async (messageId: string, starred: boolean) => {
+    updateMessageInList(messageId, (message) => ({
+      ...message,
+      flags: { ...message.flags, starred },
+    }));
+    updateMessageDetail(messageId, (message) => ({
+      ...message,
+      flags: { ...message.flags, starred },
+    }));
+    try {
+      await fetch(`/api/mail/messages/${messageId}/flags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ starred }),
+      });
+    } catch (error) {
+      updateMessageInList(messageId, (message) => ({
+        ...message,
+        flags: { ...message.flags, starred: !starred },
+      }));
+      updateMessageDetail(messageId, (message) => ({
+        ...message,
+        flags: { ...message.flags, starred: !starred },
+      }));
+      toast.error(t('starError'));
+    }
+  };
   const handleReaderRead = (read: boolean) => {
     if (!selectedMessageId) return;
     const message = messages.find((candidate) => candidate.id === selectedMessageId);
@@ -1636,6 +1663,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     groupBy={settings?.ui?.groupBy || 'none'}
                     layout="list-first"
                     toolbarActions={bulkActionsToolbar}
+                    onToggleStar={handleToggleStar}
                     onClearSelection={() => {
                       setSelectedIds(new Set());
                       setAllMessagesSelected(false);

@@ -36,6 +36,7 @@
     "refreshed": "Refreshed",
     "refreshError": "Refresh error",
     "listOptions": "Filters and view",
+    "starError": "Failed to update star",
     "selected": "Selected: {count}",
     "selectionActions": "Actions for selected messages",
     "clearSelection": "Clear selection",
@@ -102,6 +103,9 @@
     "collapseThread": "Collapse conversation",
     "removeImportance": "Remove importance",
     "markImportant": "Mark as important",
+    "star": "Star",
+    "unstar": "Unstar",
+    "important": "Important",
     "groupToday": "Today",
     "groupYesterday": "Yesterday",
     "groupThisWeek": "This week"

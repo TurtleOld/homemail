@@ -9,7 +9,6 @@ import {
   FileText,
   Trash2,
   AlertTriangle,
-  Plus,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -294,7 +293,6 @@ export function Sidebar({
           onClick={onCompose}
           aria-label={t('compose')}
         >
-          <Plus className="mr-2 h-4 w-4" />
           {t('compose')}
         </Button>
       </div>

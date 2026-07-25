@@ -27,6 +27,7 @@ interface MessageListProps {
   onMessageClick: (message: MessageListItem) => void;
   getMessageHref?: (message: MessageListItem) => string;
   onMessageDoubleClick?: (message: MessageListItem) => void;
+  onToggleStar?: (messageId: string, starred: boolean) => void;
   onLoadMore?: () => void;
   hasMore?: boolean;
   isLoading?: boolean;
@@ -66,6 +67,7 @@ export const MessageItem = memo(function MessageItem({
   onMessageClick,
   messageHref,
   onMessageDoubleClick,
+  onToggleStar,
   onDragStart,
   density = 'comfortable',
   layout = 'legacy',
@@ -81,6 +83,7 @@ export const MessageItem = memo(function MessageItem({
   onMessageClick: (message: MessageListItem) => void;
   messageHref?: string;
   onMessageDoubleClick?: (message: MessageListItem) => void;
+  onToggleStar?: (messageId: string, starred: boolean) => void;
   onDragStart?: (messageId: string) => void;
   density?: 'compact' | 'comfortable' | 'spacious';
   layout?: 'legacy' | 'list-first';
@@ -205,9 +208,31 @@ export const MessageItem = memo(function MessageItem({
 
       {layout === 'list-first' ? (
         <>
-          <div className="hidden h-5 w-5 flex-shrink-0 items-center justify-center md:flex" aria-hidden="true">
-            {message.flags.starred && (
-              <Star className="h-4 w-4 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" strokeWidth={1.8} />
+          <div className="flex flex-shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleStar?.(message.id, !message.flags.starred);
+              }}
+              className={cn(
+                'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent',
+                message.flags.starred
+                  ? 'text-[hsl(var(--starred))]'
+                  : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-muted-foreground'
+              )}
+              aria-label={message.flags.starred ? t('unstar') : t('star')}
+              title={message.flags.starred ? t('unstar') : t('star')}
+            >
+              <Star className={cn('h-4 w-4', message.flags.starred && 'fill-current')} strokeWidth={1.8} />
+            </button>
+            {message.flags.important && (
+              <span title={t('important')} aria-label={t('important')}>
+                <AlertCircle
+                  className="h-3.5 w-3.5 flex-shrink-0 text-[hsl(var(--status-warning))]"
+                  strokeWidth={1.8}
+                />
+              </span>
             )}
           </div>
           <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
@@ -229,7 +254,6 @@ export const MessageItem = memo(function MessageItem({
               )}
               <span className="ml-auto flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
                 {message.flags.hasAttachments && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} />}
-                {message.flags.important && <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />}
                 {messageLabels.slice(0, 2).map((label) => (
                   <span key={label.id} className="h-1.5 w-1.5 rounded-full border border-border" style={{ backgroundColor: label.color || 'hsl(var(--primary))' }} title={label.name} />
                 ))}
@@ -247,13 +271,33 @@ export const MessageItem = memo(function MessageItem({
       ) : (
         <div className="flex-1 min-w-0">
           <div className="flex min-w-0 items-baseline gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleStar?.(message.id, !message.flags.starred);
+              }}
+              className={cn(
+                'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent',
+                message.flags.starred
+                  ? 'text-[hsl(var(--starred))]'
+                  : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-muted-foreground'
+              )}
+              aria-label={message.flags.starred ? t('unstar') : t('star')}
+              title={message.flags.starred ? t('unstar') : t('star')}
+            >
+              <Star className={cn('h-4 w-4', message.flags.starred && 'fill-current')} strokeWidth={1.8} />
+            </button>
+            {message.flags.important && (
+              <span title={t('important')} aria-label={t('important')}>
+                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
+              </span>
+            )}
             <span className={cn('min-w-0 flex-1 truncate text-sm', message.flags.unread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
               {message.from.name || message.from.email}
             </span>
             <div className="flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
               {message.flags.hasAttachments && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} />}
-              {message.flags.important && <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />}
-              {message.flags.starred && <Star className="h-3.5 w-3.5 fill-[hsl(var(--starred))] text-[hsl(var(--starred))]" strokeWidth={1.8} />}
             </div>
             <time
               dateTime={new Date(message.date).toISOString()}
@@ -298,6 +342,7 @@ export function MessageList({
   onMessageClick,
   getMessageHref,
   onMessageDoubleClick,
+  onToggleStar,
   onLoadMore,
   hasMore,
   isLoading = false,
@@ -500,6 +545,7 @@ export function MessageList({
           onMessageClick={onMessageClick}
           messageHref={getMessageHref?.(message)}
           onMessageDoubleClick={onMessageDoubleClick}
+          onToggleStar={onToggleStar}
           onDragStart={onDragStart}
           density={density}
           layout={layout}
@@ -515,6 +561,7 @@ export function MessageList({
       onMessageClick,
       getMessageHref,
       onMessageDoubleClick,
+      onToggleStar,
       onDragStart,
       density,
       layout,
@@ -662,6 +709,7 @@ export function MessageList({
                 onMessageClick={onMessageClick}
                 getMessageHref={getMessageHref}
                 onMessageDoubleClick={onMessageDoubleClick}
+                onToggleStar={onToggleStar}
                 onDragStart={onDragStart}
                 isExpanded={expandedThreads.has(thread.threadId)}
                 onToggleExpand={toggleThreadExpand}
@@ -723,6 +771,7 @@ export function MessageList({
                   onSelect={onSelect}
                   onMessageClick={onMessageClick}
                   onMessageDoubleClick={onMessageDoubleClick}
+                  onToggleStar={onToggleStar}
                   onDragStart={onDragStart}
                   density={density}
                 />

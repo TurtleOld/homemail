@@ -5,6 +5,7 @@ export interface ThreadGroup {
   messages: MessageListItem[];
   unreadCount: number;
   hasStarred: boolean;
+  hasImportant: boolean;
   latestDate: Date;
 }
 
@@ -30,6 +31,7 @@ export function groupMessagesByThread(messages: MessageListItem[]): ThreadGroup[
 
     const unreadCount = threadMessages.filter((m) => m.flags.unread).length;
     const hasStarred = threadMessages.some((m) => m.flags.starred);
+    const hasImportant = threadMessages.some((m) => m.flags.important);
     const firstMessage = threadMessages[0]!;
     const latestDate = firstMessage.date instanceof Date ? firstMessage.date : new Date(firstMessage.date);
 
@@ -38,6 +40,7 @@ export function groupMessagesByThread(messages: MessageListItem[]): ThreadGroup[
       messages: threadMessages,
       unreadCount,
       hasStarred,
+      hasImportant,
       latestDate,
     });
   }
