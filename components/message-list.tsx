@@ -5,11 +5,12 @@ import { Virtuoso } from 'react-virtuoso';
 import type { MessageListItem, Label } from '@/lib/types';
 import { formatDate, formatExactDateTime } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
-import { Star, Paperclip, AlertCircle, Mail } from 'lucide-react';
+import { Star, AlertCircle, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { groupMessagesByThread } from '@/lib/thread-utils';
 import { ThreadItem } from './thread-item';
+import { AttachmentChip } from './attachment-chip';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -143,10 +144,10 @@ export const MessageItem = memo(function MessageItem({
         }
       }}
       className={cn(
-        'group relative flex cursor-pointer items-center border-b border-border/70 transition-[background-color,transform,box-shadow] duration-150 hover:z-[1] hover:mail-hover-surface hover:-translate-y-0.5 hover:shadow-md active:bg-[hsl(var(--surface-hover))] active:translate-y-0 active:shadow-none touch-manipulation focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
+        'group relative flex cursor-pointer flex-col border-b border-border/70 transition-[background-color,transform,box-shadow] duration-150 hover:z-[1] hover:mail-hover-surface hover:-translate-y-0.5 hover:shadow-md active:bg-[hsl(var(--surface-hover))] active:translate-y-0 active:shadow-none touch-manipulation focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
         layout === 'list-first'
-          ? 'min-h-message-row gap-2 px-3 py-1.5 max-md:min-h-16 max-md:py-2'
-          : densityClasses[density],
+          ? 'min-h-message-row justify-center gap-1 px-3 py-1.5 max-md:min-h-16 max-md:py-2'
+          : cn('justify-center', densityClasses[density]),
         message.flags.unread && 'mail-unread-surface',
         isActive && !isSelected && 'bg-[hsl(var(--surface-selected)/0.55)]',
         isSelected && 'mail-selected-surface',
@@ -185,146 +186,179 @@ export const MessageItem = memo(function MessageItem({
         )}
       />
 
-      <div
-        className={cn(
-          'flex h-5 w-5 flex-shrink-0 items-center justify-center transition-opacity duration-150',
-          isSelected || isSelectionMode
-            ? 'opacity-100'
-            : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
-        )}
-      >
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={(e) => {
-            e.stopPropagation();
-            onSelect(message.id, true);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          className="h-4 w-4 rounded border-[hsl(var(--border-strong))] accent-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          aria-label={t('selectMessage', { sender: message.from.name || message.from.email })}
-        />
-      </div>
-
       {layout === 'list-first' ? (
         <>
-          <div className="flex w-[3.25rem] flex-shrink-0 items-center gap-0.5">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleStar?.(message.id, !message.flags.starred);
-              }}
+          <div className="flex min-w-0 items-center gap-2">
+            <div
               className={cn(
-                'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent',
-                message.flags.starred
-                  ? 'text-[hsl(var(--starred))]'
-                  : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-muted-foreground'
+                'flex h-5 w-5 flex-shrink-0 items-center justify-center transition-opacity duration-150',
+                isSelected || isSelectionMode
+                  ? 'opacity-100'
+                  : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
               )}
-              aria-label={message.flags.starred ? t('unstar') : t('star')}
-              title={message.flags.starred ? t('unstar') : t('star')}
             >
-              <Star className={cn('h-4 w-4', message.flags.starred && 'fill-current')} strokeWidth={1.8} />
-            </button>
-            <span
-              title={message.flags.important ? t('important') : undefined}
-              aria-label={message.flags.important ? t('important') : undefined}
-              className={cn('flex-shrink-0', !message.flags.important && 'invisible')}
-            >
-              <AlertCircle
-                className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]"
-                strokeWidth={1.8}
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onSelect(message.id, true);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="h-4 w-4 rounded border-[hsl(var(--border-strong))] accent-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                aria-label={t('selectMessage', { sender: message.from.name || message.from.email })}
               />
-            </span>
-          </div>
-          <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
-            <span className={cn('min-w-0 truncate text-sm', message.flags.unread ? 'font-semibold' : 'font-normal')}>
-              {message.from.name || message.from.email}
-            </span>
-            <div className="flex min-w-0 items-baseline gap-1.5 max-md:col-span-2 max-md:row-start-2">
-              {messageHref ? (
-                <Link href={messageHref} onClick={(event) => event.stopPropagation()} className={cn('min-w-0 truncate text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', message.flags.unread && 'font-medium')}>
-                  {message.subject || tCommon('noSubject')}
-                </Link>
-              ) : (
-                <span className={cn('min-w-0 truncate text-[13px]', message.flags.unread && 'font-medium')}>{message.subject || tCommon('noSubject')}</span>
-              )}
-              {message.snippet && (
-                <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-                  <span aria-hidden="true">- </span>{message.snippet}
-                </span>
-              )}
-              <span className="ml-auto flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
-                {message.flags.hasAttachments && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} />}
-                {messageLabels.slice(0, 2).map((label) => (
-                  <span key={label.id} className="h-1.5 w-1.5 rounded-full border border-border" style={{ backgroundColor: label.color || 'hsl(var(--primary))' }} title={label.name} />
-                ))}
+            </div>
+            <div className="flex w-[3.25rem] flex-shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleStar?.(message.id, !message.flags.starred);
+                }}
+                className={cn(
+                  'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent',
+                  message.flags.starred
+                    ? 'text-[hsl(var(--starred))]'
+                    : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-muted-foreground'
+                )}
+                aria-label={message.flags.starred ? t('unstar') : t('star')}
+                title={message.flags.starred ? t('unstar') : t('star')}
+              >
+                <Star className={cn('h-4 w-4', message.flags.starred && 'fill-current')} strokeWidth={1.8} />
+              </button>
+              <span
+                title={message.flags.important ? t('important') : undefined}
+                aria-label={message.flags.important ? t('important') : undefined}
+                className={cn('flex-shrink-0', !message.flags.important && 'invisible')}
+              >
+                <AlertCircle
+                  className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]"
+                  strokeWidth={1.8}
+                />
               </span>
             </div>
-            <time
-              dateTime={new Date(message.date).toISOString()}
-              title={formatExactDateTime(message.date, localeSettings)}
-              className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
-            >
-              {formatDate(message.date, localeSettings)}
-            </time>
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
+              <span className={cn('min-w-0 truncate text-sm', message.flags.unread ? 'font-semibold' : 'font-normal')}>
+                {message.from.name || message.from.email}
+              </span>
+              <div className="flex min-w-0 items-baseline gap-1.5 max-md:col-span-2 max-md:row-start-2">
+                {messageHref ? (
+                  <Link href={messageHref} onClick={(event) => event.stopPropagation()} className={cn('min-w-0 truncate text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', message.flags.unread && 'font-medium')}>
+                    {message.subject || tCommon('noSubject')}
+                  </Link>
+                ) : (
+                  <span className={cn('min-w-0 truncate text-[13px]', message.flags.unread && 'font-medium')}>{message.subject || tCommon('noSubject')}</span>
+                )}
+                {message.snippet && (
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
+                    <span aria-hidden="true">- </span>{message.snippet}
+                  </span>
+                )}
+                <span className="ml-auto flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
+                  {messageLabels.slice(0, 2).map((label) => (
+                    <span key={label.id} className="h-1.5 w-1.5 rounded-full border border-border" style={{ backgroundColor: label.color || 'hsl(var(--primary))' }} title={label.name} />
+                  ))}
+                </span>
+              </div>
+              <time
+                dateTime={new Date(message.date).toISOString()}
+                title={formatExactDateTime(message.date, localeSettings)}
+                className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
+              >
+                {formatDate(message.date, localeSettings)}
+              </time>
+            </div>
           </div>
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="flex min-w-0 flex-wrap items-center gap-1 pl-[4.5rem] max-md:pl-9">
+              {message.attachments.map((attachment, i) => (
+                <AttachmentChip key={`${attachment.filename}-${i}`} attachment={attachment} />
+              ))}
+            </div>
+          )}
         </>
       ) : (
-        <div className="flex-1 min-w-0">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleStar?.(message.id, !message.flags.starred);
-              }}
-              className={cn(
-                'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent',
-                message.flags.starred
-                  ? 'text-[hsl(var(--starred))]'
-                  : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-muted-foreground'
-              )}
-              aria-label={message.flags.starred ? t('unstar') : t('star')}
-              title={message.flags.starred ? t('unstar') : t('star')}
-            >
-              <Star className={cn('h-4 w-4', message.flags.starred && 'fill-current')} strokeWidth={1.8} />
-            </button>
-            <span
-              title={message.flags.important ? t('important') : undefined}
-              aria-label={message.flags.important ? t('important') : undefined}
-              className={cn('flex-shrink-0', !message.flags.important && 'invisible')}
-            >
-              <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
-            </span>
-            <span className={cn('min-w-0 flex-1 truncate text-sm', message.flags.unread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
-              {message.from.name || message.from.email}
-            </span>
-            <div className="flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
-              {message.flags.hasAttachments && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.8} />}
-            </div>
-            <time
-              dateTime={new Date(message.date).toISOString()}
-              title={formatExactDateTime(message.date, localeSettings)}
-              className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground"
-            >
-              {formatDate(message.date, localeSettings)}
-            </time>
-          </div>
-          <div className={cn('mt-0.5 flex min-w-0 items-baseline gap-1.5', subjectSizeClasses[density])}>
-            <span className={cn('min-w-0 truncate', message.flags.unread ? 'font-medium text-foreground' : 'font-normal text-foreground')}>
-              {message.subject || tCommon('noSubject')}
-            </span>
-            {density !== 'compact' && message.snippet && (
-              <span className="min-w-0 flex-1 truncate text-muted-foreground"><span aria-hidden="true">- </span>{message.snippet}</span>
+        <div className="flex min-w-0 items-start gap-2">
+          <div
+            className={cn(
+              'flex h-5 w-5 flex-shrink-0 items-center justify-center transition-opacity duration-150',
+              isSelected || isSelectionMode
+                ? 'opacity-100'
+                : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
             )}
-            {messageLabels.length > 0 && (
-              <span className="ml-auto flex flex-shrink-0 items-center gap-1" aria-label={messageLabels.map((label) => label.name).join(', ')}>
-                {messageLabels.slice(0, 3).map((label) => (
-                  <span key={label.id} className="h-1.5 w-1.5 rounded-full border border-border" style={{ backgroundColor: label.color || 'hsl(var(--primary))' }} title={label.name} />
-                ))}
-                {messageLabels.length > 3 && <span className="font-mono text-[10px] tabular-nums text-muted-foreground">+{messageLabels.length - 3}</span>}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                e.stopPropagation();
+                onSelect(message.id, true);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="h-4 w-4 rounded border-[hsl(var(--border-strong))] accent-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              aria-label={t('selectMessage', { sender: message.from.name || message.from.email })}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleStar?.(message.id, !message.flags.starred);
+                }}
+                className={cn(
+                  'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent',
+                  message.flags.starred
+                    ? 'text-[hsl(var(--starred))]'
+                    : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-muted-foreground'
+                )}
+                aria-label={message.flags.starred ? t('unstar') : t('star')}
+                title={message.flags.starred ? t('unstar') : t('star')}
+              >
+                <Star className={cn('h-4 w-4', message.flags.starred && 'fill-current')} strokeWidth={1.8} />
+              </button>
+              <span
+                title={message.flags.important ? t('important') : undefined}
+                aria-label={message.flags.important ? t('important') : undefined}
+                className={cn('flex-shrink-0', !message.flags.important && 'invisible')}
+              >
+                <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
               </span>
+              <span className={cn('min-w-0 flex-1 truncate text-sm', message.flags.unread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
+                {message.from.name || message.from.email}
+              </span>
+              <time
+                dateTime={new Date(message.date).toISOString()}
+                title={formatExactDateTime(message.date, localeSettings)}
+                className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground"
+              >
+                {formatDate(message.date, localeSettings)}
+              </time>
+            </div>
+            <div className={cn('mt-0.5 flex min-w-0 items-baseline gap-1.5', subjectSizeClasses[density])}>
+              <span className={cn('min-w-0 truncate', message.flags.unread ? 'font-medium text-foreground' : 'font-normal text-foreground')}>
+                {message.subject || tCommon('noSubject')}
+              </span>
+              {density !== 'compact' && message.snippet && (
+                <span className="min-w-0 flex-1 truncate text-muted-foreground"><span aria-hidden="true">- </span>{message.snippet}</span>
+              )}
+              {messageLabels.length > 0 && (
+                <span className="ml-auto flex flex-shrink-0 items-center gap-1" aria-label={messageLabels.map((label) => label.name).join(', ')}>
+                  {messageLabels.slice(0, 3).map((label) => (
+                    <span key={label.id} className="h-1.5 w-1.5 rounded-full border border-border" style={{ backgroundColor: label.color || 'hsl(var(--primary))' }} title={label.name} />
+                  ))}
+                  {messageLabels.length > 3 && <span className="font-mono text-[10px] tabular-nums text-muted-foreground">+{messageLabels.length - 3}</span>}
+                </span>
+              )}
+            </div>
+            {message.attachments && message.attachments.length > 0 && (
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+                {message.attachments.map((attachment, i) => (
+                  <AttachmentChip key={`${attachment.filename}-${i}`} attachment={attachment} />
+                ))}
+              </div>
             )}
           </div>
         </div>

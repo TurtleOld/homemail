@@ -122,6 +122,35 @@ if (
   } catch {}
 }
 
+function extractAttachmentsFromBodyStructure(part: any): Attachment[] {
+  const attachments: Attachment[] = [];
+
+  const walk = (node: any): void => {
+    if (!node) return;
+    if (node.disposition === 'attachment' || node.disposition === 'inline') {
+      if (node.blobId) {
+        attachments.push({
+          id: node.blobId,
+          filename: node.name || node.filename || 'attachment',
+          mime: node.type || 'application/octet-stream',
+          size: node.size || 0,
+          contentId: typeof node.cid === 'string' ? node.cid : undefined,
+          disposition: node.disposition,
+        });
+      }
+    }
+    if (Array.isArray(node.subParts)) {
+      for (const subPart of node.subParts) walk(subPart);
+    }
+    if (Array.isArray(node.parts)) {
+      for (const subPart of node.parts) walk(subPart);
+    }
+  };
+
+  walk(part);
+  return attachments;
+}
+
 export class StalwartJMAPProvider implements MailProvider {
   private async getClient(accountId: string): Promise<JMAPClient> {
     if (getAuthMode() === 'basic') {
@@ -492,6 +521,7 @@ export class StalwartJMAPProvider implements MailProvider {
           'hasAttachment',
           'size',
           'keywords',
+          'bodyStructure',
         ],
       });
 
@@ -501,6 +531,11 @@ export class StalwartJMAPProvider implements MailProvider {
         const isUnread = !email.keywords?.['$seen'];
         const isStarred = email.keywords?.['$flagged'] === true;
         const isImportant = email.keywords?.['$important'] === true;
+        const attachments = email.hasAttachment && email.bodyStructure
+          ? extractAttachmentsFromBodyStructure(email.bodyStructure)
+              .filter((att) => att.disposition !== 'inline')
+              .map((att) => ({ filename: att.filename, mime: att.mime }))
+          : undefined;
 
         return {
           id: email.id,
@@ -523,6 +558,7 @@ export class StalwartJMAPProvider implements MailProvider {
             hasAttachments: email.hasAttachment || false,
           },
           size: email.size || 0,
+          attachments,
         };
       });
 
@@ -602,35 +638,9 @@ export class StalwartJMAPProvider implements MailProvider {
       const email = emails[0];
       const from = email.from?.[0] || { email: 'unknown' };
 
-      const attachments: Attachment[] = [];
-      if (email.bodyStructure) {
-        const extractAttachments = (part: any): void => {
-          if (part.disposition === 'attachment' || part.disposition === 'inline') {
-            if (part.blobId) {
-              attachments.push({
-                id: part.blobId,
-                filename: part.name || part.filename || 'attachment',
-                mime: part.type || 'application/octet-stream',
-                size: part.size || 0,
-                contentId: typeof part.cid === 'string' ? part.cid : undefined,
-                disposition: part.disposition,
-              });
-            }
-          }
-          if (part.subParts && Array.isArray(part.subParts)) {
-            for (const subPart of part.subParts) {
-              extractAttachments(subPart);
-            }
-          }
-          if (part.parts && Array.isArray(part.parts)) {
-            for (const subPart of part.parts) {
-              extractAttachments(subPart);
-            }
-          }
-        };
-
-        extractAttachments(email.bodyStructure);
-      }
+      const attachments: Attachment[] = email.bodyStructure
+        ? extractAttachmentsFromBodyStructure(email.bodyStructure)
+        : [];
 
       let textBody: string | undefined;
       let htmlBody: string | undefined;

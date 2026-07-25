@@ -49,6 +49,11 @@ export type MessageFlags = {
   hasAttachments: boolean;
 };
 
+export type AttachmentSummary = {
+  filename: string;
+  mime: string;
+};
+
 export type MessageListItem = {
   id: string;
   threadId?: string;
@@ -60,6 +65,7 @@ export type MessageListItem = {
   flags: MessageFlags;
   labels?: string[];
   size: number;
+  attachments?: AttachmentSummary[];
 };
 
 export type AuthResult = 'pass' | 'fail' | 'none';
