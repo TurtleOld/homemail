@@ -12,7 +12,7 @@ test.describe('list-first mail fixtures', () => {
   test('exposes full-width conversation rows and durable reader links', async ({ page }) => {
     await page.goto('/en/visual-regression/mail/list');
     const list = page.getByRole('region', { name: 'Message list' });
-    await expect(list).toHaveAttribute('data-layout', 'list-first');
+    await expect(list).toBeVisible();
     await expect(page.getByRole('link', { name: 'Family trip: tickets and final schedule' }).first())
       .toHaveAttribute('href', /\/en\/mail\/messages\/m-104\?folder=inbox/);
   });

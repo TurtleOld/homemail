@@ -10,6 +10,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:dev": "PLAYWRIGHT_USE_BUILD=0 playwright test",
     "test:e2e:ui": "playwright test --ui",
     "deploy": "bash deploy.sh",
     "docker:build": "docker-compose build",
