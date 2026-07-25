@@ -175,7 +175,7 @@ describe('MessageList', () => {
     );
 
     const expandButton = screen.getByRole('button', { name: 'Expand conversation' });
-    expect(expandButton.closest('article')).toHaveClass('min-h-12');
+    expect(expandButton.closest('article')).toHaveClass('min-h-message-row');
   });
 
   it('restores and reports the conversation-list scroll offset', () => {
@@ -208,7 +208,7 @@ describe('MessageList', () => {
     expect(onScrollOffsetChange).toHaveBeenLastCalledWith(640);
   });
 
-  it('updates message rows when density changes', () => {
+  it('reflects the density setting on the list container', () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -227,8 +227,7 @@ describe('MessageList', () => {
     );
 
     expect(document.querySelector('#message-list')).toHaveAttribute('data-density', 'compact');
-    expect(screen.getByText('Test Subject').closest('article')).toHaveClass('min-h-12');
-    expect(screen.queryByText('Test snippet')).not.toBeInTheDocument();
+    expect(screen.getByText('Test Subject').closest('article')).toHaveClass('min-h-message-row');
 
     rerender(
       <QueryClientProvider client={queryClient}>
@@ -237,11 +236,10 @@ describe('MessageList', () => {
     );
 
     expect(document.querySelector('#message-list')).toHaveAttribute('data-density', 'spacious');
-    expect(screen.getByText('Test Subject').closest('article')).toHaveClass('min-h-20');
-    expect(screen.getByText('Test snippet')).toBeInTheDocument();
+    expect(screen.getByText('Test Subject').closest('article')).toHaveClass('min-h-message-row');
   });
 
-  it('renders the list-first row layout with a durable reader link', () => {
+  it('renders the list row with a durable reader link', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={queryClient}>
@@ -252,12 +250,10 @@ describe('MessageList', () => {
           onSelectAll={vi.fn()}
           onMessageClick={vi.fn()}
           getMessageHref={(message) => `/en/mail/messages/${message.id}?folder=inbox`}
-          layout="list-first"
         />
       </QueryClientProvider>
     );
 
-    expect(document.querySelector('#message-list')).toHaveAttribute('data-layout', 'list-first');
     expect(screen.getByRole('link', { name: 'Test Subject' }))
       .toHaveAttribute('href', '/en/mail/messages/1?folder=inbox');
     expect(screen.getByText('Test Subject').closest('article')).toHaveClass('min-h-message-row');

@@ -96,7 +96,6 @@ export function ConversationReader({
                 <MessageViewer
                   message={message}
                   hasSelection
-                  layout="list-first"
                   embedded
                   hideSubject
                   showReplyActions={false}

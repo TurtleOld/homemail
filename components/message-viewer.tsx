@@ -58,7 +58,6 @@ interface MessageViewerProps {
   onBack?: () => void;
   error?: Error | null;
   inlineComposer?: ReactNode;
-  layout?: 'legacy' | 'list-first';
   embedded?: boolean;
   hideSubject?: boolean;
   showReplyActions?: boolean;
@@ -100,7 +99,6 @@ export function MessageViewer({
   onBack,
   error,
   inlineComposer,
-  layout = 'legacy',
   embedded = false,
   hideSubject = false,
   showReplyActions = true,
@@ -202,7 +200,6 @@ export function MessageViewer({
 
   const iframeSrcDoc = useMemo(() => {
     if (!sanitizedHtml) return '';
-    const listFirst = layout === 'list-first';
     const shellBg = isDark ? 'hsl(220, 24%, 12%)' : '#f4f7fb';
     const paperBg = '#ffffff';
     const textColor = '#111827';
@@ -210,10 +207,6 @@ export function MessageViewer({
     const blockquoteBg = '#f8fafc';
     const blockquoteBorder = '#dbe4f0';
     const blockquoteText = '#334155';
-    const panelBorder = isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0';
-    const panelShadow = isDark
-      ? '0 22px 44px -28px rgba(0,0,0,0.65)'
-      : '0 22px 44px -28px rgba(15,23,42,0.18)';
     return [
       '<!DOCTYPE html>',
       '<html>',
@@ -226,8 +219,8 @@ export function MessageViewer({
       '* { box-sizing: border-box; }',
       `html, body { margin: 0; padding: 0; background: ${shellBg}; }`,
       `body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: ${textColor}; line-height: 1.6; font-size: 15px; word-wrap: break-word; overflow-wrap: break-word; overflow-x: auto; }`,
-      `.email-shell { padding: ${listFirst ? '0' : '20px'}; }`,
-      `.email-content { width: 100%; max-width: ${listFirst ? 'none' : '920px'}; margin: 0 auto; padding: ${listFirst ? '24px 32px' : '24px'}; background: ${paperBg}; color: ${textColor}; border: ${listFirst ? '0' : `1px solid ${panelBorder}`}; border-radius: ${listFirst ? '0' : '18px'}; box-shadow: ${listFirst ? 'none' : panelShadow}; }`,
+      '.email-shell { padding: 0; }',
+      `.email-content { width: 100%; max-width: none; margin: 0 auto; padding: 24px 32px; background: ${paperBg}; color: ${textColor}; border: 0; border-radius: 0; box-shadow: none; }`,
       '.email-content--table-layout { padding: 0; overflow: hidden; }',
       'p { margin: 0 0 12px 0; }',
       'p:last-child { margin-bottom: 0; }',
@@ -273,8 +266,8 @@ export function MessageViewer({
       'body, body * { max-width: 100%; }',
       '@media (max-width: 600px) {',
       '  body { font-size: 14px; }',
-      `  .email-shell { padding: ${listFirst ? '0' : '8px'}; }`,
-      `  .email-content { padding: 14px; border-radius: ${listFirst ? '0' : '14px'}; }`,
+      '  .email-shell { padding: 0; }',
+      '  .email-content { padding: 14px; border-radius: 0; }',
       '  img[align="left"], img[align="right"] { float: none; display: block; margin: 12px auto; }',
       '  table { font-size: 14px; max-width: 100% !important; }',
       '  table td, table th { word-wrap: break-word; }',
@@ -284,7 +277,7 @@ export function MessageViewer({
       `<body><div class="email-shell"><div class="email-content${isTableLayout ? ' email-content--table-layout' : ''}">${sanitizedHtml}</div></div></body>`,
       '</html>',
     ].join('');
-  }, [sanitizedHtml, isDark, isTableLayout, layout]);
+  }, [sanitizedHtml, isDark, isTableLayout]);
 
   const messageLabelObjects = useMemo(() => {
     if (!message?.labels) return [];
@@ -547,17 +540,13 @@ export function MessageViewer({
     <div
       className={cn(
         'mail-panel-surface flex w-full flex-col',
-        embedded ? 'h-auto overflow-visible' : 'h-full overflow-hidden',
-        layout === 'legacy' && 'border-l border-border max-md:border-l-0'
+        embedded ? 'h-auto overflow-visible' : 'h-full overflow-hidden'
       )}
       role="region"
       aria-label={t('viewerLabel')}
     >
       {/* Header — subject, from/to, auth badges, secondary actions */}
-      <div className={cn(
-        'mail-panel-muted flex-shrink-0 border-b border-border pb-4 pt-5 max-md:px-3 max-md:pb-2 max-md:pt-3',
-        layout === 'list-first' ? 'px-6' : 'px-5'
-      )}>
+      <div className="mail-panel-muted flex-shrink-0 border-b border-border px-6 pb-4 pt-5 max-md:px-3 max-md:pb-2 max-md:pt-3">
         <div className="flex items-start gap-2">
           {isMobile && onBack && (
             <Button
@@ -610,19 +599,14 @@ export function MessageViewer({
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {(['dkim', 'spf', 'dmarc'] as const).map((key) => {
                   const result = message.authResults![key];
-                  if (!result || result === 'none' || (layout === 'list-first' && result === 'pass')) return null;
-                  const isPass = result === 'pass';
+                  if (!result || result === 'none' || result === 'pass') return null;
                   return (
                     <span
                       key={key}
-                      className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-mono font-semibold ${
-                        isPass
-                          ? 'border border-[hsl(var(--status-success)/0.3)] bg-[hsl(var(--status-success)/0.1)] text-[hsl(var(--status-success))]'
-                          : 'border border-destructive/30 bg-destructive/10 text-destructive'
-                      }`}
+                      className="inline-flex items-center rounded-full border border-destructive/30 bg-destructive/10 px-2 py-1 text-[10px] font-mono font-semibold text-destructive"
                       title={`${key.toUpperCase()}: ${result}`}
                     >
-                      {key.toUpperCase()} {isPass ? '✓' : '✗'}
+                      {key.toUpperCase()} ✗
                     </span>
                   );
                 })}
@@ -854,7 +838,6 @@ export function MessageViewer({
 
       {/* Scrollable body */}
       <div className={cn('flex flex-1 flex-col', embedded ? 'overflow-visible' : 'overflow-auto')}>
-        {layout === 'legacy' && attachmentSection}
         {iframeSrcDoc ? (
           <iframe
             ref={iframeRef}
@@ -871,7 +854,7 @@ export function MessageViewer({
             <p>{t('noBody')}</p>
           </div>
         )}
-        {layout === 'list-first' && attachmentSection}
+        {attachmentSection}
         {showTranslator && message && message.body && (
           <div className="border-t border-border p-4">
             <MessageTranslator

@@ -1505,7 +1505,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 isMobile={isNavigationOverlay}
                 onClose={() => setSidebarOpen(false)}
                 onDropMessage={handleMoveMessage}
-                layout="list-first"
               />
             </div>
           </>
@@ -1661,7 +1660,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                     conversationView={conversationView}
                     density={settings?.ui?.density || 'comfortable'}
                     groupBy={settings?.ui?.groupBy || 'none'}
-                    layout="list-first"
                     toolbarActions={bulkActionsToolbar}
                     onToggleStar={handleToggleStar}
                     onClearSelection={() => {
@@ -1796,7 +1794,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                   hasSelection={!!selectedMessageId}
                   error={messageError}
                   isMobile={isMobile}
-                  layout="list-first"
                   onBack={navigateToList}
                   inlineComposer={inlineReplyComposer}
                 />

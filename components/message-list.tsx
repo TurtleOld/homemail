@@ -44,7 +44,6 @@ interface MessageListProps {
   conversationView?: boolean;
   density?: 'compact' | 'comfortable' | 'spacious';
   groupBy?: 'none' | 'date' | 'sender';
-  layout?: 'legacy' | 'list-first';
   toolbarActions?: React.ReactNode;
 }
 
@@ -70,8 +69,6 @@ export const MessageItem = memo(function MessageItem({
   onMessageDoubleClick,
   onToggleStar,
   onDragStart,
-  density = 'comfortable',
-  layout = 'legacy',
 }: {
   message: MessageListItem;
   index: number;
@@ -86,8 +83,6 @@ export const MessageItem = memo(function MessageItem({
   onMessageDoubleClick?: (message: MessageListItem) => void;
   onToggleStar?: (messageId: string, starred: boolean) => void;
   onDragStart?: (messageId: string) => void;
-  density?: 'compact' | 'comfortable' | 'spacious';
-  layout?: 'legacy' | 'list-first';
 }) {
   const localeSettings = useLocaleSettings();
   const t = useTranslations('messageList');
@@ -101,17 +96,6 @@ export const MessageItem = memo(function MessageItem({
     if (!message.labels || message.labels.length === 0) return [];
     return labels.filter((label) => message.labels?.includes(label.id));
   }, [message.labels, labels]);
-  const densityClasses = {
-    compact: 'min-h-12 px-3 py-1.5 gap-2',
-    comfortable: 'min-h-16 px-3 py-2.5 gap-2.5',
-    spacious: 'min-h-20 px-4 py-3.5 gap-3',
-  };
-
-  const subjectSizeClasses = {
-    compact: 'text-xs',
-    comfortable: 'text-[13px]',
-    spacious: 'text-sm',
-  };
 
   return (
     <article
@@ -144,10 +128,7 @@ export const MessageItem = memo(function MessageItem({
         }
       }}
       className={cn(
-        'group relative flex cursor-pointer flex-col border-b border-border/70 transition-[background-color,transform,box-shadow] duration-150 hover:z-[1] hover:mail-hover-surface hover:-translate-y-0.5 hover:shadow-md active:bg-[hsl(var(--surface-hover))] active:translate-y-0 active:shadow-none touch-manipulation focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
-        layout === 'list-first'
-          ? 'min-h-message-row justify-center gap-1 px-3 py-1.5 max-md:min-h-16 max-md:py-2'
-          : cn('justify-center', densityClasses[density]),
+        'group relative flex min-h-message-row cursor-pointer flex-col justify-center gap-1 border-b border-border/70 px-3 py-1.5 transition-[background-color,transform,box-shadow] duration-150 hover:z-[1] hover:mail-hover-surface hover:-translate-y-0.5 hover:shadow-md active:bg-[hsl(var(--surface-hover))] active:translate-y-0 active:shadow-none touch-manipulation focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary max-md:min-h-16 max-md:py-2',
         message.flags.unread && 'mail-unread-surface',
         isActive && !isSelected && 'bg-[hsl(var(--surface-selected)/0.55)]',
         isSelected && 'mail-selected-surface',
@@ -186,9 +167,7 @@ export const MessageItem = memo(function MessageItem({
         )}
       />
 
-      {layout === 'list-first' ? (
-        <>
-          <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
             <div
               className={cn(
                 'flex h-5 w-5 flex-shrink-0 items-center justify-center transition-opacity duration-150',
@@ -277,92 +256,6 @@ export const MessageItem = memo(function MessageItem({
               ))}
             </div>
           )}
-        </>
-      ) : (
-        <div className="flex min-w-0 items-start gap-2">
-          <div
-            className={cn(
-              'flex h-5 w-5 flex-shrink-0 items-center justify-center transition-opacity duration-150',
-              isSelected || isSelectionMode
-                ? 'opacity-100'
-                : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
-            )}
-          >
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={(e) => {
-                e.stopPropagation();
-                onSelect(message.id, true);
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="h-4 w-4 rounded border-[hsl(var(--border-strong))] accent-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-              aria-label={t('selectMessage', { sender: message.from.name || message.from.email })}
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-baseline gap-2">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleStar?.(message.id, !message.flags.starred);
-                }}
-                className={cn(
-                  'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent',
-                  message.flags.starred
-                    ? 'text-[hsl(var(--starred))]'
-                    : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-muted-foreground'
-                )}
-                aria-label={message.flags.starred ? t('unstar') : t('star')}
-                title={message.flags.starred ? t('unstar') : t('star')}
-              >
-                <Star className={cn('h-4 w-4', message.flags.starred && 'fill-current')} strokeWidth={1.8} />
-              </button>
-              <span
-                title={message.flags.important ? t('important') : undefined}
-                aria-label={message.flags.important ? t('important') : undefined}
-                className={cn('flex-shrink-0', !message.flags.important && 'invisible')}
-              >
-                <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
-              </span>
-              <span className={cn('min-w-0 flex-1 truncate text-sm', message.flags.unread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
-                {message.from.name || message.from.email}
-              </span>
-              <time
-                dateTime={new Date(message.date).toISOString()}
-                title={formatExactDateTime(message.date, localeSettings)}
-                className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground"
-              >
-                {formatDate(message.date, localeSettings)}
-              </time>
-            </div>
-            <div className={cn('mt-0.5 flex min-w-0 items-baseline gap-1.5', subjectSizeClasses[density])}>
-              <span className={cn('min-w-0 truncate', message.flags.unread ? 'font-medium text-foreground' : 'font-normal text-foreground')}>
-                {message.subject || tCommon('noSubject')}
-              </span>
-              {density !== 'compact' && message.snippet && (
-                <span className="min-w-0 flex-1 truncate text-muted-foreground"><span aria-hidden="true">- </span>{message.snippet}</span>
-              )}
-              {messageLabels.length > 0 && (
-                <span className="ml-auto flex flex-shrink-0 items-center gap-1" aria-label={messageLabels.map((label) => label.name).join(', ')}>
-                  {messageLabels.slice(0, 3).map((label) => (
-                    <span key={label.id} className="h-1.5 w-1.5 rounded-full border border-border" style={{ backgroundColor: label.color || 'hsl(var(--primary))' }} title={label.name} />
-                  ))}
-                  {messageLabels.length > 3 && <span className="font-mono text-[10px] tabular-nums text-muted-foreground">+{messageLabels.length - 3}</span>}
-                </span>
-              )}
-            </div>
-            {message.attachments && message.attachments.length > 0 && (
-              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-                {message.attachments.map((attachment, i) => (
-                  <AttachmentChip key={`${attachment.filename}-${i}`} attachment={attachment} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </article>
   );
 });
@@ -396,7 +289,6 @@ export function MessageList({
   conversationView = false,
   density = 'comfortable',
   groupBy = 'none',
-  layout = 'legacy',
   toolbarActions,
 }: MessageListProps) {
   const conversationScrollRef = useRef<HTMLDivElement>(null);
@@ -585,8 +477,6 @@ export function MessageList({
           onMessageDoubleClick={onMessageDoubleClick}
           onToggleStar={onToggleStar}
           onDragStart={onDragStart}
-          density={density}
-          layout={layout}
         />
       );
     },
@@ -601,8 +491,6 @@ export function MessageList({
       onMessageDoubleClick,
       onToggleStar,
       onDragStart,
-      density,
-      layout,
     ]
   );
 
@@ -622,11 +510,7 @@ export function MessageList({
     <div
       id="message-list"
       data-density={density}
-      data-layout={layout}
-      className={cn(
-        'mail-panel-surface flex h-full w-full flex-col max-md:border-r-0',
-        layout === 'legacy' && 'border-r border-border'
-      )}
+      className="mail-panel-surface flex h-full w-full flex-col max-md:border-r-0"
       role="region"
       aria-label={t('regionLabel')}
     >
@@ -751,8 +635,6 @@ export function MessageList({
                 onDragStart={onDragStart}
                 isExpanded={expandedThreads.has(thread.threadId)}
                 onToggleExpand={toggleThreadExpand}
-                density={density}
-                layout={layout}
               />
             ))}
             {hasMore && onLoadMore && (
@@ -811,7 +693,6 @@ export function MessageList({
                   onMessageDoubleClick={onMessageDoubleClick}
                   onToggleStar={onToggleStar}
                   onDragStart={onDragStart}
-                  density={density}
                 />
               );
             }}

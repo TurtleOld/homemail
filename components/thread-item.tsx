@@ -24,8 +24,6 @@ interface ThreadItemProps {
   onDragStart?: (messageId: string) => void;
   isExpanded?: boolean;
   onToggleExpand?: (threadId: string) => void;
-  density?: 'compact' | 'comfortable' | 'spacious';
-  layout?: 'legacy' | 'list-first';
 }
 
 export const ThreadItem = memo(function ThreadItem({
@@ -40,8 +38,6 @@ export const ThreadItem = memo(function ThreadItem({
   onDragStart,
   isExpanded = false,
   onToggleExpand,
-  density = 'comfortable',
-  layout = 'legacy',
 }: ThreadItemProps) {
   const localeSettings = useLocaleSettings();
   const t = useTranslations('messageList');
@@ -81,11 +77,7 @@ export const ThreadItem = memo(function ThreadItem({
           count: thread.messages.length,
         })}
         className={cn(
-          'group relative flex cursor-pointer flex-col justify-center gap-1 px-3 transition-[background-color,transform,box-shadow] duration-150 hover:z-[1] hover:mail-hover-surface hover:-translate-y-0.5 hover:shadow-md focus-within:z-[1] focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary',
-          layout === 'list-first' && 'min-h-message-row py-1.5 max-md:min-h-16 max-md:py-2',
-          layout === 'legacy' && density === 'compact' && 'min-h-12 py-1.5',
-          layout === 'legacy' && density === 'comfortable' && 'min-h-16 py-2.5',
-          layout === 'legacy' && density === 'spacious' && 'min-h-20 py-3.5',
+          'group relative flex min-h-message-row cursor-pointer flex-col justify-center gap-1 px-3 py-1.5 transition-[background-color,transform,box-shadow] duration-150 hover:z-[1] hover:mail-hover-surface hover:-translate-y-0.5 hover:shadow-md focus-within:z-[1] focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary max-md:min-h-16 max-md:py-2',
           thread.unreadCount > 0 && 'mail-unread-surface',
           hasActiveMessage && !someSelected && 'bg-[hsl(var(--surface-selected)/0.55)]',
           someSelected && 'mail-selected-surface'
@@ -182,93 +174,41 @@ export const ThreadItem = memo(function ThreadItem({
         >
           <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-warning))]" strokeWidth={1.8} />
         </span>
-        {layout === 'list-first' ? (
-          <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
-            <span className={cn('min-w-0 truncate text-sm', thread.unreadCount > 0 ? 'font-semibold' : 'font-normal')}>
-              {latestMessage.from.name || latestMessage.from.email}
-            </span>
-            <div className="flex min-w-0 items-baseline gap-1.5 max-md:col-span-2 max-md:row-start-2">
-              {getMessageHref ? (
-                <Link href={getMessageHref(latestMessage)} onClick={(event) => event.stopPropagation()} className={cn('min-w-0 truncate text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', thread.unreadCount > 0 && 'font-medium')}>
-                  {latestMessage.subject || tCommon('noSubject')}
-                </Link>
-              ) : (
-                <span className={cn('min-w-0 truncate text-[13px]', thread.unreadCount > 0 && 'font-medium')}>{latestMessage.subject || tCommon('noSubject')}</span>
-              )}
-              {!expanded && latestMessage.snippet && (
-                <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-                  <span aria-hidden="true">- </span>{latestMessage.snippet}
-                </span>
-              )}
-              <span className="ml-auto flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
-                {thread.messages.length > 1 && (
-                  <span className="rounded-small bg-secondary px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground">{thread.messages.length}</span>
-                )}
-                {thread.unreadCount > 0 && <span className="rounded-small bg-primary/12 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-primary">{thread.unreadCount}</span>}
-              </span>
-            </div>
-            <time
-              dateTime={new Date(thread.latestDate).toISOString()}
-              title={formatExactDateTime(thread.latestDate, localeSettings)}
-              className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
-            >
-              {formatDate(thread.latestDate, localeSettings)}
-            </time>
-          </div>
-        ) : (
-        <div className="flex-1 min-w-0">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <span
-              className={cn(
-                'min-w-0 flex-1 truncate text-sm',
-                thread.unreadCount > 0
-                  ? 'font-semibold text-foreground'
-                  : 'font-normal text-foreground'
-              )}
-            >
-              {latestMessage.from.name || latestMessage.from.email}
-            </span>
-            <time
-              dateTime={new Date(thread.latestDate).toISOString()}
-              title={formatExactDateTime(thread.latestDate, localeSettings)}
-              className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground"
-            >
-              {formatDate(thread.latestDate, localeSettings)}
-            </time>
-          </div>
-          <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5 text-[13px]">
-            <span
-              className={cn('truncate', thread.unreadCount > 0 ? 'font-medium' : 'font-normal')}
-            >
-              {latestMessage.subject || tCommon('noSubject')}
-            </span>
-            {!expanded && density !== 'compact' && latestMessage.snippet && (
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                <span aria-hidden="true">- </span>
-                {latestMessage.snippet}
+        <div className="grid min-w-0 flex-1 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_auto] items-center gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-2 max-md:gap-y-0.5">
+          <span className={cn('min-w-0 truncate text-sm', thread.unreadCount > 0 ? 'font-semibold' : 'font-normal')}>
+            {latestMessage.from.name || latestMessage.from.email}
+          </span>
+          <div className="flex min-w-0 items-baseline gap-1.5 max-md:col-span-2 max-md:row-start-2">
+            {getMessageHref ? (
+              <Link href={getMessageHref(latestMessage)} onClick={(event) => event.stopPropagation()} className={cn('min-w-0 truncate text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', thread.unreadCount > 0 && 'font-medium')}>
+                {latestMessage.subject || tCommon('noSubject')}
+              </Link>
+            ) : (
+              <span className={cn('min-w-0 truncate text-[13px]', thread.unreadCount > 0 && 'font-medium')}>{latestMessage.subject || tCommon('noSubject')}</span>
+            )}
+            {!expanded && latestMessage.snippet && (
+              <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
+                <span aria-hidden="true">- </span>{latestMessage.snippet}
               </span>
             )}
-            <span className="ml-auto flex flex-shrink-0 items-center gap-1 font-mono text-[10px] tabular-nums text-muted-foreground">
+            <span className="ml-auto flex flex-shrink-0 items-center gap-1.5" aria-hidden="true">
               {thread.messages.length > 1 && (
-                <span className="rounded bg-secondary px-1.5 py-0.5">{thread.messages.length}</span>
+                <span className="rounded-small bg-secondary px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground">{thread.messages.length}</span>
               )}
-              {thread.unreadCount > 0 && (
-                <span className="rounded bg-primary/12 px-1.5 py-0.5 font-semibold text-primary">
-                  {thread.unreadCount}
-                </span>
-              )}
+              {thread.unreadCount > 0 && <span className="rounded-small bg-primary/12 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-primary">{thread.unreadCount}</span>}
             </span>
           </div>
+          <time
+            dateTime={new Date(thread.latestDate).toISOString()}
+            title={formatExactDateTime(thread.latestDate, localeSettings)}
+            className="flex-shrink-0 min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-muted-foreground max-md:col-start-2 max-md:row-start-1"
+          >
+            {formatDate(thread.latestDate, localeSettings)}
+          </time>
         </div>
-        )}
         </div>
         {latestMessage.attachments && latestMessage.attachments.length > 0 && (
-          <div
-            className={cn(
-              'flex min-w-0 flex-wrap items-center gap-1',
-              layout === 'list-first' ? 'pl-[4.5rem] max-md:pl-9' : 'pl-[4.75rem]'
-            )}
-          >
+          <div className="flex min-w-0 flex-wrap items-center gap-1 pl-[4.5rem] max-md:pl-9">
             {latestMessage.attachments.map((attachment, i) => (
               <AttachmentChip key={`${attachment.filename}-${i}`} attachment={attachment} />
             ))}
@@ -293,8 +233,6 @@ export const ThreadItem = memo(function ThreadItem({
               onMessageDoubleClick={onMessageDoubleClick}
               onToggleStar={onToggleStar}
               onDragStart={onDragStart}
-              density={density}
-              layout={layout}
             />
           ))}
         </div>

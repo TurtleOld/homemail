@@ -27,7 +27,6 @@ interface SidebarProps {
   isMobile?: boolean;
   onClose?: () => void;
   onDropMessage?: (messageId: string, folderId: string) => void;
-  layout?: 'legacy' | 'list-first';
 }
 
 const folderIcons: Record<string, React.ReactNode> = {
@@ -47,7 +46,6 @@ export function Sidebar({
   isMobile = false,
   onClose,
   onDropMessage,
-  layout = 'legacy',
 }: SidebarProps) {
   const t = useTranslations('sidebar');
   const tFolderRoles = useTranslations('folderRoles');
@@ -134,12 +132,8 @@ export function Sidebar({
           }
         }}
         className={cn(
-          'group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground/80 transition-colors duration-150 hover:mail-hover-surface hover:text-foreground max-md:min-h-[44px] touch-manipulation',
-          layout === 'list-first' ? 'rounded-control' : 'rounded-xl active:scale-[0.995]',
-          selectedFolderId === folder.id &&
-            (layout === 'list-first'
-              ? 'mail-selected-surface font-medium text-foreground'
-              : 'mail-selected-surface mail-border-strong border font-medium text-foreground shadow-sm'),
+          'group flex w-full items-center gap-3 rounded-control px-3 py-2.5 text-left text-sm text-foreground/80 transition-colors duration-150 hover:mail-hover-surface hover:text-foreground max-md:min-h-[44px] touch-manipulation',
+          selectedFolderId === folder.id && 'mail-selected-surface font-medium text-foreground',
           draggedOverFolderId === folder.id &&
             'bg-primary/12 ring-2 ring-primary/30 ring-offset-1',
           level > 0 && 'ml-4'
@@ -245,7 +239,7 @@ export function Sidebar({
     <aside
       className={`
       mail-sidebar-surface flex h-full flex-col border-r border-border
-      ${isMobile ? 'w-full' : layout === 'list-first' ? 'w-[232px]' : 'w-60'}
+      ${isMobile ? 'w-full' : 'w-[232px]'}
     `}
     >
       {isMobile && (
@@ -280,7 +274,7 @@ export function Sidebar({
             <Button
               variant="ghost"
               size="icon"
-              className={cn(layout === 'list-first' ? 'rounded-control' : 'rounded-xl', 'text-muted-foreground hover:mail-hover-surface hover:text-foreground')}
+              className="rounded-control text-muted-foreground hover:mail-hover-surface hover:text-foreground"
               onClick={() => setIsCollapsed(true)}
               title={t('closeMenu')}
             >
@@ -304,10 +298,7 @@ export function Sidebar({
               {isCustomFoldersVisible && customFolders.map((folder) => renderFolderItem(folder))}
               <button
                 onClick={() => setShowCustomFolders((prev) => !prev)}
-                className={cn(
-                  'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted-foreground transition-colors duration-150 hover:mail-hover-surface hover:text-foreground',
-                  layout === 'list-first' ? 'rounded-control' : 'rounded-xl'
-                )}
+                className="flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm text-muted-foreground transition-colors duration-150 hover:mail-hover-surface hover:text-foreground"
               >
                 {isCustomFoldersVisible ? (
                   <ChevronUp className="h-4 w-4" />

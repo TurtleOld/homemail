@@ -94,7 +94,6 @@ export function MailWorkspaceFixture({ screen }: { screen: 'list' | 'reader' }) 
           selectedFolderId="inbox"
           onFolderSelect={() => {}}
           onCompose={() => {}}
-          layout="list-first"
         />
       </div>
       <main className="flex min-w-0 flex-1 flex-col bg-surface-panel">
@@ -129,7 +128,6 @@ export function MailWorkspaceFixture({ screen }: { screen: 'list' | 'reader' }) 
                 onMessageClick={() => {}}
                 getMessageHref={(message) => `/${locale}/mail/messages/${message.id}?folder=inbox`}
                 conversationView
-                layout="list-first"
                 density="comfortable"
               />
             </div>
@@ -139,7 +137,6 @@ export function MailWorkspaceFixture({ screen }: { screen: 'list' | 'reader' }) 
             <MessageViewer
               message={readerMessage}
               hasSelection
-              layout="list-first"
               onReply={() => {}}
               onReplyAll={() => {}}
               onForward={() => {}}
