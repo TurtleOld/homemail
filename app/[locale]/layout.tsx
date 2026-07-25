@@ -8,6 +8,7 @@ import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { getTranslations } from 'next-intl/server';
 import { Providers } from '../providers';
+import { DEFAULT_ACCENT_HEX } from '@/lib/theme-colors';
 import '../globals.css';
 
 const sourceSerif = Source_Serif_4({
@@ -63,7 +64,7 @@ export default async function LocaleLayout({
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#337147" />
+        <meta name="theme-color" content={DEFAULT_ACCENT_HEX} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Mail" />

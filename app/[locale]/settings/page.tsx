@@ -35,6 +35,7 @@ import {
   type SettingsSectionId,
 } from '@/lib/settings-routes';
 import { SettingsSectionError, SettingsSectionLoading } from '@/components/settings/settings-section-state';
+import { DEFAULT_ACCENT_HEX, getActiveAccentHex } from '@/lib/theme-colors';
 
 interface Signature {
   id: string;
@@ -727,20 +728,20 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
-                      value={customColors.primary || '#337147'}
+                      value={customColors.primary || getActiveAccentHex()}
                       onChange={(e) => handleCustomColorChange('primary', e.target.value)}
                       className="h-10 w-20 rounded border cursor-pointer"
                     />
                     <Input
                       type="text"
-                      value={customColors.primary || '#337147'}
+                      value={customColors.primary || getActiveAccentHex()}
                       onChange={(e) => {
                         const value = e.target.value;
                         if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
                           handleCustomColorChange('primary', value);
                         }
                       }}
-                      placeholder="#337147"
+                      placeholder={DEFAULT_ACCENT_HEX}
                       className="flex-1"
                     />
                   </div>

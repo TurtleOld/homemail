@@ -41,6 +41,7 @@ import { MessageTranslator } from '@/components/message-translator';
 import { DeliveryTracking } from '@/components/delivery-tracking';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
+import { DEFAULT_ACCENT_HEX } from '@/lib/theme-colors';
 
 interface MessageViewerProps {
   message: MessageDetail | null;
@@ -620,9 +621,9 @@ export function MessageViewer({
                     key={label.id}
                     className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
                     style={{
-                      backgroundColor: `${label.color || '#337147'}15`,
-                      color: label.color || '#337147',
-                      border: `1px solid ${label.color || '#337147'}30`,
+                      backgroundColor: `${label.color || DEFAULT_ACCENT_HEX}15`,
+                      color: label.color || DEFAULT_ACCENT_HEX,
+                      border: `1px solid ${label.color || DEFAULT_ACCENT_HEX}30`,
                     }}
                   >
                     {label.name}
@@ -756,7 +757,7 @@ export function MessageViewer({
                           >
                             <div
                               className="w-3 h-3 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: label.color || '#337147' }}
+                              style={{ backgroundColor: label.color || 'hsl(var(--action-primary))' }}
                             />
                             <span className="flex-1">{label.name}</span>
                             {isSelected && <span className="text-xs text-muted-foreground">✓</span>}

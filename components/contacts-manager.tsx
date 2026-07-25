@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import type { Contact, ContactGroup } from '@/lib/types';
+import { DEFAULT_ACCENT_HEX, getActiveAccentHex } from '@/lib/theme-colors';
 import { UserPlus, Edit2, Trash2, Mail, Phone, FileText, X, Download, Upload, Users, Plus } from 'lucide-react';
 import {
   Dialog,
@@ -155,7 +156,7 @@ export function ContactsManager() {
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ContactGroup | null>(null);
   const [groupName, setGroupName] = useState('');
-  const [groupColor, setGroupColor] = useState('#337147');
+  const [groupColor, setGroupColor] = useState(DEFAULT_ACCENT_HEX);
   const [selectedGroupContactIds, setSelectedGroupContactIds] = useState<string[]>([]);
 
   const queryClient = useQueryClient();
@@ -278,7 +279,7 @@ export function ContactsManager() {
 
   const resetGroupForm = () => {
     setGroupName('');
-    setGroupColor('#337147');
+    setGroupColor(getActiveAccentHex());
     setSelectedGroupContactIds([]);
     setEditingGroup(null);
   };
@@ -287,7 +288,7 @@ export function ContactsManager() {
     if (group) {
       setEditingGroup(group);
       setGroupName(group.name);
-      setGroupColor(group.color || '#337147');
+      setGroupColor(group.color || getActiveAccentHex());
       const groupContacts = contacts.filter((c) => c.groups?.includes(group.id));
       setSelectedGroupContactIds(groupContacts.map((c) => c.id));
     } else {
@@ -464,7 +465,7 @@ export function ContactsManager() {
                 >
                   <div
                     className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: group.color || '#337147' }}
+                    style={{ backgroundColor: group.color || DEFAULT_ACCENT_HEX }}
                   />
                   <span className="text-sm font-medium">{group.name}</span>
                   <span className="text-xs text-muted-foreground">({groupContacts.length})</span>
@@ -547,8 +548,8 @@ export function ContactsManager() {
                             key={groupId}
                             className="inline-flex items-center px-1.5 py-0.5 rounded text-xs"
                             style={{
-                              backgroundColor: `${group.color || '#337147'}20`,
-                              color: group.color || '#337147',
+                              backgroundColor: `${group.color || DEFAULT_ACCENT_HEX}20`,
+                              color: group.color || DEFAULT_ACCENT_HEX,
                             }}
                           >
                             {group.name}
@@ -722,7 +723,7 @@ export function ContactsManager() {
                       setGroupColor(value);
                     }
                   }}
-                  placeholder="#337147"
+                  placeholder={DEFAULT_ACCENT_HEX}
                   className="flex-1"
                 />
               </div>

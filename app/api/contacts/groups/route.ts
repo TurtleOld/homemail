@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
 import { validateOrigin } from '@/lib/csrf';
+import { getAccountAccentColor } from '@/lib/settings-store';
 import type { ContactGroup } from '@/lib/types';
 
 const groupSchema = z.object({
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     const newGroup: ContactGroup = {
       id: `group_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       name: data.name,
-      color: data.color || '#337147',
+      color: data.color || (await getAccountAccentColor(session.accountId)),
       createdAt: new Date(),
       updatedAt: new Date(),
     };

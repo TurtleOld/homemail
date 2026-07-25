@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
 import { validateOrigin } from '@/lib/csrf';
+import { getAccountAccentColor } from '@/lib/settings-store';
 import type { Label } from '@/lib/types';
 
 const labelSchema = z.object({
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     const newLabel: Label = {
       id: `label_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: data.name,
-      color: data.color || '#337147',
+      color: data.color || (await getAccountAccentColor(session.accountId)),
       createdAt: new Date(),
       updatedAt: new Date(),
     };

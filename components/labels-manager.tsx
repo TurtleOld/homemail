@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import type { Label } from '@/lib/types';
+import { DEFAULT_ACCENT_HEX, getActiveAccentHex } from '@/lib/theme-colors';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import {
   Dialog,
@@ -61,7 +62,7 @@ async function deleteLabel(id: string): Promise<void> {
 }
 
 const DEFAULT_COLORS = [
-  '#337147',
+  DEFAULT_ACCENT_HEX,
   '#ef4444',
   '#10b981',
   '#f59e0b',
@@ -79,7 +80,7 @@ export function LabelsManager() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLabel, setEditingLabel] = useState<Label | null>(null);
   const [labelName, setLabelName] = useState('');
-  const [labelColor, setLabelColor] = useState('#337147');
+  const [labelColor, setLabelColor] = useState(DEFAULT_ACCENT_HEX);
 
   const queryClient = useQueryClient();
 
@@ -128,7 +129,7 @@ export function LabelsManager() {
 
   const resetForm = () => {
     setLabelName('');
-    setLabelColor('#337147');
+    setLabelColor(getActiveAccentHex());
     setEditingLabel(null);
   };
 
@@ -136,7 +137,7 @@ export function LabelsManager() {
     if (label) {
       setEditingLabel(label);
       setLabelName(label.name);
-      setLabelColor(label.color || '#337147');
+      setLabelColor(label.color || getActiveAccentHex());
     } else {
       resetForm();
     }
@@ -197,7 +198,7 @@ export function LabelsManager() {
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div
                     className="w-4 h-4 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: label.color || '#337147' }}
+                    style={{ backgroundColor: label.color || DEFAULT_ACCENT_HEX }}
                   />
                   <span className="font-medium truncate">{label.name}</span>
                 </div>
@@ -258,7 +259,7 @@ export function LabelsManager() {
                         setLabelColor(value);
                       }
                     }}
-                    placeholder="#337147"
+                    placeholder={DEFAULT_ACCENT_HEX}
                     className="flex-1"
                   />
                 </div>
