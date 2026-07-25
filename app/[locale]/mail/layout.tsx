@@ -44,6 +44,7 @@ import {
   FileDown,
   MoreHorizontal,
   Tag,
+  RefreshCw,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -62,6 +63,7 @@ import { useSwipeable } from 'react-swipeable';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { getMailViewport } from '@/lib/mail-responsive';
 import { getLocalizedFolderName } from '@/lib/folder-name';
+import { cn } from '@/lib/utils';
 import {
   buildMailListHref,
   buildMailMessageHref,
@@ -140,6 +142,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     () => initialUrlState.folderId || 'inbox'
   );
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(routeMessageId);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [allMessagesSelected, setAllMessagesSelected] = useState(false);
   const [isSelectingAllInFolder, setIsSelectingAllInFolder] = useState(false);
@@ -1299,10 +1302,6 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                 isMobile={isNavigationOverlay}
                 onClose={() => setSidebarOpen(false)}
                 onDropMessage={handleMoveMessage}
-                onRefreshFolders={async () => {
-                  await queryClient.invalidateQueries({ queryKey: ['folders'] });
-                  await refetchFolders();
-                }}
                 layout="list-first"
               />
             </div>
@@ -1556,6 +1555,32 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
                         activeFilter={quickFilter}
                         onFilterChange={handleQuickFilterChange}
                       />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg shadow-none"
+                        onClick={async () => {
+                          setIsRefreshing(true);
+                          try {
+                            await Promise.all([
+                              queryClient.invalidateQueries({ queryKey: ['folders'] }),
+                              refetchFolders(),
+                              queryClient.invalidateQueries({ queryKey: ['messages'] }),
+                              refetchMessages(),
+                            ]);
+                            toast.success(t('refreshed'));
+                          } catch (error) {
+                            toast.error(t('refreshError'));
+                          } finally {
+                            setTimeout(() => setIsRefreshing(false), 500);
+                          }
+                        }}
+                        disabled={isRefreshing}
+                        title={t('refresh')}
+                        aria-label={t('refresh')}
+                      >
+                        <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} strokeWidth={1.8} />
+                      </Button>
                       <Button
                         variant={conversationView ? 'secondary' : 'ghost'}
                         size="sm"

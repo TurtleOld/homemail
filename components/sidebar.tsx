@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Folder } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,10 +15,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { getLocalizedFolderName } from '@/lib/folder-name';
 
@@ -30,7 +28,6 @@ interface SidebarProps {
   isMobile?: boolean;
   onClose?: () => void;
   onDropMessage?: (messageId: string, folderId: string) => void;
-  onRefreshFolders?: () => void;
   layout?: 'legacy' | 'list-first';
 }
 
@@ -51,7 +48,6 @@ export function Sidebar({
   isMobile = false,
   onClose,
   onDropMessage,
-  onRefreshFolders,
   layout = 'legacy',
 }: SidebarProps) {
   const t = useTranslations('sidebar');
@@ -62,7 +58,6 @@ export function Sidebar({
   );
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCustomFolders, setShowCustomFolders] = useState(false);
 
   const organizedFolders = useMemo(() => {
@@ -95,93 +90,88 @@ export function Sidebar({
     [organizedFolders]
   );
 
-  useEffect(() => {
-    if (!selectedFolderId || showCustomFolders) return;
-    const containsSelected = (folder: Folder & { children?: Folder[] }): boolean =>
-      folder.id === selectedFolderId || (folder.children ?? []).some(containsSelected);
-    if (customFolders.some(containsSelected)) {
-      setShowCustomFolders(true);
-    }
-  }, [selectedFolderId, customFolders, showCustomFolders]);
-
-  const renderFolderItem = useCallback(
-    (folder: Folder & { children?: Folder[] }, level = 0) => {
-      return (
-        <div key={folder.id}>
-          <button
-            onClick={() => onFolderSelect(folder.id)}
-            onDragOver={(e) => {
-              if (onDropMessage) {
-                e.preventDefault();
-                e.stopPropagation();
-                setDraggedOverFolderId(folder.id);
-              }
-            }}
-            onDragLeave={() => {
-              if (onDropMessage) {
-                setDraggedOverFolderId(null);
-              }
-            }}
-            onDrop={(e) => {
-              if (onDropMessage) {
-                e.preventDefault();
-                e.stopPropagation();
-                setDraggedOverFolderId(null);
-                try {
-                  const data = e.dataTransfer.getData('application/json');
-                  if (data) {
-                    const parsed = JSON.parse(data);
-                    if (parsed.type === 'message' && parsed.id) {
-                      onDropMessage(parsed.id, folder.id);
-                    }
-                  } else {
-                    const messageId = e.dataTransfer.getData('text/plain');
-                    if (messageId) {
-                      onDropMessage(messageId, folder.id);
-                    }
-                  }
-                } catch (error) {
-                  console.error('Error handling drop:', error);
+  const renderFolderItem = (folder: Folder & { children?: Folder[] }, level = 0): React.ReactNode => (
+    <div key={folder.id}>
+      <button
+        onClick={() => onFolderSelect(folder.id)}
+        onDragOver={(e) => {
+          if (onDropMessage) {
+            e.preventDefault();
+            e.stopPropagation();
+            setDraggedOverFolderId(folder.id);
+          }
+        }}
+        onDragLeave={() => {
+          if (onDropMessage) {
+            setDraggedOverFolderId(null);
+          }
+        }}
+        onDrop={(e) => {
+          if (onDropMessage) {
+            e.preventDefault();
+            e.stopPropagation();
+            setDraggedOverFolderId(null);
+            try {
+              const data = e.dataTransfer.getData('application/json');
+              if (data) {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'message' && parsed.id) {
+                  onDropMessage(parsed.id, folder.id);
+                }
+              } else {
+                const messageId = e.dataTransfer.getData('text/plain');
+                if (messageId) {
+                  onDropMessage(messageId, folder.id);
                 }
               }
-            }}
+            } catch (error) {
+              console.error('Error handling drop:', error);
+            }
+          }
+        }}
+        className={cn(
+          'group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground/80 transition-colors duration-150 hover:mail-hover-surface hover:text-foreground max-md:min-h-[44px] touch-manipulation',
+          layout === 'list-first' ? 'rounded-control' : 'rounded-xl active:scale-[0.995]',
+          selectedFolderId === folder.id &&
+            (layout === 'list-first'
+              ? 'mail-selected-surface font-medium text-foreground'
+              : 'mail-selected-surface mail-border-strong border font-medium text-foreground shadow-sm'),
+          draggedOverFolderId === folder.id &&
+            'bg-primary/12 ring-2 ring-primary/30 ring-offset-1',
+          level > 0 && 'ml-4'
+        )}
+      >
+        {folderIcons[folder.role] || folderIcons.custom}
+        <span className="flex-1 truncate">{getFolderName(folder)}</span>
+        {folder.unreadCount > 0 && (
+          <span
             className={cn(
-              'group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground/80 transition-colors duration-150 hover:mail-hover-surface hover:text-foreground max-md:min-h-[44px] touch-manipulation',
-              layout === 'list-first' ? 'rounded-control' : 'rounded-xl active:scale-[0.995]',
-              selectedFolderId === folder.id &&
-                (layout === 'list-first'
-                  ? 'mail-selected-surface font-medium text-foreground'
-                  : 'mail-selected-surface mail-border-strong border font-medium text-foreground shadow-sm'),
-              draggedOverFolderId === folder.id &&
-                'bg-primary/12 ring-2 ring-primary/30 ring-offset-1',
-              level > 0 && 'ml-4'
+              'flex items-center justify-center rounded-full px-2 min-w-[24px] h-5 text-[11px] font-semibold tabular-nums whitespace-nowrap',
+              selectedFolderId === folder.id
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'border border-border/80 bg-card/80 text-muted-foreground'
             )}
           >
-            {folderIcons[folder.role] || folderIcons.custom}
-            <span className="flex-1 truncate">{getFolderName(folder)}</span>
-            {folder.unreadCount > 0 && (
-              <span
-                className={cn(
-                  'flex items-center justify-center rounded-full px-2 min-w-[24px] h-5 text-[11px] font-semibold tabular-nums whitespace-nowrap',
-                  selectedFolderId === folder.id
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'border border-border/80 bg-card/80 text-muted-foreground'
-                )}
-              >
-                {folder.unreadCount > 999 ? '999+' : folder.unreadCount}
-              </span>
-            )}
-          </button>
-          {folder.children && folder.children.length > 0 && (
-            <div className="ml-4">
-              {folder.children.map((child) => renderFolderItem(child, level + 1))}
-            </div>
-          )}
+            {folder.unreadCount > 999 ? '999+' : folder.unreadCount}
+          </span>
+        )}
+      </button>
+      {folder.children && folder.children.length > 0 && (
+        <div className="ml-4">
+          {folder.children.map((child) => renderFolderItem(child, level + 1))}
         </div>
-      );
-    },
-    [selectedFolderId, draggedOverFolderId, onFolderSelect, onDropMessage, layout, getFolderName]
+      )}
+    </div>
   );
+
+  const selectedFolderIsCustom = useMemo(() => {
+    if (!selectedFolderId) return false;
+    const containsSelected = (folder: Folder & { children?: Folder[] }): boolean =>
+      folder.id === selectedFolderId || (folder.children ?? []).some(containsSelected);
+    return customFolders.some(containsSelected);
+  }, [selectedFolderId, customFolders]);
+
+  const isCustomFoldersVisible = showCustomFolders || selectedFolderIsCustom;
 
   if (isCollapsed && !isMobile) {
     return (
@@ -198,7 +188,7 @@ export function Sidebar({
         </div>
         <div className="flex-1 overflow-auto p-2">
           <nav className="space-y-2">
-            {[...systemFolders, ...(showCustomFolders ? customFolders : [])].map((folder) => {
+            {[...systemFolders, ...(isCustomFoldersVisible ? customFolders : [])].map((folder) => {
               const renderCollapsedFolder = (f: Folder & { children?: Folder[] }) => (
                 <div key={f.id}>
                   <button
@@ -227,9 +217,9 @@ export function Sidebar({
               <button
                 onClick={() => setShowCustomFolders((prev) => !prev)}
                 className="flex w-full items-center justify-center rounded-xl p-2 text-sm text-muted-foreground transition-colors hover:mail-hover-surface hover:text-foreground"
-                title={showCustomFolders ? t('showLessFolders') : t('showMoreFolders')}
+                title={isCustomFoldersVisible ? t('showLessFolders') : t('showMoreFolders')}
               >
-                {showCustomFolders ? (
+                {isCustomFoldersVisible ? (
                   <ChevronUp className="h-4 w-4" />
                 ) : (
                   <ChevronDown className="h-4 w-4" />
@@ -299,36 +289,11 @@ export function Sidebar({
         </Button>
       </div>
       <div className="flex-1 overflow-auto">
-        <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-          <span className="text-xs font-medium text-muted-foreground">{t('foldersSection')}</span>
-          {onRefreshFolders && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 rounded-xl p-0 text-muted-foreground hover:mail-hover-surface hover:text-foreground"
-              onClick={async () => {
-                setIsRefreshing(true);
-                try {
-                  await onRefreshFolders();
-                  toast.success(t('foldersRefreshed'));
-                } catch (error) {
-                  toast.error(t('refreshError'));
-                } finally {
-                  setTimeout(() => setIsRefreshing(false), 500);
-                }
-              }}
-              disabled={isRefreshing}
-              title={t('refreshFolders')}
-            >
-              <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </Button>
-          )}
-        </div>
-        <nav className="space-y-1 p-2">
+        <nav className="space-y-1 p-2 pt-2">
           {systemFolders.map((folder) => renderFolderItem(folder))}
           {customFolders.length > 0 && (
             <>
-              {showCustomFolders && customFolders.map((folder) => renderFolderItem(folder))}
+              {isCustomFoldersVisible && customFolders.map((folder) => renderFolderItem(folder))}
               <button
                 onClick={() => setShowCustomFolders((prev) => !prev)}
                 className={cn(
@@ -336,12 +301,12 @@ export function Sidebar({
                   layout === 'list-first' ? 'rounded-control' : 'rounded-xl'
                 )}
               >
-                {showCustomFolders ? (
+                {isCustomFoldersVisible ? (
                   <ChevronUp className="h-4 w-4" />
                 ) : (
                   <ChevronDown className="h-4 w-4" />
                 )}
-                <span>{showCustomFolders ? t('showLessFolders') : t('showMoreFolders')}</span>
+                <span>{isCustomFoldersVisible ? t('showLessFolders') : t('showMoreFolders')}</span>
               </button>
             </>
           )}
