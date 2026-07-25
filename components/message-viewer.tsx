@@ -620,9 +620,9 @@ export function MessageViewer({
                     key={label.id}
                     className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
                     style={{
-                      backgroundColor: `${label.color || '#3b82f6'}15`,
-                      color: label.color || '#3b82f6',
-                      border: `1px solid ${label.color || '#3b82f6'}30`,
+                      backgroundColor: `${label.color || '#337147'}15`,
+                      color: label.color || '#337147',
+                      border: `1px solid ${label.color || '#337147'}30`,
                     }}
                   >
                     {label.name}
@@ -756,7 +756,7 @@ export function MessageViewer({
                           >
                             <div
                               className="w-3 h-3 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: label.color || '#3b82f6' }}
+                              style={{ backgroundColor: label.color || '#337147' }}
                             />
                             <span className="flex-1">{label.name}</span>
                             {isSelected && <span className="text-xs text-muted-foreground">✓</span>}

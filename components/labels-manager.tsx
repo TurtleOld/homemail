@@ -61,7 +61,7 @@ async function deleteLabel(id: string): Promise<void> {
 }
 
 const DEFAULT_COLORS = [
-  '#3b82f6',
+  '#337147',
   '#ef4444',
   '#10b981',
   '#f59e0b',
@@ -79,7 +79,7 @@ export function LabelsManager() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLabel, setEditingLabel] = useState<Label | null>(null);
   const [labelName, setLabelName] = useState('');
-  const [labelColor, setLabelColor] = useState('#3b82f6');
+  const [labelColor, setLabelColor] = useState('#337147');
 
   const queryClient = useQueryClient();
 
@@ -128,7 +128,7 @@ export function LabelsManager() {
 
   const resetForm = () => {
     setLabelName('');
-    setLabelColor('#3b82f6');
+    setLabelColor('#337147');
     setEditingLabel(null);
   };
 
@@ -136,7 +136,7 @@ export function LabelsManager() {
     if (label) {
       setEditingLabel(label);
       setLabelName(label.name);
-      setLabelColor(label.color || '#3b82f6');
+      setLabelColor(label.color || '#337147');
     } else {
       resetForm();
     }
@@ -197,7 +197,7 @@ export function LabelsManager() {
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div
                     className="w-4 h-4 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: label.color || '#3b82f6' }}
+                    style={{ backgroundColor: label.color || '#337147' }}
                   />
                   <span className="font-medium truncate">{label.name}</span>
                 </div>
@@ -258,7 +258,7 @@ export function LabelsManager() {
                         setLabelColor(value);
                       }
                     }}
-                    placeholder="#3b82f6"
+                    placeholder="#337147"
                     className="flex-1"
                   />
                 </div>

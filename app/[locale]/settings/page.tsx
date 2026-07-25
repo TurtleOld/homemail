@@ -727,20 +727,20 @@ function ThemeTab({ initialSettings }: { readonly initialSettings: UserSettings 
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
-                      value={customColors.primary || '#3b82f6'}
+                      value={customColors.primary || '#337147'}
                       onChange={(e) => handleCustomColorChange('primary', e.target.value)}
                       className="h-10 w-20 rounded border cursor-pointer"
                     />
                     <Input
                       type="text"
-                      value={customColors.primary || '#3b82f6'}
+                      value={customColors.primary || '#337147'}
                       onChange={(e) => {
                         const value = e.target.value;
                         if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
                           handleCustomColorChange('primary', value);
                         }
                       }}
-                      placeholder="#3b82f6"
+                      placeholder="#337147"
                       className="flex-1"
                     />
                   </div>

@@ -155,7 +155,7 @@ export function ContactsManager() {
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ContactGroup | null>(null);
   const [groupName, setGroupName] = useState('');
-  const [groupColor, setGroupColor] = useState('#3b82f6');
+  const [groupColor, setGroupColor] = useState('#337147');
   const [selectedGroupContactIds, setSelectedGroupContactIds] = useState<string[]>([]);
 
   const queryClient = useQueryClient();
@@ -278,7 +278,7 @@ export function ContactsManager() {
 
   const resetGroupForm = () => {
     setGroupName('');
-    setGroupColor('#3b82f6');
+    setGroupColor('#337147');
     setSelectedGroupContactIds([]);
     setEditingGroup(null);
   };
@@ -287,7 +287,7 @@ export function ContactsManager() {
     if (group) {
       setEditingGroup(group);
       setGroupName(group.name);
-      setGroupColor(group.color || '#3b82f6');
+      setGroupColor(group.color || '#337147');
       const groupContacts = contacts.filter((c) => c.groups?.includes(group.id));
       setSelectedGroupContactIds(groupContacts.map((c) => c.id));
     } else {
@@ -464,7 +464,7 @@ export function ContactsManager() {
                 >
                   <div
                     className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: group.color || '#3b82f6' }}
+                    style={{ backgroundColor: group.color || '#337147' }}
                   />
                   <span className="text-sm font-medium">{group.name}</span>
                   <span className="text-xs text-muted-foreground">({groupContacts.length})</span>
@@ -547,8 +547,8 @@ export function ContactsManager() {
                             key={groupId}
                             className="inline-flex items-center px-1.5 py-0.5 rounded text-xs"
                             style={{
-                              backgroundColor: `${group.color || '#3b82f6'}20`,
-                              color: group.color || '#3b82f6',
+                              backgroundColor: `${group.color || '#337147'}20`,
+                              color: group.color || '#337147',
                             }}
                           >
                             {group.name}
@@ -722,7 +722,7 @@ export function ContactsManager() {
                       setGroupColor(value);
                     }
                   }}
-                  placeholder="#3b82f6"
+                  placeholder="#337147"
                   className="flex-1"
                 />
               </div>

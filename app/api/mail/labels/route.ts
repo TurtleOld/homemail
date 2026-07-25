@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const newLabel: Label = {
       id: `label_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: data.name,
-      color: data.color || '#3b82f6',
+      color: data.color || '#337147',
       createdAt: new Date(),
       updatedAt: new Date(),
     };

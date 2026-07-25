@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const newGroup: ContactGroup = {
       id: `group_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       name: data.name,
-      color: data.color || '#3b82f6',
+      color: data.color || '#337147',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
