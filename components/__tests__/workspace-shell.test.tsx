@@ -27,6 +27,9 @@ vi.mock('next-intl', () => ({
       mailSettings: 'Mail settings',
       manageInStalwart: 'Manage in Stalwart',
       logout: 'Sign out',
+      // System folders (role !== 'custom') always render this localized
+      // label instead of the server-provided name — see lib/folder-name.ts.
+      inbox: 'Inbox',
     })[key] || key,
 }));
 
@@ -59,9 +62,12 @@ describe('Workspace shell', () => {
     );
 
     expect(screen.queryByText('Quick views')).not.toBeInTheDocument();
-    expect(screen.getByText('Primary inbox')).toBeInTheDocument();
+    // Server-provided name is intentionally ignored for a system-role
+    // folder in favor of the localized label (lib/folder-name.ts).
+    expect(screen.queryByText('Primary inbox')).not.toBeInTheDocument();
+    expect(screen.getByText('Inbox')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Primary inbox/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Inbox/ }));
     expect(onFolderSelect).toHaveBeenCalledWith('inbox-id');
   });
 

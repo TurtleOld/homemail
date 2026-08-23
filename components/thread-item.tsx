@@ -76,15 +76,34 @@ export const ThreadItem = memo(function ThreadItem({
           subject: latestMessage.subject || tCommon('noSubject'),
           count: thread.messages.length,
         })}
+        draggable={!!onDragStart}
         className={cn(
           'group relative flex min-h-message-row cursor-pointer flex-col justify-center gap-1 px-3 py-1.5 transition-[background-color,transform,box-shadow] duration-150 hover:z-[1] hover:mail-hover-surface hover:-translate-y-0.5 hover:shadow-md focus-within:z-[1] focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary max-md:min-h-16 max-md:py-2',
           thread.unreadCount > 0 && 'mail-unread-surface',
           hasActiveMessage && !someSelected && 'bg-[hsl(var(--surface-selected)/0.55)]',
-          someSelected && 'mail-selected-surface'
+          someSelected && 'mail-selected-surface',
+          onDragStart && 'cursor-grab active:cursor-grabbing'
         )}
         aria-current={hasActiveMessage || undefined}
         onClick={handleThreadClick}
         onDoubleClick={handleThreadDoubleClick}
+        onDragStart={(e) => {
+          if (onDragStart) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', latestMessage.id);
+            e.dataTransfer.setData(
+              'application/json',
+              JSON.stringify({ type: 'message', id: latestMessage.id })
+            );
+            onDragStart(latestMessage.id);
+            e.currentTarget.style.opacity = '0.5';
+          }
+        }}
+        onDragEnd={(e) => {
+          if (onDragStart) {
+            e.currentTarget.style.opacity = '1';
+          }
+        }}
       >
         <span
           aria-hidden="true"
