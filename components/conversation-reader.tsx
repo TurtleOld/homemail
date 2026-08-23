@@ -118,6 +118,7 @@ export function ConversationReader({
             <a
               key={message.id}
               href={getMessageHref(message.id)}
+              draggable={false}
               onClick={(event) => {
                 if (
                   event.button !== 0 ||

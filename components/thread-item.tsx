@@ -180,7 +180,7 @@ export const ThreadItem = memo(function ThreadItem({
           </span>
           <div className="flex min-w-0 items-baseline gap-1.5 max-md:col-span-2 max-md:row-start-2">
             {getMessageHref ? (
-              <Link href={getMessageHref(latestMessage)} onClick={(event) => event.stopPropagation()} className={cn('min-w-0 truncate text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', thread.unreadCount > 0 && 'font-medium')}>
+              <Link href={getMessageHref(latestMessage)} draggable={false} onClick={(event) => event.stopPropagation()} className={cn('min-w-0 truncate text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', thread.unreadCount > 0 && 'font-medium')}>
                 {latestMessage.subject || tCommon('noSubject')}
               </Link>
             ) : (

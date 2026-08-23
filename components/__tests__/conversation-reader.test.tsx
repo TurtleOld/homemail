@@ -87,6 +87,20 @@ describe('ConversationReader', () => {
     expect(onActivateMessage).toHaveBeenCalledWith('message-1');
   });
 
+  it('never lets the browser natively drag a collapsed message link, which would leak its page URL instead of a message id', () => {
+    render(
+      <ConversationReader
+        thread={thread}
+        activeMessage={activeMessage}
+        onActivateMessage={vi.fn()}
+        getMessageHref={(messageId) => `/en/mail/messages/${messageId}?folder=inbox`}
+      />
+    );
+
+    const olderMessageLink = screen.getByRole('link', { name: 'Open message from Elena Petrova' });
+    expect(olderMessageLink).toHaveAttribute('draggable', 'false');
+  });
+
   it('announces when the server response is truncated', () => {
     render(
       <ConversationReader
