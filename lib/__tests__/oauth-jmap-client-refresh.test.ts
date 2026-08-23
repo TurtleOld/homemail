@@ -99,4 +99,47 @@ describe('OAuthJMAPClient.refreshToken', () => {
 
     expect(redeemedRefreshTokens).toEqual(['refresh-token-v1']);
   });
+
+  it('stops hitting the token endpoint for a confirmed-dead refresh token until the cooldown elapses', async () => {
+    let fetchCalls = 0;
+    globalThis.fetch = vi.fn(async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 });
+    }) as unknown as typeof fetch;
+
+    const client = new OAuthJMAPClient({
+      discoveryUrl: 'https://idp.example.test/.well-known/oauth-authorization-server',
+      clientId: 'client-1',
+      baseUrl: 'https://stalwart.example.test',
+      accountId: 'account-cooldown',
+    });
+
+    await expect(client.refreshToken()).rejects.toThrow(/invalid_grant/);
+    expect(fetchCalls).toBe(1);
+
+    // A second poller (or the same one on the next 15s tick) tries again
+    // before the cooldown elapses.
+    await expect(client.refreshToken()).rejects.toThrow(/invalid_grant/);
+    expect(fetchCalls).toBe(1);
+  });
+
+  it('retries immediately after a transient failure, without engaging the cooldown', async () => {
+    let fetchCalls = 0;
+    globalThis.fetch = vi.fn(async () => {
+      fetchCalls += 1;
+      return new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' });
+    }) as unknown as typeof fetch;
+
+    const client = new OAuthJMAPClient({
+      discoveryUrl: 'https://idp.example.test/.well-known/oauth-authorization-server',
+      clientId: 'client-1',
+      baseUrl: 'https://stalwart.example.test',
+      accountId: 'account-transient',
+    });
+
+    await expect(client.refreshToken()).rejects.toThrow();
+    await expect(client.refreshToken()).rejects.toThrow();
+
+    expect(fetchCalls).toBe(2);
+  });
 });

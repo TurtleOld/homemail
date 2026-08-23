@@ -2,15 +2,21 @@ import { DeviceFlowClient, type TokenResponse } from './oauth-device-flow';
 import { OAuthTokenStore } from './oauth-token-store';
 import { JMAPClient } from '../providers/stalwart-jmap/jmap-client';
 
-// Refresh tokens are single-use and rotate on the identity provider (RFC
-// 6749 §6). Every OAuthJMAPClient instance is short-lived (stalwart-provider
-// creates a new one per call), so a per-instance guard can't prevent two
-// concurrent callers (e.g. the auto-sort daemon and an SSE poller) from
-// reading the same not-yet-rotated refresh token and both redeeming it —
-// the second redemption is rejected by the provider as invalid_grant. This
-// module-level map deduplicates concurrent refreshes for the same account
-// so only one HTTP request to the token endpoint is ever in flight.
+// Refresh tokens rotate on redemption (RFC 6749 §6); since a new
+// OAuthJMAPClient is created per call, this dedupes concurrent refreshes
+// per account so two pollers never redeem the same token twice.
 const refreshInFlight = new Map<string, Promise<void>>();
+
+// Suppresses repeat token-endpoint calls for an account whose refresh
+// token is confirmed dead, instead of retrying every poll tick forever.
+const REFRESH_FAILURE_COOLDOWN_MS = 60_000;
+const refreshFailureCache = new Map<string, { error: Error; expiresAt: number }>();
+
+// Only invalid_grant/invalid_client/unauthorized_client (RFC 6749 §5.2) are
+// terminal; network errors and 5xx should retry on the next tick instead.
+function isPermanentGrantFailure(error: Error): boolean {
+  return /invalid_grant|invalid_client|unauthorized_client/i.test(error.message);
+}
 
 export interface OAuthJMAPConfig {
   discoveryUrl: string;
@@ -131,16 +137,33 @@ export class OAuthJMAPClient {
 
   async refreshToken(): Promise<void> {
     const key = this.config.accountId;
+
+    const cachedFailure = refreshFailureCache.get(key);
+    if (cachedFailure && cachedFailure.expiresAt > Date.now()) {
+      throw cachedFailure.error;
+    }
+
     const inFlight = refreshInFlight.get(key);
     if (inFlight) {
       return inFlight;
     }
 
-    const attempt = this.performTokenRefresh().finally(() => {
-      if (refreshInFlight.get(key) === attempt) {
-        refreshInFlight.delete(key);
-      }
-    });
+    const attempt = this.performTokenRefresh()
+      .then(() => {
+        refreshFailureCache.delete(key);
+      })
+      .catch((error: unknown) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        if (isPermanentGrantFailure(err)) {
+          refreshFailureCache.set(key, { error: err, expiresAt: Date.now() + REFRESH_FAILURE_COOLDOWN_MS });
+        }
+        throw err;
+      })
+      .finally(() => {
+        if (refreshInFlight.get(key) === attempt) {
+          refreshInFlight.delete(key);
+        }
+      });
     refreshInFlight.set(key, attempt);
     return attempt;
   }
@@ -153,7 +176,7 @@ export class OAuthJMAPClient {
     }
 
     const discovery = await this.deviceFlow.getDiscovery();
-    
+
     const body = new URLSearchParams();
     body.append('grant_type', 'refresh_token');
     body.append('refresh_token', token.refreshToken);

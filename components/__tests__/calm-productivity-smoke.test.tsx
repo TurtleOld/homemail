@@ -285,8 +285,7 @@ describe('Mail foundation smoke coverage', () => {
 
     expect(openSpy).toHaveBeenCalledWith(
       `/en/mail/messages/${mockDetailMessage.id}/source`,
-      '_blank',
-      'noopener,noreferrer'
+      '_blank'
     );
 
     openSpy.mockRestore();

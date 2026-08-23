@@ -110,6 +110,20 @@ interface JMAPThread {
 const sessionCache = new Map<string, { session: JMAPSession; expiresAt: number }>();
 const SESSION_CACHE_TTL = 5 * 60 * 1000;
 
+// Email/set resolves without a top-level error even when the server
+// rejects individual messages (e.g. a Junk move) — that only shows up in
+// `notUpdated`, so callers must check it explicitly or silently no-op.
+function throwIfEmailsNotUpdated(data: unknown): void {
+  const notUpdated = (data as { notUpdated?: Record<string, any> } | undefined)?.notUpdated;
+  if (!notUpdated) return;
+  const failedIds = Object.keys(notUpdated);
+  if (failedIds.length === 0) return;
+  const [firstId] = failedIds;
+  throw new Error(
+    `JMAP email set error: server rejected the update for ${failedIds.length} message(s) (e.g. ${firstId}: ${JSON.stringify(notUpdated[firstId])})`
+  );
+}
+
 export class JMAPClient {
   private baseUrl: string;
   private authHeader: string;
@@ -1175,6 +1189,8 @@ export class JMAPClient {
     if ('type' in setResponse[1] && setResponse[1].type === 'error') {
       throw new Error(`JMAP email set error: ${(setResponse[1] as any).description}`);
     }
+
+    throwIfEmailsNotUpdated(setResponse[1]);
   }
 
   async bulkSetEmails(
@@ -1204,6 +1220,8 @@ export class JMAPClient {
     if ('type' in setResponse[1] && setResponse[1].type === 'error') {
       throw new Error(`JMAP email set error: ${(setResponse[1] as any).description}`);
     }
+
+    throwIfEmailsNotUpdated(setResponse[1]);
   }
 
   async destroyEmails(emailIds: string[], accountId?: string): Promise<void> {

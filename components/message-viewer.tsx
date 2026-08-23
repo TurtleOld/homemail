@@ -811,7 +811,8 @@ export function MessageViewer({
                 <DropdownMenuItem
                   onClick={() => {
                     if (!message) return;
-                    window.open(`/${locale}/mail/messages/${message.id}/source`, '_blank', 'noopener,noreferrer');
+                    // No 'noopener': "Return to message" on the source page closes via window.opener.
+                    window.open(`/${locale}/mail/messages/${message.id}/source`, '_blank');
                   }}
                   className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                 >

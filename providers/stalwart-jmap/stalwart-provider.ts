@@ -906,10 +906,7 @@ export class StalwartJMAPProvider implements MailProvider {
     }
   }
 
-  // Exact server-provided RFC 822/MIME source of one message. Resolves the
-  // top-level message blob through Email/get (never accepted from the
-  // caller) and opens the byte stream lazily, so a diagnostics-only caller
-  // never pays for downloading the full message body.
+  // openStream is lazy so a diagnostics-only caller never downloads the body.
   async getMessageSource(accountId: string, messageId: string): Promise<MessageSourceHandle | null> {
     const client = await this.getClient(accountId);
     const session = await client.getSession();
@@ -938,10 +935,8 @@ export class StalwartJMAPProvider implements MailProvider {
     }
 
     const email = emails[0] as any;
-    // The raw RFC 822 message blob is the Email object's own top-level
-    // blobId (RFC 8621 §4.1.1), not bodyStructure.blobId: a multipart
-    // container part has no raw content blob of its own, so that would be
-    // absent for the vast majority of real messages.
+    // email.blobId (RFC 8621 §4.1.1), not bodyStructure.blobId — a
+    // multipart container has no raw content blob of its own.
     const blobId: string | undefined = email.blobId;
     if (!blobId) {
       return null;
