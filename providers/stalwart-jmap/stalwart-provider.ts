@@ -920,12 +920,12 @@ export class StalwartJMAPProvider implements MailProvider {
       accountId: actualAccountId,
       properties: [
         'id',
+        'blobId',
         'from',
         'to',
         'cc',
         'subject',
         'size',
-        'bodyStructure',
         'header:Message-ID:asText',
         'header:Authentication-Results:asText',
         'header:Received-SPF:asText',
@@ -938,7 +938,11 @@ export class StalwartJMAPProvider implements MailProvider {
     }
 
     const email = emails[0] as any;
-    const blobId: string | undefined = email.bodyStructure?.blobId;
+    // The raw RFC 822 message blob is the Email object's own top-level
+    // blobId (RFC 8621 §4.1.1), not bodyStructure.blobId: a multipart
+    // container part has no raw content blob of its own, so that would be
+    // absent for the vast majority of real messages.
+    const blobId: string | undefined = email.blobId;
     if (!blobId) {
       return null;
     }

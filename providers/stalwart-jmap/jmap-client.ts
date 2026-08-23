@@ -80,6 +80,7 @@ interface JMAPIdentity {
 
 interface JMAPEmail {
   id: string;
+  blobId?: string;
   threadId: string;
   mailboxIds: Record<string, boolean>;
   keywords: Record<string, boolean>;

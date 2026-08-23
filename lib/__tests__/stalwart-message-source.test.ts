@@ -10,11 +10,11 @@ function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
     getEmails: vi.fn().mockResolvedValue([
       {
         id: 'message-1',
+        blobId: 'server-blob-42',
         from: [{ email: 'sender@example.test' }],
         to: [{ email: 'recipient@example.test' }],
         subject: 'Quarterly report',
         size: 1234,
-        bodyStructure: { blobId: 'server-blob-42' },
         'header:Message-ID:asText': '<abc@example.test>\r\n',
         'header:Authentication-Results:asText':
           'mx.example.test; dkim=pass header.d=example.test; spf=pass smtp.mailfrom=sender@example.test; dmarc=pass header.from=example.test',
@@ -80,11 +80,11 @@ describe('StalwartJMAPProvider.getMessageSource', () => {
         getEmails: vi.fn().mockResolvedValue([
           {
             id: 'message-1',
+            blobId: 'server-blob-99',
             from: [{ email: 'sender@example.test' }],
             to: [],
             subject: 'No auth headers',
             size: 10,
-            bodyStructure: { blobId: 'server-blob-99' },
             'header:Authentication-Results:asText': '',
             'header:Received-SPF:asText': '',
             'header:DKIM-Signature:asText': '',
@@ -98,6 +98,37 @@ describe('StalwartJMAPProvider.getMessageSource', () => {
     expect(handle?.diagnostics.spf).toEqual({ status: 'unavailable' });
     expect(handle?.diagnostics.dkim).toEqual({ status: 'unavailable', domain: undefined });
     expect(handle?.diagnostics.dmarc).toEqual({ status: 'unavailable' });
+  });
+
+  it('resolves the source for a typical multipart message, whose container part has no blobId of its own', async () => {
+    const provider = new StalwartJMAPProvider();
+    withMockedClient(
+      provider,
+      mockClient({
+        getEmails: vi.fn().mockResolvedValue([
+          {
+            id: 'message-1',
+            blobId: 'server-blob-top-level',
+            from: [{ email: 'sender@example.test' }],
+            to: [{ email: 'recipient@example.test' }],
+            subject: 'Multipart message',
+            size: 4321,
+            // A multipart/mixed or multipart/alternative container has no
+            // raw content blob of its own — only leaf parts do. Real
+            // messages hit this path far more often than single-part ones.
+            bodyStructure: { type: 'multipart/mixed', blobId: null, subParts: [] },
+            'header:Authentication-Results:asText': '',
+            'header:Received-SPF:asText': '',
+            'header:DKIM-Signature:asText': '',
+          },
+        ]),
+      })
+    );
+
+    const handle = await provider.getMessageSource('account-1', 'message-1');
+
+    expect(handle).not.toBeNull();
+    expect(handle?.size).toBe(4321);
   });
 
   it('returns null when the message is outside the account scope', async () => {

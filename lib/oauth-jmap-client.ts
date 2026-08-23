@@ -2,6 +2,16 @@ import { DeviceFlowClient, type TokenResponse } from './oauth-device-flow';
 import { OAuthTokenStore } from './oauth-token-store';
 import { JMAPClient } from '../providers/stalwart-jmap/jmap-client';
 
+// Refresh tokens are single-use and rotate on the identity provider (RFC
+// 6749 §6). Every OAuthJMAPClient instance is short-lived (stalwart-provider
+// creates a new one per call), so a per-instance guard can't prevent two
+// concurrent callers (e.g. the auto-sort daemon and an SSE poller) from
+// reading the same not-yet-rotated refresh token and both redeeming it —
+// the second redemption is rejected by the provider as invalid_grant. This
+// module-level map deduplicates concurrent refreshes for the same account
+// so only one HTTP request to the token endpoint is ever in flight.
+const refreshInFlight = new Map<string, Promise<void>>();
+
 export interface OAuthJMAPConfig {
   discoveryUrl: string;
   clientId: string;
@@ -120,8 +130,24 @@ export class OAuthJMAPClient {
   }
 
   async refreshToken(): Promise<void> {
+    const key = this.config.accountId;
+    const inFlight = refreshInFlight.get(key);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const attempt = this.performTokenRefresh().finally(() => {
+      if (refreshInFlight.get(key) === attempt) {
+        refreshInFlight.delete(key);
+      }
+    });
+    refreshInFlight.set(key, attempt);
+    return attempt;
+  }
+
+  private async performTokenRefresh(): Promise<void> {
     const token = await this.tokenStore.getToken(this.config.accountId);
-    
+
     if (!token?.refreshToken) {
       throw new Error('No refresh token available');
     }
