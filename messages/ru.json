@@ -144,6 +144,8 @@
     "noLabels": "Нет меток. Создайте метки в настройках.",
     "exportAria": "Экспорт письма",
     "export": "Экспорт",
+    "showOriginal": "Показать оригинал",
+    "showOriginalAria": "Показать исходный код письма",
     "exportEml": "Экспорт в EML",
     "exportPdf": "Экспорт в PDF",
     "printAria": "Печать письма",
@@ -172,6 +174,38 @@
       "readAt": "Прочитано",
       "recipients": "Получатели"
     }
+  },
+  "messageSource": {
+    "returnToMessage": "Вернуться к письму",
+    "loading": "Загрузка исходного кода письма…",
+    "loadError": "Не удалось загрузить исходный код письма",
+    "retry": "Повторить",
+    "diagnosticsLabel": "Диагностическая сводка",
+    "diagnosticsUnavailable": "Не удалось загрузить диагностическую сводку",
+    "from": "От:",
+    "to": "Кому:",
+    "cc": "Копия:",
+    "subject": "Тема:",
+    "noSubject": "(без темы)",
+    "messageId": "Message-ID:",
+    "unavailableValue": "Недоступно",
+    "authStatus": {
+      "pass": "Пройдено",
+      "fail": "Не пройдено",
+      "neutral": "Нейтрально",
+      "softfail": "Мягкий отказ",
+      "temperror": "Временная ошибка",
+      "permerror": "Постоянная ошибка",
+      "none": "Нет данных",
+      "unavailable": "Недоступно"
+    },
+    "enableWrap": "Переносить строки",
+    "disableWrap": "Не переносить строки",
+    "copy": "Скопировать",
+    "copied": "Исходный код скопирован в буфер обмена",
+    "copyFailed": "Не удалось скопировать исходный код",
+    "download": "Скачать .eml",
+    "oversized": "Размер письма {size} превышает лимит предпросмотра {limit}. Точная копия по-прежнему доступна для скачивания."
   },
   "conversationReader": {
     "regionLabel": "Переписка",

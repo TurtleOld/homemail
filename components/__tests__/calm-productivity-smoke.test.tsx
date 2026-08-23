@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { MessageList } from '../message-list';
@@ -36,6 +37,10 @@ const mockDetailMessage: MessageDetail = {
   labels: [],
 };
 
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ locale: 'en' }),
+}));
+
 vi.mock('next-intl', () => ({
   useLocale: () => 'en',
   useTranslations: (namespace: string) => {
@@ -68,6 +73,10 @@ vi.mock('next-intl', () => ({
         delete: 'Delete',
         markUnread: 'Mark as unread',
         moreActions: 'More actions',
+        showOriginal: 'Show original',
+        exportEml: 'Export as EML',
+        exportPdf: 'Export as PDF',
+        print: 'Print',
       },
       common: {
         unknown: 'Unknown',
@@ -263,6 +272,41 @@ describe('Mail foundation smoke coverage', () => {
 
     expect(screen.getByTestId('inline-composer')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument();
+  });
+
+  it('opens the message source in a new tab from the overflow menu, per concrete message', async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    renderWithQueryClient(<MessageViewer message={mockDetailMessage} />);
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Show original' }));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      `/en/mail/messages/${mockDetailMessage.id}/source`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+
+    openSpy.mockRestore();
+  });
+
+  it('exports the exact message source instead of a synthetic EML from the overflow menu', async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    renderWithQueryClient(<MessageViewer message={mockDetailMessage} />);
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Export as EML' }));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      `/api/mail/messages/${mockDetailMessage.id}/source?download=1`,
+      '_blank'
+    );
+
+    openSpy.mockRestore();
   });
 
   it('supports an explicit system theme preference on the document root', () => {

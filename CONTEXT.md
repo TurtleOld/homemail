@@ -112,6 +112,10 @@ _Avoid_: Folder search, quick view
 The dedicated view where a family member reads and acts on a selected conversation, or on one message when using the flat message list.
 _Avoid_: Message preview, reading pane
 
+**Message source**:
+The exact server-provided RFC 822/MIME source of one specific message, including its original headers, encodings, MIME boundaries, and body parts.
+_Avoid_: Conversation source, reconstructed message, page source
+
 **Message draft**:
 An unsent message being prepared by a family member, whether it is new, a reply, or a forward.
 _Avoid_: Compose window, reply editor

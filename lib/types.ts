@@ -103,6 +103,43 @@ export type MessageThreadDetail = {
   truncated: boolean;
 };
 
+// Server-provided authentication status for the Message source diagnostic
+// summary. Distinct from AuthResult above: 'unavailable' means the server
+// supplied no result at all, so HomeMail must not imply pass or fail.
+export type SourceAuthStatus =
+  | 'pass'
+  | 'fail'
+  | 'neutral'
+  | 'softfail'
+  | 'temperror'
+  | 'permerror'
+  | 'none'
+  | 'unavailable';
+
+export type SourceAuthResult = {
+  status: SourceAuthStatus;
+  domain?: string;
+};
+
+export type MessageSourceDiagnostics = {
+  from: { email: string; name?: string };
+  to: Array<{ email: string; name?: string }>;
+  cc?: Array<{ email: string; name?: string }>;
+  subject: string;
+  messageId?: string;
+  spf: SourceAuthResult;
+  dkim: SourceAuthResult;
+  dmarc: SourceAuthResult;
+};
+
+// Result of MailProvider.getMessageSource. The blob stream is opened lazily
+// so a diagnostics-only caller never pays for downloading the full message.
+export type MessageSourceHandle = {
+  size: number;
+  diagnostics: MessageSourceDiagnostics;
+  openStream(): Promise<ReadableStream<Uint8Array>>;
+};
+
 export type Attachment = {
   id: string;
   filename: string;

@@ -1,5 +1,5 @@
 import type { MailProvider } from '../mail-provider';
-import type { Account, Folder, MessageListItem, MessageDetail, MessageThreadDetail, Draft, Attachment } from '@/lib/types';
+import type { Account, Folder, MessageListItem, MessageDetail, MessageThreadDetail, Draft, Attachment, MessageSourceHandle } from '@/lib/types';
 
 export class ImapMailProvider implements MailProvider {
   async getAccount(accountId: string): Promise<Account | null> {
@@ -28,6 +28,10 @@ export class ImapMailProvider implements MailProvider {
   }
 
   async getThread(accountId: string, threadId: string, limit?: number): Promise<MessageThreadDetail | null> {
+    throw new Error('IMAP provider not implemented');
+  }
+
+  async getMessageSource(accountId: string, messageId: string): Promise<MessageSourceHandle | null> {
     throw new Error('IMAP provider not implemented');
   }
 

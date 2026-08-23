@@ -7,6 +7,10 @@ import type {
   MessageThreadDetail,
   Draft,
   Attachment,
+  MessageSourceHandle,
+  MessageSourceDiagnostics,
+  SourceAuthResult,
+  SourceAuthStatus,
 } from '@/lib/types';
 import { JMAPClient } from './jmap-client';
 import { convertFilterToJMAP } from '@/lib/filter-to-jmap';
@@ -149,6 +153,84 @@ function extractAttachmentsFromBodyStructure(part: any): Attachment[] {
 
   walk(part);
   return attachments;
+}
+
+const SOURCE_AUTH_STATUS_VALUES = new Set<SourceAuthStatus>([
+  'pass',
+  'fail',
+  'neutral',
+  'softfail',
+  'temperror',
+  'permerror',
+  'none',
+]);
+
+// Auth-Results header clauses look like:
+// "dkim=pass header.d=example.com header.s=selector; spf=pass smtp.mailfrom=user@example.com; dmarc=pass header.from=example.com"
+// Scope every lookup to the clause for the requested mechanism so that a
+// field belonging to a different mechanism is never picked up by mistake.
+function findAuthClause(header: string, mechanism: string): string | undefined {
+  return header
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => new RegExp(`^${mechanism}\\s*=`, 'i').test(part));
+}
+
+function parseClauseStatus(clause: string, mechanism: string): SourceAuthStatus | undefined {
+  const match = clause.match(new RegExp(`^${mechanism}\\s*=\\s*(\\w+)`, 'i'));
+  if (!match) return undefined;
+  const value = match[1].toLowerCase();
+  return SOURCE_AUTH_STATUS_VALUES.has(value as SourceAuthStatus)
+    ? (value as SourceAuthStatus)
+    : undefined;
+}
+
+function extractAuthField(text: string, field: string): string | undefined {
+  const match = text.match(new RegExp(`${field}=([^\\s;]+)`, 'i'));
+  if (!match) return undefined;
+  const value = match[1];
+  const at = value.indexOf('@');
+  return at >= 0 ? value.slice(at + 1) : value;
+}
+
+function parseSpfResult(authResultsHeader: string, receivedSpfHeader: string): SourceAuthResult {
+  const clause = findAuthClause(authResultsHeader, 'spf');
+  if (clause) {
+    return {
+      status: parseClauseStatus(clause, 'spf') ?? 'unavailable',
+      domain: extractAuthField(clause, 'smtp\\.mailfrom') || extractAuthField(clause, 'smtp\\.helo'),
+    };
+  }
+  const fallback = receivedSpfHeader.match(/^\s*(\w+)/);
+  const status = fallback ? fallback[1].toLowerCase() : undefined;
+  if (status && SOURCE_AUTH_STATUS_VALUES.has(status as SourceAuthStatus)) {
+    return {
+      status: status as SourceAuthStatus,
+      domain:
+        extractAuthField(receivedSpfHeader, 'identity=mailfrom;\\s*client-ip=[^;]*;\\s*helo') ||
+        extractAuthField(receivedSpfHeader, 'envelope-from'),
+    };
+  }
+  return { status: 'unavailable' };
+}
+
+function parseDkimResult(authResultsHeader: string, dkimSignatureHeader: string): SourceAuthResult {
+  const clause = findAuthClause(authResultsHeader, 'dkim');
+  const domain =
+    (clause && extractAuthField(clause, 'header\\.d')) || extractAuthField(dkimSignatureHeader, 'd');
+  if (clause) {
+    return { status: parseClauseStatus(clause, 'dkim') ?? 'unavailable', domain };
+  }
+  return { status: 'unavailable', domain };
+}
+
+function parseDmarcResult(authResultsHeader: string): SourceAuthResult {
+  const clause = findAuthClause(authResultsHeader, 'dmarc');
+  if (!clause) return { status: 'unavailable' };
+  return {
+    status: parseClauseStatus(clause, 'dmarc') ?? 'unavailable',
+    domain: extractAuthField(clause, 'header\\.from'),
+  };
 }
 
 export class StalwartJMAPProvider implements MailProvider {
@@ -822,6 +904,80 @@ export class StalwartJMAPProvider implements MailProvider {
     } catch (error) {
       return null;
     }
+  }
+
+  // Exact server-provided RFC 822/MIME source of one message. Resolves the
+  // top-level message blob through Email/get (never accepted from the
+  // caller) and opens the byte stream lazily, so a diagnostics-only caller
+  // never pays for downloading the full message body.
+  async getMessageSource(accountId: string, messageId: string): Promise<MessageSourceHandle | null> {
+    const client = await this.getClient(accountId);
+    const session = await client.getSession();
+    const actualAccountId =
+      session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+
+    const emails = await client.getEmails([messageId], {
+      accountId: actualAccountId,
+      properties: [
+        'id',
+        'from',
+        'to',
+        'cc',
+        'subject',
+        'size',
+        'bodyStructure',
+        'header:Message-ID:asText',
+        'header:Authentication-Results:asText',
+        'header:Received-SPF:asText',
+        'header:DKIM-Signature:asText',
+      ],
+    });
+
+    if (emails.length === 0) {
+      return null;
+    }
+
+    const email = emails[0] as any;
+    const blobId: string | undefined = email.bodyStructure?.blobId;
+    if (!blobId) {
+      return null;
+    }
+
+    const size: number = typeof email.size === 'number' ? email.size : 0;
+    const from = email.from?.[0] || { email: 'unknown' };
+    const authResultsHeader: string = email['header:Authentication-Results:asText'] || '';
+    const receivedSpfHeader: string = email['header:Received-SPF:asText'] || '';
+    const dkimSignatureHeader: string = email['header:DKIM-Signature:asText'] || '';
+    const messageIdHeader: string | undefined =
+      typeof email['header:Message-ID:asText'] === 'string'
+        ? email['header:Message-ID:asText'].trim() || undefined
+        : undefined;
+
+    const diagnostics: MessageSourceDiagnostics = {
+      from: { email: from.email, name: from.name },
+      to: (email.to || []).map((t: any) => ({ email: t.email, name: t.name })),
+      cc: email.cc?.map((c: any) => ({ email: c.email, name: c.name })),
+      subject: email.subject || '',
+      messageId: messageIdHeader,
+      spf: parseSpfResult(authResultsHeader, receivedSpfHeader),
+      dkim: parseDkimResult(authResultsHeader, dkimSignatureHeader),
+      dmarc: parseDmarcResult(authResultsHeader),
+    };
+
+    return {
+      size,
+      diagnostics,
+      openStream: async () => {
+        const downloadUrl = await client.getBlobDownloadUrl(blobId, actualAccountId, `${messageId}.eml`);
+        const response = await fetch(downloadUrl, {
+          headers: { Authorization: client.getAuthHeader() },
+        });
+        if (!response.ok || !response.body) {
+          throw new Error(`Failed to download message source: ${response.statusText}`);
+        }
+        return response.body;
+      },
+    };
   }
 
   async getThread(

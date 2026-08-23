@@ -15,102 +15,6 @@ function formatDateForEmail(date: Date): string {
   return date.toUTCString();
 }
 
-function encodeHeader(value: string): string {
-  if (/^[\x20-\x7E]*$/.test(value)) {
-    return value;
-  }
-  return `=?UTF-8?B?${Buffer.from(value, 'utf-8').toString('base64')}?=`;
-}
-
-function createEML(message: any): string {
-  const lines: string[] = [];
-
-  lines.push(`From: ${formatEmailAddress(message.from)}`);
-  if (message.to && message.to.length > 0) {
-    lines.push(`To: ${message.to.map(formatEmailAddress).join(', ')}`);
-  }
-  if (message.cc && message.cc.length > 0) {
-    lines.push(`Cc: ${message.cc.map(formatEmailAddress).join(', ')}`);
-  }
-  if (message.bcc && message.bcc.length > 0) {
-    lines.push(`Bcc: ${message.bcc.map(formatEmailAddress).join(', ')}`);
-  }
-  lines.push(`Subject: ${encodeHeader(message.subject || '')}`);
-  lines.push(`Date: ${formatDateForEmail(new Date(message.date))}`);
-  if (message.headers) {
-    for (const [key, value] of Object.entries(message.headers)) {
-      if (!['from', 'to', 'cc', 'bcc', 'subject', 'date'].includes(key.toLowerCase())) {
-        lines.push(`${key}: ${value}`);
-      }
-    }
-  }
-  lines.push('MIME-Version: 1.0');
-
-  const hasAttachments = message.attachments && message.attachments.length > 0;
-  const hasHtml = message.body?.html;
-  const hasText = message.body?.text;
-
-  if (hasAttachments || (hasHtml && hasText)) {
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-    lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
-    lines.push('');
-    lines.push(`--${boundary}`);
-
-    if (hasHtml && hasText) {
-      const altBoundary = `----=_Part_Alt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-      lines.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
-      lines.push('');
-      lines.push(`--${altBoundary}`);
-      lines.push('Content-Type: text/plain; charset=UTF-8');
-      lines.push('Content-Transfer-Encoding: quoted-printable');
-      lines.push('');
-      lines.push(message.body.text);
-      lines.push(`--${altBoundary}`);
-      lines.push('Content-Type: text/html; charset=UTF-8');
-      lines.push('Content-Transfer-Encoding: quoted-printable');
-      lines.push('');
-      lines.push(message.body.html);
-      lines.push(`--${altBoundary}--`);
-    } else if (hasText) {
-      lines.push('Content-Type: text/plain; charset=UTF-8');
-      lines.push('Content-Transfer-Encoding: quoted-printable');
-      lines.push('');
-      lines.push(message.body.text);
-    } else if (hasHtml) {
-      lines.push('Content-Type: text/html; charset=UTF-8');
-      lines.push('Content-Transfer-Encoding: quoted-printable');
-      lines.push('');
-      lines.push(message.body.html);
-    }
-
-    if (hasAttachments) {
-      for (const att of message.attachments) {
-        lines.push(`--${boundary}`);
-        lines.push(`Content-Type: ${att.mime}`);
-        lines.push('Content-Transfer-Encoding: base64');
-        lines.push(`Content-Disposition: attachment; filename="${encodeHeader(att.filename)}"`);
-        lines.push('');
-        lines.push('[Attachment data would be here in base64]');
-      }
-      lines.push(`--${boundary}--`);
-    }
-  } else {
-    if (hasHtml) {
-      lines.push('Content-Type: text/html; charset=UTF-8');
-      lines.push('Content-Transfer-Encoding: quoted-printable');
-      lines.push('');
-      lines.push(message.body.html);
-    } else if (hasText) {
-      lines.push('Content-Type: text/plain; charset=UTF-8');
-      lines.push('Content-Transfer-Encoding: quoted-printable');
-      lines.push('');
-      lines.push(message.body.text);
-    }
-  }
-
-  return lines.join('\r\n');
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -124,7 +28,7 @@ export async function GET(
   try {
     const { id } = await params;
     const searchParams = request.nextUrl.searchParams;
-    const format = searchParams.get('format') || 'eml';
+    const format = searchParams.get('format') || 'pdf';
 
     const provider = process.env.MAIL_PROVIDER === 'stalwart'
       ? getMailProviderForAccount(session.accountId)
@@ -142,17 +46,7 @@ export async function GET(
 
     message.labels = messageLabels[id] || [];
 
-    if (format === 'eml') {
-      const emlContent = createEML(message);
-      const filename = `${message.subject || 'message'}.eml`.replaceAll(/[^a-zA-Z0-9._-]/g, '_');
-
-      return new NextResponse(emlContent, {
-        headers: {
-          'Content-Type': 'message/rfc822',
-          'Content-Disposition': `attachment; filename="${filename}"`,
-        },
-      });
-    } else if (format === 'pdf') {
+    if (format === 'pdf') {
       try {
         const { jsPDF } = await import('jspdf');
         const doc = new jsPDF();

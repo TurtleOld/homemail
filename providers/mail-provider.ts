@@ -7,6 +7,7 @@ import type {
   Draft,
   Attachment,
   MessageFilter,
+  MessageSourceHandle,
 } from '@/lib/types';
 
 export interface MailProvider {
@@ -24,6 +25,10 @@ export interface MailProvider {
     }
   ): Promise<{ messages: MessageListItem[]; nextCursor?: string }>;
   getMessage(accountId: string, messageId: string): Promise<MessageDetail | null>;
+  // Exact server-provided RFC 822/MIME source of one message. Never
+  // reconstructed from MessageDetail; the blob is resolved server-side
+  // from the authenticated JMAP account, not accepted from the client.
+  getMessageSource(accountId: string, messageId: string): Promise<MessageSourceHandle | null>;
   getThread(accountId: string, threadId: string, limit?: number): Promise<MessageThreadDetail | null>;
   updateMessageFlags(
     accountId: string,

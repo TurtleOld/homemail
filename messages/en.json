@@ -144,6 +144,8 @@
     "noLabels": "No labels. Create labels in settings.",
     "exportAria": "Export message",
     "export": "Export",
+    "showOriginal": "Show original",
+    "showOriginalAria": "Show message source",
     "exportEml": "Export as EML",
     "exportPdf": "Export as PDF",
     "printAria": "Print message",
@@ -172,6 +174,38 @@
       "readAt": "Read",
       "recipients": "Recipients"
     }
+  },
+  "messageSource": {
+    "returnToMessage": "Return to message",
+    "loading": "Loading message source…",
+    "loadError": "The message source couldn't be loaded",
+    "retry": "Retry",
+    "diagnosticsLabel": "Diagnostic summary",
+    "diagnosticsUnavailable": "The diagnostic summary couldn't be loaded",
+    "from": "From:",
+    "to": "To:",
+    "cc": "Cc:",
+    "subject": "Subject:",
+    "noSubject": "(no subject)",
+    "messageId": "Message-ID:",
+    "unavailableValue": "Unavailable",
+    "authStatus": {
+      "pass": "Pass",
+      "fail": "Fail",
+      "neutral": "Neutral",
+      "softfail": "Soft fail",
+      "temperror": "Temporary error",
+      "permerror": "Permanent error",
+      "none": "None",
+      "unavailable": "Unavailable"
+    },
+    "enableWrap": "Wrap lines",
+    "disableWrap": "Unwrap lines",
+    "copy": "Copy to clipboard",
+    "copied": "Source copied to clipboard",
+    "copyFailed": "Couldn't copy the source",
+    "download": "Download .eml",
+    "oversized": "This message is {size} — larger than the {limit} preview limit. It remains available for exact download."
   },
   "conversationReader": {
     "regionLabel": "Conversation",

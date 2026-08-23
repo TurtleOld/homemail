@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useParams } from 'next/navigation';
 import type { MessageDetail, Label } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { useLocaleSettings } from '@/lib/hooks';
@@ -26,6 +27,7 @@ import {
   MoreHorizontal,
   ChevronLeft,
   Archive,
+  FileCode,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -105,6 +107,8 @@ export function MessageViewer({
   showReplyActions = true,
 }: MessageViewerProps) {
   const localeSettings = useLocaleSettings();
+  const urlParams = useParams();
+  const locale = urlParams.locale as string;
   const t = useTranslations('messageViewer');
   const tCommon = useTranslations('common');
   const markedAsReadRef = useRef<Set<string>>(new Set());
@@ -807,7 +811,17 @@ export function MessageViewer({
                 <DropdownMenuItem
                   onClick={() => {
                     if (!message) return;
-                    window.open(`/api/mail/messages/${message.id}/export?format=eml`, '_blank');
+                    window.open(`/${locale}/mail/messages/${message.id}/source`, '_blank', 'noopener,noreferrer');
+                  }}
+                  className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
+                >
+                  <FileCode className="mr-2 h-4 w-4" />
+                  {t('showOriginal')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!message) return;
+                    window.open(`/api/mail/messages/${message.id}/source?download=1`, '_blank');
                   }}
                   className="cursor-pointer rounded-lg px-3 py-2 text-foreground focus:bg-[hsl(var(--surface-selected))]"
                 >
