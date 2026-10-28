@@ -1490,11 +1490,6 @@ export class StalwartJMAPProvider implements MailProvider {
       throw new Error('Invalid email create response');
     }
 
-    if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-      const errorDesc = (setResponse[1] as any).description || 'Unknown error';
-      throw new Error(`JMAP email create error: ${errorDesc}`);
-    }
-
     const data = setResponse[1] as { created?: Record<string, { id: string }> };
     if (!data.created || Object.keys(data.created).length === 0) {
       throw new Error('Failed to create email');
@@ -1603,11 +1598,6 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error('Invalid email create response');
       }
 
-      if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-        const errorDesc = (setResponse[1] as any).description || 'Unknown error';
-        throw new Error(`JMAP email import error: ${errorDesc}`);
-      }
-
       const data = setResponse[1] as { created?: Record<string, { id: string }> };
       if (!data.created || Object.keys(data.created).length === 0) {
         throw new Error('Failed to import email');
@@ -1700,10 +1690,6 @@ export class StalwartJMAPProvider implements MailProvider {
       const setResponse = response.methodResponses[0];
       if (setResponse[0] !== 'Email/set') {
         throw new Error('Invalid draft save response');
-      }
-
-      if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-        throw new Error(`JMAP draft save error: ${(setResponse[1] as any).description}`);
       }
 
       const data = setResponse[1] as {
@@ -1905,11 +1891,6 @@ export class StalwartJMAPProvider implements MailProvider {
         throw new Error('Invalid mailbox create response');
       }
 
-      if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-        const errorDesc = (setResponse[1] as any).description || 'Unknown error';
-        throw new Error(`JMAP mailbox create error: ${errorDesc}`);
-      }
-
       const data = setResponse[1] as { created?: Record<string, { id: string }> };
       if (!data.created || Object.keys(data.created).length === 0) {
         throw new Error('Failed to create mailbox');
@@ -2013,11 +1994,6 @@ export class StalwartJMAPProvider implements MailProvider {
       const setResponse = response.methodResponses[0];
       if (setResponse[0] !== 'Mailbox/set') {
         throw new Error('Invalid mailbox delete response');
-      }
-
-      if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-        const errorDesc = (setResponse[1] as any).description || 'Unknown error';
-        throw new Error(`JMAP mailbox delete error: ${errorDesc}`);
       }
     } catch (error) {
       throw error;

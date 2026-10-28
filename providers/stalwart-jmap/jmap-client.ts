@@ -155,6 +155,30 @@ function throwIfEmailsRejected(data: unknown, field: 'notUpdated' | 'notDestroye
   );
 }
 
+/**
+ * Throws when a JMAP method response reports an error.
+ *
+ * JMAP signals a failed method as `["error", { type, description }, callId]`
+ * rather than as a payload with `type: "error"`, so only the method name tells
+ * a caller that the server rejected the request.
+ *
+ * Args:
+ *   response: The parsed JMAP response to inspect.
+ *
+ * Raises:
+ *   Error: The first method-level error, carrying the server-provided type
+ *     and description.
+ */
+function throwIfMethodError(response: JMAPResponse): void {
+  for (const [method, data] of response.methodResponses || []) {
+    if (method !== 'error') continue;
+    const errorData = data as { type?: string; description?: string };
+    throw new Error(
+      `JMAP method error (${errorData.type || 'unknown'}): ${errorData.description || 'no description'}`
+    );
+  }
+}
+
 export class JMAPClient {
   private baseUrl: string;
   private authHeader: string;
@@ -581,17 +605,14 @@ export class JMAPClient {
         throw new Error('Empty JMAP session response');
       }
 
+      throwIfMethodError(sessionData);
+
       const sessionResponse = sessionData.methodResponses[0];
 
       if (sessionResponse[0] !== 'Session/get') {
         throw new Error(
           `Invalid session response: expected Session/get, got ${sessionResponse[0]}`
         );
-      }
-
-      if ('type' in sessionResponse[1] && sessionResponse[1].type === 'error') {
-        const errorDesc = (sessionResponse[1] as any).description || 'Unknown error';
-        throw new Error(`JMAP session error: ${errorDesc}`);
       }
 
       const session = this.normalizeSessionUrls(sessionResponse[1] as JMAPSession);
@@ -639,7 +660,10 @@ export class JMAPClient {
     }
   }
 
-  async request(methodCalls: Array<[string, Record<string, any>, string]>): Promise<JMAPResponse> {
+  async request(
+    methodCalls: Array<[string, Record<string, any>, string]>,
+    options?: { allowMethodError?: boolean }
+  ): Promise<JMAPResponse> {
     const session = await this.getSession();
     const apiUrl = session.apiUrl || `${this.baseUrl}/jmap`;
 
@@ -663,7 +687,12 @@ export class JMAPClient {
       throw new Error(`JMAP request failed: ${response.statusText}`);
     }
 
-    return response.json();
+    const jsonResponse: JMAPResponse = await response.json();
+    // /changes errors are expected and mean "re-seed", so those callers opt out.
+    if (!options?.allowMethodError) {
+      throwIfMethodError(jsonResponse);
+    }
+    return jsonResponse;
   }
 
   async requestWithUsing(
@@ -731,10 +760,6 @@ export class JMAPClient {
     if (mailboxResponse[0] !== 'Mailbox/get') {
       throw new Error('Invalid mailbox response');
     }
-    if ('type' in mailboxResponse[1] && mailboxResponse[1].type === 'error') {
-      throw new Error(`JMAP mailbox error: ${(mailboxResponse[1] as any).description}`);
-    }
-
     const data = mailboxResponse[1] as { list: JMAPMailbox[]; state: string };
     return { mailboxes: data.list || [], state: data.state || '' };
   }
@@ -747,9 +772,10 @@ export class JMAPClient {
     | { cannotCalculateChanges: true }
   > {
     const targetAccountId = accountId || this.accountId;
-    const response = await this.request([
-      ['Mailbox/changes', { accountId: targetAccountId, sinceState }, '0'],
-    ]);
+    const response = await this.request(
+      [['Mailbox/changes', { accountId: targetAccountId, sinceState }, '0']],
+      { allowMethodError: true }
+    );
 
     const [method, data] = response.methodResponses[0];
     if (method === 'error') {
@@ -786,9 +812,10 @@ export class JMAPClient {
     | { cannotCalculateChanges: true }
   > {
     const targetAccountId = accountId || this.accountId;
-    const response = await this.request([
-      ['Email/changes', { accountId: targetAccountId, sinceState, maxChanges }, '0'],
-    ]);
+    const response = await this.request(
+      [['Email/changes', { accountId: targetAccountId, sinceState, maxChanges }, '0']],
+      { allowMethodError: true }
+    );
 
     const [method, data] = response.methodResponses[0];
     if (method === 'error') {
@@ -896,12 +923,6 @@ export class JMAPClient {
       );
     }
 
-    if ('type' in identityResponse[1] && identityResponse[1].type === 'error') {
-      const errorDesc = (identityResponse[1] as any).description || 'Unknown error';
-      console.error('[JMAPClient] Identity/get error:', errorDesc);
-      throw new Error(`JMAP identity error: ${errorDesc}`);
-    }
-
     const data = identityResponse[1] as { list: JMAPIdentity[] };
     if (!data || typeof data !== 'object') {
       console.error(
@@ -961,14 +982,12 @@ export class JMAPClient {
       ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']
     );
 
+    // requestWithUsing leaves method errors to callers; Sieve validation relies on that.
+    throwIfMethodError(response);
+
     const setResponse = response.methodResponses[0];
     if (setResponse[0] !== 'Identity/set') {
       throw new Error('Invalid identity set response');
-    }
-
-    if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-      const errorDesc = (setResponse[1] as any).description || 'Unknown error';
-      throw new Error(`JMAP identity set error: ${errorDesc}`);
     }
 
     const data = setResponse[1] as {
@@ -1045,12 +1064,6 @@ export class JMAPClient {
       throw new Error('Invalid email query response');
     }
 
-    if ('type' in queryResponse[1] && queryResponse[1].type === 'error') {
-      const errorDesc = (queryResponse[1] as any).description || 'Unknown error';
-      console.error('[JMAPClient] Email/query error:', errorDesc);
-      throw new Error(`JMAP email query error: ${errorDesc}`);
-    }
-
     const result = queryResponse[1] as {
       ids: string[];
       position: number;
@@ -1077,11 +1090,6 @@ export class JMAPClient {
     if (!threadResponse || threadResponse[0] !== 'Thread/get') {
       throw new Error('Invalid thread get response');
     }
-    if ('type' in threadResponse[1] && threadResponse[1].type === 'error') {
-      const errorDesc = (threadResponse[1] as { description?: string }).description || 'Unknown error';
-      throw new Error(`JMAP thread get error: ${errorDesc}`);
-    }
-
     const data = threadResponse[1] as {
       accountId?: string;
       list?: JMAPThread[];
@@ -1176,12 +1184,6 @@ export class JMAPClient {
         );
       }
 
-      if ('type' in getResponse[1] && getResponse[1].type === 'error') {
-        const errorDesc = (getResponse[1] as any).description || 'Unknown error';
-        console.error('[JMAPClient] Email/get error:', errorDesc);
-        throw new Error(`JMAP email get error: ${errorDesc}`);
-      }
-
       const data = getResponse[1] as { list: JMAPEmail[] };
       if (!data || typeof data !== 'object') {
         console.error(
@@ -1225,10 +1227,6 @@ export class JMAPClient {
       throw new Error('Invalid email set response');
     }
 
-    if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-      throw new Error(`JMAP email set error: ${(setResponse[1] as any).description}`);
-    }
-
     throwIfEmailsRejected(setResponse[1], 'notUpdated');
   }
 
@@ -1256,10 +1254,6 @@ export class JMAPClient {
       throw new Error('Invalid email set response');
     }
 
-    if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-      throw new Error(`JMAP email set error: ${(setResponse[1] as any).description}`);
-    }
-
     throwIfEmailsRejected(setResponse[1], 'notUpdated');
   }
 
@@ -1279,10 +1273,6 @@ export class JMAPClient {
     const setResponse = response.methodResponses[0];
     if (setResponse[0] !== 'Email/set') {
       throw new Error('Invalid email destroy response');
-    }
-
-    if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-      throw new Error(`JMAP email destroy error: ${(setResponse[1] as any).description}`);
     }
 
     throwIfEmailsRejected(setResponse[1], 'notDestroyed');
@@ -1424,11 +1414,6 @@ export class JMAPClient {
     const submissionResponse = response.methodResponses[0];
     if (submissionResponse[0] !== 'EmailSubmission/set') {
       throw new Error('Invalid email submission response');
-    }
-
-    if ('type' in submissionResponse[1] && submissionResponse[1].type === 'error') {
-      const errorDesc = (submissionResponse[1] as any).description || 'Unknown error';
-      throw new Error(`JMAP email submission error: ${errorDesc}`);
     }
 
     const data = submissionResponse[1] as { created?: Record<string, { id: string }> };
