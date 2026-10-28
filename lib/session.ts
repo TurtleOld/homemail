@@ -7,7 +7,6 @@ import {
   type StoredSession,
 } from './storage';
 import { SecurityLogger } from './security-logger';
-import { getClientIp } from './client-ip';
 
 const SESSION_COOKIE_NAME = 'mail_session';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
@@ -32,8 +31,6 @@ export interface SessionData {
   email: string;
   expiresAt: number;
   createdAt: number;
-  ipAddress?: string;
-  userAgent?: string;
 }
 
 /**
@@ -87,17 +84,12 @@ export async function createSession(
   const expiresAt = Date.now() + SESSION_DURATION;
   const createdAt = Date.now();
 
-  const ipAddress = request ? getClientIp(request) : undefined;
-  const userAgent = request ? request.headers.get('user-agent') || undefined : undefined;
-
   const session: SessionData = {
     sessionId,
     accountId,
     email,
     expiresAt,
     createdAt,
-    ipAddress,
-    userAgent,
   };
 
   const encryptedSession = encryptSessionData(session);
@@ -140,6 +132,16 @@ export async function regenerateSession(
   return createSession(accountId, email, request);
 }
 
+/**
+ * Return the session named by the current cookie.
+ *
+ * sessions.json is the single source of truth: a cookie that decrypts is not
+ * a session by itself, because logout removes only the stored record. The
+ * request argument is kept for API compatibility and is not used.
+ *
+ * @param _request - Unused; retained so callers do not change.
+ * @returns The stored session, or null when it is missing or expired.
+ */
 export async function getSession(_request?: Request): Promise<SessionData | null> {
   const cookieStore = await cookies();
   const encryptedSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -166,6 +168,12 @@ export async function getSession(_request?: Request): Promise<SessionData | null
   };
 }
 
+/**
+ * Delete the current session from storage and clear its cookie.
+ *
+ * The stored record is looked up by cookie value, so logout works even after
+ * the cookie payload is no longer decrypted anywhere.
+ */
 export async function deleteSession(): Promise<void> {
   const cookieStore = await cookies();
   const encryptedSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
