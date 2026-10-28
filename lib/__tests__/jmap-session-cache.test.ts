@@ -52,8 +52,11 @@ describe('JMAPClient session cache', () => {
 
   it('keeps one entry per account when the OAuth token rotates and refetches with the new token', async () => {
     await clientFor('access-token-v1').getSession();
+    await clientFor('access-token-v1').getSession();
     expect(getJmapSessionCacheSize()).toBe(1);
+    expect(authHeaders).toEqual(['Bearer access-token-v1']);
 
+    await clientFor('access-token-v2').getSession();
     await clientFor('access-token-v2').getSession();
 
     expect(getJmapSessionCacheSize()).toBe(1);

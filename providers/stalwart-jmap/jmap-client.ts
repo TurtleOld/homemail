@@ -364,11 +364,6 @@ export class JMAPClient {
       return cached.session;
     }
 
-    // Drop a stale entry so a failed refetch does not keep an old token alive.
-    if (cached && cached.authHeader !== this.authHeader) {
-      sessionCache.delete(cacheKey);
-    }
-
     const baseUrlObj = new URL(this.baseUrl);
     const hostname = baseUrlObj.hostname;
 
