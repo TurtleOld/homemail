@@ -32,6 +32,7 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 import { encryptData } from '@/lib/storage';
+import { updateScheduledMessages } from '@/lib/scheduled-messages';
 import { processScheduledMessages } from '@/scripts/process-scheduled-messages';
 
 const pastSendAt = new Date(Date.now() - 60_000).toISOString();
@@ -100,5 +101,34 @@ describe('processScheduledMessages', () => {
 
     finishSend?.('sent-id');
     await firstRun;
+  });
+
+  it('keeps a message added while a run is sending', async () => {
+    let stored: Record<string, ReturnType<typeof scheduledMessage>[]> = {
+      'acc-1': [scheduledMessage('due', encryptData('<p>Due body</p>'))],
+    };
+    mocks.readStorage.mockImplementation(async () => structuredClone(stored));
+    mocks.writeStorage.mockImplementation(async (_key: string, value: typeof stored) => {
+      stored = structuredClone(value);
+    });
+
+    let finishSend: ((id: string) => void) | undefined;
+    mocks.sendMessage.mockImplementation(
+      () => new Promise<string>((resolve) => { finishSend = resolve; }),
+    );
+
+    const run = processScheduledMessages();
+    await vi.waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
+
+    // Same write the send route performs while the run is awaiting sendMessage.
+    await updateScheduledMessages((current) => {
+      current['acc-1'] = [...(current['acc-1'] ?? []), scheduledMessage('added', '<p>New body</p>')];
+      return current;
+    });
+
+    finishSend?.('sent-id');
+    await run;
+
+    expect(stored['acc-1'].map((message) => message.id)).toEqual(['added']);
   });
 });

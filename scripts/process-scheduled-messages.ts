@@ -1,24 +1,7 @@
-import { readStorage, writeStorage, decryptData } from '../lib/storage';
+import { readStorage, decryptData } from '../lib/storage';
+import { updateScheduledMessages, type ScheduledMessage } from '../lib/scheduled-messages';
 import { getMailProvider, getMailProviderForAccount } from '../lib/get-provider';
 import { logger } from '../lib/logger';
-
-interface ScheduledMessage {
-  id: string;
-  accountId: string;
-  to: string[];
-  cc?: string[];
-  bcc?: string[];
-  subject: string;
-  html: string;
-  attachments?: Array<{
-    filename: string;
-    mime: string;
-    data: string;
-  }>;
-  sendAt: string;
-  draftId?: string;
-  createdAt: string;
-}
 
 declare global {
   var __scheduledSendDaemonStarted: boolean | undefined;
@@ -85,19 +68,23 @@ async function processScheduledMessages() {
           logger.error(`Failed to send scheduled message ${message.id}:`, error);
         }
       }
-
-      const remainingMessages = messages.filter((msg) => !processed.includes(msg.id));
-      if (remainingMessages.length === 0) {
-        delete allScheduled[accountId];
-      } else {
-        allScheduled[accountId] = remainingMessages;
-      }
     }
 
-    if (Object.keys(allScheduled).length > 0) {
-      await writeStorage('allScheduledMessages', allScheduled);
-    } else {
-      await writeStorage('allScheduledMessages', {});
+    // Remove only ids sent in this run, from the freshest stored copy: the send
+    // route may have appended messages while this run was awaiting sendMessage.
+    if (processed.length > 0) {
+      const sentIds = new Set(processed);
+      await updateScheduledMessages((current) => {
+        for (const [accountId, messages] of Object.entries(current)) {
+          const remainingMessages = messages.filter((msg) => !sentIds.has(msg.id));
+          if (remainingMessages.length === 0) {
+            delete current[accountId];
+          } else {
+            current[accountId] = remainingMessages;
+          }
+        }
+        return current;
+      });
     }
   } catch (error) {
     logger.error('Error processing scheduled messages:', error);
