@@ -49,3 +49,28 @@ describe('JMAPClient Email/set notUpdated handling', () => {
     );
   });
 });
+
+describe('JMAPClient Email/set notDestroyed handling', () => {
+  it('destroyEmails throws when the server refuses to destroy a message', async () => {
+    const client = clientWithMockedRequest([
+      'Email/set',
+      {
+        destroyed: [],
+        notDestroyed: { 'message-1': { type: 'notFound', description: 'already moved' } },
+      },
+      '0',
+    ]);
+
+    await expect(client.destroyEmails(['message-1'])).rejects.toThrow(/message-1/);
+  });
+
+  it('destroyEmails resolves when every message was actually destroyed', async () => {
+    const client = clientWithMockedRequest([
+      'Email/set',
+      { destroyed: ['message-1'] },
+      '0',
+    ]);
+
+    await expect(client.destroyEmails(['message-1'])).resolves.toBeUndefined();
+  });
+});
