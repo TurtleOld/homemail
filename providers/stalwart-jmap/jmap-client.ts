@@ -1,5 +1,6 @@
 import * as dns from 'node:dns';
 import { promisify } from 'node:util';
+import { logger } from '@/lib/logger';
 
 const lookup = promisify(dns.lookup);
 const resolve4 = promisify(dns.resolve4);
@@ -274,10 +275,10 @@ export class JMAPClient {
           return addr.address;
       }
     } catch (lookupError) {
-      console.error(`[JMAPClient] DNS lookup failed for ${hostname}:`, lookupError);
+      logger.debug(`[JMAPClient] DNS lookup failed for ${hostname}:`, lookupError);
     }
 
-    console.error(`[JMAPClient] Failed to resolve ${hostname} to internal IP`);
+    logger.debug(`[JMAPClient] Failed to resolve ${hostname} to internal IP`);
     return null;
   }
 
@@ -324,13 +325,13 @@ export class JMAPClient {
           dnsCache.set(url, { resolved: resolvedUrl, expiresAt: Date.now() + DNS_CACHE_TTL_MS });
           return resolvedUrl;
         } else {
-          console.error(
+          logger.error(
             `[JMAPClient] ✗ CRITICAL: Container name ${hostname} resolved to external IP or failed`
           );
-          console.error(
+          logger.error(
             `[JMAPClient] ✗ This means Docker DNS is not working - fetch will also fail`
           );
-          console.error(`[JMAPClient] ✗ Solutions:`);
+          logger.error(`[JMAPClient] ✗ Solutions:`);
           throw new Error(
             `Container name ${hostname} cannot be resolved to internal IP. Check Docker network configuration.`
           );
@@ -349,7 +350,7 @@ export class JMAPClient {
         }
       }
     } catch (error) {
-      console.error(`[JMAPClient] Error resolving URL ${url}:`, error);
+      logger.error(`[JMAPClient] Error resolving URL ${url}:`, error);
       throw error;
     }
   }
@@ -409,16 +410,16 @@ export class JMAPClient {
     const baseUrlObj = new URL(this.baseUrl);
     const hostname = baseUrlObj.hostname;
 
-    console.log(`[JMAPClient] ===== DNS Resolution Debug =====`);
-    console.log(`[JMAPClient] Base URL: ${this.baseUrl}`);
-    console.log(`[JMAPClient] Hostname to resolve: ${hostname}`);
+    logger.debug(`[JMAPClient] ===== DNS Resolution Debug =====`);
+    logger.debug(`[JMAPClient] Base URL: ${this.baseUrl}`);
+    logger.debug(`[JMAPClient] Hostname to resolve: ${hostname}`);
 
     try {
       const addresses = await lookup(hostname, { family: 4, all: true });
       const resolvedIps = addresses
         .map((a: { address: string; family: number }) => `${a.address} (family: ${a.family})`)
         .join(', ');
-      console.log(`[JMAPClient] DNS lookup SUCCESS: ${hostname} resolved to: ${resolvedIps}`);
+      logger.debug(`[JMAPClient] DNS lookup SUCCESS: ${hostname} resolved to: ${resolvedIps}`);
 
       const firstAddress = addresses[0]?.address;
       if (
@@ -427,25 +428,25 @@ export class JMAPClient {
           firstAddress.startsWith('10.') ||
           firstAddress.startsWith('192.168.'))
       ) {
-        console.log(`[JMAPClient] ✓ Resolved to Docker internal IP: ${firstAddress}`);
+        logger.debug(`[JMAPClient] ✓ Resolved to Docker internal IP: ${firstAddress}`);
       } else if (firstAddress) {
-        console.error(
+        logger.warn(
           `[JMAPClient] ✗ WARNING: Resolved to external/public IP: ${firstAddress}. This indicates DNS is using external resolver instead of Docker DNS!`
         );
-        console.error(
+        logger.warn(
           `[JMAPClient] ✗ Expected: Docker internal IP (172.x.x.x, 10.x.x.x, or 192.168.x.x)`
         );
-        console.error(
+        logger.warn(
           `[JMAPClient] ✗ Solution: Use container IP directly or configure extra_hosts in docker-compose.yml`
         );
       }
     } catch (dnsError) {
-      console.error(`[JMAPClient] DNS lookup FAILED for ${hostname}:`, dnsError);
+      logger.debug(`[JMAPClient] DNS lookup FAILED for ${hostname}:`, dnsError);
     }
-    console.log(`[JMAPClient] =================================`);
+    logger.debug(`[JMAPClient] =================================`);
 
     const directSessionUrl = `${this.baseUrl}/jmap/session`;
-    console.log(`[JMAPClient] Attempting to connect to: ${directSessionUrl}`);
+    logger.debug(`[JMAPClient] Attempting to connect to: ${directSessionUrl}`);
 
     const resolvedDirectUrl = await this.resolveUrlToIp(directSessionUrl);
 
@@ -471,18 +472,18 @@ export class JMAPClient {
       }
 
       const directErrorText = await directRes.text().catch(() => '');
-      console.warn(
+      logger.warn(
         `[JMAPClient] Direct session endpoint failed: ${directRes.status} ${directRes.statusText}, response: ${directErrorText.substring(0, 200)}`
       );
     } catch (error) {
-      console.error(
+      logger.error(
         `[JMAPClient] Connection error to ${resolvedDirectUrl} (original: ${directSessionUrl}):`,
         error
       );
       if (error instanceof TypeError && error.message.includes('fetch failed')) {
         const cause = (error as any).cause;
         if (cause) {
-          console.error(`[JMAPClient] Fetch error cause:`, {
+          logger.error(`[JMAPClient] Fetch error cause:`, {
             code: cause.code,
             errno: cause.errno,
             syscall: cause.syscall,
@@ -494,14 +495,11 @@ export class JMAPClient {
     }
 
     const discoveryUrl = `${this.baseUrl}/.well-known/jmap`;
-    console.log(`[JMAPClient] Attempting discovery at: ${discoveryUrl}`);
+    logger.debug(`[JMAPClient] Attempting discovery at: ${discoveryUrl}`);
 
     const resolvedDiscoveryUrl = await this.resolveUrlToIp(discoveryUrl);
 
     try {
-      const authHeaderPreview = this.authHeader.substring(0, 20) + '...';
-      console.log(`[JMAPClient] Discovery request with auth header: ${authHeaderPreview}`);
-
       const discoveryRes = await fetch(resolvedDiscoveryUrl, {
         headers: {
           Accept: 'application/json',
@@ -512,7 +510,7 @@ export class JMAPClient {
 
       if (!discoveryRes.ok) {
         const errorText = await discoveryRes.text().catch(() => '');
-        console.error(
+        logger.error(
           `[JMAPClient] Discovery failed: ${discoveryRes.status} ${discoveryRes.statusText}, response: ${errorText.substring(0, 200)}`
         );
         throw new Error(`JMAP discovery failed: ${discoveryRes.status} ${discoveryRes.statusText}`);
@@ -538,10 +536,10 @@ export class JMAPClient {
         const baseProtocol = baseUrlObj.protocol;
 
         if (discoveryUrlObj.protocol !== baseProtocol) {
-          console.warn(
+          logger.warn(
             `[JMAPClient] ⚠ Discovery returned URL with ${discoveryUrlObj.protocol} but baseUrl uses ${baseProtocol}`
           );
-          console.warn(
+          logger.warn(
             `[JMAPClient] ⚠ Replacing protocol to match baseUrl for Docker container communication`
           );
           discoveryUrlObj.protocol = baseProtocol;
@@ -553,25 +551,25 @@ export class JMAPClient {
             discoveryHostname === 'localhost' ||
             discoveryHostname === '127.0.0.1')
         ) {
-          console.warn(
+          logger.warn(
             `[JMAPClient] ⚠ Discovery returned URL with different hostname: ${discoveryHostname} (expected: ${baseHostname})`
           );
-          console.warn(
+          logger.warn(
             `[JMAPClient] ⚠ Stalwart server.hostname (${discoveryHostname}) differs from STALWART_BASE_URL hostname (${baseHostname})`
           );
-          console.warn(
+          logger.warn(
             `[JMAPClient] ⚠ Replacing discovery hostname with baseUrl hostname for Docker container communication`
           );
           discoveryUrlObj.hostname = baseHostname;
           discoveryUrlObj.port = baseUrlObj.port || discoveryUrlObj.port;
           sessionUrl = discoveryUrlObj.toString();
-          console.log(`[JMAPClient] ✓ Normalized sessionUrl: ${sessionUrl}`);
+          logger.debug(`[JMAPClient] ✓ Normalized sessionUrl: ${sessionUrl}`);
         } else if (discoveryUrlObj.protocol !== baseProtocol) {
           sessionUrl = discoveryUrlObj.toString();
-          console.log(`[JMAPClient] ✓ Normalized sessionUrl protocol: ${sessionUrl}`);
+          logger.debug(`[JMAPClient] ✓ Normalized sessionUrl protocol: ${sessionUrl}`);
         }
       } catch (urlError) {
-        console.warn(
+        logger.warn(
           `[JMAPClient] Could not parse discovery URL ${sessionUrl}, using as-is:`,
           urlError
         );
@@ -581,7 +579,7 @@ export class JMAPClient {
         sessionUrl = sessionUrl.slice(0, -1);
       }
 
-      console.log(`[JMAPClient] Attempting session request to: ${sessionUrl}`);
+      logger.debug(`[JMAPClient] Attempting session request to: ${sessionUrl}`);
       const resolvedSessionUrl = await this.resolveUrlToIp(sessionUrl);
       const sessionRes = await fetch(resolvedSessionUrl, {
         method: 'POST',
@@ -629,12 +627,12 @@ export class JMAPClient {
 
       return session;
     } catch (error) {
-      console.error(`[JMAPClient] Error in getSession for baseUrl ${this.baseUrl}:`, error);
+      logger.error(`[JMAPClient] Error in getSession for baseUrl ${this.baseUrl}:`, error);
 
       if (error instanceof TypeError && error.message.includes('fetch failed')) {
         const cause = (error as any).cause;
         if (cause) {
-          console.error(`[JMAPClient] Fetch error details:`, {
+          logger.error(`[JMAPClient] Fetch error details:`, {
             code: cause.code,
             errno: cause.errno,
             syscall: cause.syscall,
@@ -709,11 +707,6 @@ export class JMAPClient {
 
     const requestBody = JSON.stringify(request);
 
-    if (methodCalls[0]?.[0] === 'Identity/get') {
-      console.log('[JMAPClient] Identity/get request body:', requestBody);
-      console.log('[JMAPClient] Request structure:', JSON.stringify(request, null, 2));
-    }
-
     const resolvedApiUrl = await this.resolveUrlToIp(apiUrl);
     const response = await fetch(resolvedApiUrl, {
       method: 'POST',
@@ -726,7 +719,7 @@ export class JMAPClient {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.error('[JMAPClient] Request failed:', {
+      logger.error('[JMAPClient] Request failed:', {
         status: response.status,
         statusText: response.statusText,
         url: resolvedApiUrl,
@@ -737,10 +730,6 @@ export class JMAPClient {
     }
 
     const jsonResponse = await response.json();
-
-    if (methodCalls[0]?.[0] === 'Identity/get') {
-      console.log('[JMAPClient] Identity/get response:', JSON.stringify(jsonResponse, null, 2));
-    }
 
     return jsonResponse;
   }
@@ -866,34 +855,24 @@ export class JMAPClient {
       accountId: targetAccountId,
     };
 
-    console.log('[JMAPClient] Identity/get request:', {
-      accountId: targetAccountId,
-      accountIdType: typeof targetAccountId,
-      accountIdLength: targetAccountId.length,
-      requestBody: JSON.stringify(requestBody, null, 2),
-    });
-
     const response = await this.requestWithUsing(
       [['Identity/get', requestBody, '0']],
       ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']
     );
 
     if (!response || !response.methodResponses) {
-      console.error('[JMAPClient] Invalid response structure:', JSON.stringify(response, null, 2));
+      logger.error('[JMAPClient] Invalid response structure');
       throw new Error('Invalid identity response: missing methodResponses');
     }
 
     if (!Array.isArray(response.methodResponses) || response.methodResponses.length === 0) {
-      console.error('[JMAPClient] Empty methodResponses:', JSON.stringify(response, null, 2));
+      logger.error('[JMAPClient] Empty methodResponses');
       throw new Error('Invalid identity response: empty methodResponses');
     }
 
     const identityResponse = response.methodResponses[0];
     if (!identityResponse || !Array.isArray(identityResponse)) {
-      console.error(
-        '[JMAPClient] Invalid identityResponse structure:',
-        JSON.stringify(identityResponse, null, 2)
-      );
+      logger.error('[JMAPClient] Invalid identityResponse structure');
       throw new Error(
         `Invalid identity response: unexpected response structure. Got: ${JSON.stringify(identityResponse)}`
       );
@@ -903,21 +882,19 @@ export class JMAPClient {
       const errorData = identityResponse[1] as { type?: string; description?: string };
       const errorType = errorData?.type || 'unknown';
       const errorDesc = errorData?.description || 'Unknown error';
-      console.error('[JMAPClient] Identity/get server error:', {
+      logger.error('[JMAPClient] Identity/get server error:', {
         type: errorType,
         description: errorDesc,
-        fullResponse: JSON.stringify(identityResponse, null, 2),
       });
       throw new Error(`JMAP identity error (${errorType}): ${errorDesc}`);
     }
 
     if (identityResponse[0] !== 'Identity/get') {
-      console.error(
+      logger.error(
         '[JMAPClient] Unexpected method name:',
         identityResponse[0],
         'Expected: Identity/get'
       );
-      console.error('[JMAPClient] Full response:', JSON.stringify(response, null, 2));
       throw new Error(
         `Invalid identity response: expected 'Identity/get', got '${identityResponse[0]}'`
       );
@@ -925,10 +902,7 @@ export class JMAPClient {
 
     const data = identityResponse[1] as { list: JMAPIdentity[] };
     if (!data || typeof data !== 'object') {
-      console.error(
-        '[JMAPClient] Invalid data structure:',
-        JSON.stringify(identityResponse[1], null, 2)
-      );
+      logger.error('[JMAPClient] Invalid data structure');
       throw new Error('Invalid identity response: missing or invalid data');
     }
 
@@ -1037,7 +1011,7 @@ export class JMAPClient {
     const targetAccountId = options.accountId || this.accountId;
     const finalFilter = options.filter || { inMailbox: mailboxId };
 
-    console.error('[JMAPClient] queryEmails called:', {
+    logger.debug('[JMAPClient] queryEmails called:', {
       mailboxId,
       accountId: targetAccountId,
       filter: JSON.stringify(finalFilter, null, 2),
@@ -1070,7 +1044,7 @@ export class JMAPClient {
       total?: number;
       queryState?: string;
     };
-    console.error('[JMAPClient] Email/query result:', {
+    logger.debug('[JMAPClient] Email/query result:', {
       idsCount: result.ids?.length || 0,
       total: result.total,
       position: result.position,
@@ -1156,29 +1130,22 @@ export class JMAPClient {
       const response = await this.request([['Email/get', requestBody, '0']]);
 
       if (!response || !response.methodResponses || response.methodResponses.length === 0) {
-        console.error(
-          '[JMAPClient] Invalid response structure:',
-          JSON.stringify(response, null, 2)
-        );
+        logger.error('[JMAPClient] Invalid response structure');
         throw new Error('Invalid email get response: missing methodResponses');
       }
 
       const getResponse = response.methodResponses[0];
       if (!Array.isArray(getResponse) || getResponse.length < 2) {
-        console.error(
-          '[JMAPClient] Invalid getResponse structure:',
-          JSON.stringify(getResponse, null, 2)
-        );
+        logger.error('[JMAPClient] Invalid getResponse structure');
         throw new Error('Invalid email get response: unexpected response structure');
       }
 
       if (getResponse[0] !== 'Email/get') {
-        console.error(
+        logger.error(
           '[JMAPClient] Unexpected method name:',
           getResponse[0],
           'Expected: Email/get'
         );
-        console.error('[JMAPClient] Full response:', JSON.stringify(response, null, 2));
         throw new Error(
           `Invalid email get response: expected 'Email/get', got '${getResponse[0]}'`
         );
@@ -1186,10 +1153,7 @@ export class JMAPClient {
 
       const data = getResponse[1] as { list: JMAPEmail[] };
       if (!data || typeof data !== 'object') {
-        console.error(
-          '[JMAPClient] Invalid data structure:',
-          JSON.stringify(getResponse[1], null, 2)
-        );
+        logger.error('[JMAPClient] Invalid data structure');
         throw new Error('Invalid email get response: missing or invalid data');
       }
 
@@ -1301,7 +1265,7 @@ export class JMAPClient {
       .replace(/%7BaccountId%7D/gi, targetAccountId)
       .replace('{accountId}', targetAccountId);
 
-    console.log('[JMAPClient] uploadBlob:', {
+    logger.debug('[JMAPClient] uploadBlob:', {
       rawUploadUrl,
       resolvedUploadUrl,
       accountId: targetAccountId,
@@ -1328,7 +1292,7 @@ export class JMAPClient {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.error('[JMAPClient] uploadBlob failed:', {
+      logger.error('[JMAPClient] uploadBlob failed:', {
         status: response.status,
         statusText: response.statusText,
         url: resolvedUrl,

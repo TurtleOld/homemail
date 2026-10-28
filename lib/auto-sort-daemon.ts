@@ -10,6 +10,7 @@ import type { AutoSortRule, FilterGroup } from '@/lib/types';
 import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort-rules';
 import type { MailProvider } from '@/providers/mail-provider';
 import type { Folder } from '@/lib/types';
+import { logger } from '@/lib/logger';
 
 type Unsubscribe = () => void;
 
@@ -224,7 +225,7 @@ async function scanMatchingMessages(
 
   for (const folder of foldersToSearch) {
     try {
-      console.log(`[auto-sort-daemon] Job ${jobId}: Scanning folder ${folder.name}`);
+      logger.debug(`[auto-sort-daemon] Job ${jobId}: Scanning folder ${folder.name}`);
 
       let cursor: string | undefined;
       let hasMore = true;
@@ -253,7 +254,7 @@ async function scanMatchingMessages(
             }
             totalProcessed++;
           } catch (error) {
-            console.error(`[auto-sort-daemon] Job ${jobId}: Error checking message ${message.id}:`, error);
+            logger.error(`[auto-sort-daemon] Job ${jobId}: Error checking message ${message.id}:`, error);
             if (isRateLimitError(error)) {
               await new Promise((resolve) => setTimeout(resolve, 2000));
             }
@@ -272,7 +273,7 @@ async function scanMatchingMessages(
       // Delay between folders
       await new Promise((resolve) => setTimeout(resolve, 300));
     } catch (error) {
-      console.error(`[auto-sort-daemon] Job ${jobId}: Error processing folder ${folder.id}:`, error);
+      logger.error(`[auto-sort-daemon] Job ${jobId}: Error processing folder ${folder.id}:`, error);
       if (isRateLimitError(error)) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
       }
@@ -283,7 +284,7 @@ async function scanMatchingMessages(
 }
 
 async function processApplyJob(jobId: string, accountId: string, ruleId: string): Promise<void> {
-  console.log(`[auto-sort-daemon] Processing filter job ${jobId} for rule ${ruleId}`);
+  logger.debug(`[auto-sort-daemon] Processing filter job ${jobId} for rule ${ruleId}`);
 
   try {
     const provider = getMailProviderForAccount(accountId);
@@ -304,7 +305,7 @@ async function processApplyJob(jobId: string, accountId: string, ruleId: string)
     const nonMoveActions = rule.actions.filter((a) => a.type !== 'moveToFolder');
     const foldersToSearch = foldersToScan(folders, destinationFolderId, hasOnlyMoveAction);
 
-    console.log(`[auto-sort-daemon] Job ${jobId}: Processing ${foldersToSearch.length} folders`);
+    logger.debug(`[auto-sort-daemon] Job ${jobId}: Processing ${foldersToSearch.length} folders`);
 
     const { matchesByFolder, totalProcessed } = await scanMatchingMessages(
       jobId,
@@ -318,7 +319,7 @@ async function processApplyJob(jobId: string, accountId: string, ruleId: string)
     const BATCH_MOVE_SIZE = 50;
 
     for (const [folderName, matchedIds] of matchesByFolder) {
-      console.log(`[auto-sort-daemon] Job ${jobId}: ${matchedIds.length} messages matched in folder ${folderName}`);
+      logger.debug(`[auto-sort-daemon] Job ${jobId}: ${matchedIds.length} messages matched in folder ${folderName}`);
 
       if (destinationFolderId) {
         for (let i = 0; i < matchedIds.length; i += BATCH_MOVE_SIZE) {
@@ -331,7 +332,7 @@ async function processApplyJob(jobId: string, accountId: string, ruleId: string)
             });
             totalApplied += batch.length;
           } catch (error) {
-            console.error(`[auto-sort-daemon] Job ${jobId}: Batch move failed, falling back to individual:`, error);
+            logger.warn(`[auto-sort-daemon] Job ${jobId}: Batch move failed, falling back to individual:`, error);
             if (isRateLimitError(error)) {
               await new Promise((resolve) => setTimeout(resolve, 3000));
             }
@@ -344,7 +345,7 @@ async function processApplyJob(jobId: string, accountId: string, ruleId: string)
                 });
                 totalApplied++;
               } catch (innerError) {
-                console.error(`[auto-sort-daemon] Job ${jobId}: Individual move failed for ${id}:`, innerError);
+                logger.error(`[auto-sort-daemon] Job ${jobId}: Individual move failed for ${id}:`, innerError);
               }
               await new Promise((resolve) => setTimeout(resolve, 100));
             }
@@ -376,7 +377,7 @@ async function processApplyJob(jobId: string, accountId: string, ruleId: string)
               totalApplied++;
             }
           } catch (error) {
-            console.error(`[auto-sort-daemon] Job ${jobId}: Error applying non-move action for ${id}:`, error);
+            logger.error(`[auto-sort-daemon] Job ${jobId}: Error applying non-move action for ${id}:`, error);
           }
           await new Promise((resolve) => setTimeout(resolve, 50));
         }
@@ -384,16 +385,16 @@ async function processApplyJob(jobId: string, accountId: string, ruleId: string)
     }
 
     await markJobCompleted(jobId, { processed: totalProcessed, total: totalProcessed });
-    console.log(`[auto-sort-daemon] Job ${jobId} completed: ${totalApplied} actions applied out of ${totalProcessed} messages`);
+    logger.debug(`[auto-sort-daemon] Job ${jobId} completed: ${totalApplied} actions applied out of ${totalProcessed} messages`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`[auto-sort-daemon] Job ${jobId} failed:`, errorMessage);
+    logger.error(`[auto-sort-daemon] Job ${jobId} failed:`, errorMessage);
     await markJobFailed(jobId, errorMessage);
   }
 }
 
 async function processPreviewJob(jobId: string, accountId: string, conditions: FilterGroup): Promise<void> {
-  console.log(`[auto-sort-daemon] Processing preview job ${jobId}`);
+  logger.debug(`[auto-sort-daemon] Processing preview job ${jobId}`);
 
   try {
     const provider = getMailProviderForAccount(accountId);
@@ -403,7 +404,7 @@ async function processPreviewJob(jobId: string, accountId: string, conditions: F
     // action configured), so only the trash/sent/drafts exclusion applies.
     const foldersToSearch = foldersToScan(folders, null, false);
 
-    console.log(`[auto-sort-daemon] Job ${jobId}: Previewing across ${foldersToSearch.length} folders`);
+    logger.debug(`[auto-sort-daemon] Job ${jobId}: Previewing across ${foldersToSearch.length} folders`);
 
     const { matchesByFolder, totalProcessed } = await scanMatchingMessages(
       jobId,
@@ -419,10 +420,10 @@ async function processPreviewJob(jobId: string, accountId: string, conditions: F
     }
 
     await markJobCompleted(jobId, { processed: totalProcessed, total: totalProcessed }, matchedCount);
-    console.log(`[auto-sort-daemon] Preview job ${jobId} completed: ${matchedCount} messages matched out of ${totalProcessed}`);
+    logger.debug(`[auto-sort-daemon] Preview job ${jobId} completed: ${matchedCount} messages matched out of ${totalProcessed}`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`[auto-sort-daemon] Preview job ${jobId} failed:`, errorMessage);
+    logger.error(`[auto-sort-daemon] Preview job ${jobId} failed:`, errorMessage);
     await markJobFailed(jobId, errorMessage);
   }
 }
@@ -452,7 +453,7 @@ async function processJobQueue(): Promise<void> {
       return;
     }
 
-    console.log(`[auto-sort-daemon] Found ${pendingJobs.length} pending job(s)`);
+    logger.debug(`[auto-sort-daemon] Found ${pendingJobs.length} pending job(s)`);
 
     // Process one job at a time to avoid overwhelming the system
     const job = pendingJobs[0];
@@ -460,7 +461,7 @@ async function processJobQueue(): Promise<void> {
     await markJobProcessing(job.id);
     await processFilterJob(job);
   } catch (error) {
-    console.error('[auto-sort-daemon] Error processing job queue:', error);
+    logger.error('[auto-sort-daemon] Error processing job queue:', error);
   }
 }
 
@@ -490,7 +491,7 @@ async function processQueue(accountId: string): Promise<void> {
         // Rate limiting: wait between processing messages
         await new Promise((r) => setTimeout(r, 500));
       } catch (e) {
-        console.error('[auto-sort-daemon] Queue task failed:', e);
+        logger.error('[auto-sort-daemon] Queue task failed:', e);
         // If rate limited, wait longer
         if (isRateLimitError(e)) {
           await new Promise((r) => setTimeout(r, 5000));
@@ -543,7 +544,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
     folderNameById = new Map(folders.map((f) => [f.id, f.name]));
   } catch (e) {
     // Not fatal; we'll process events without role filtering.
-    console.error('[auto-sort-daemon] Failed to load folders for account:', accountId, e);
+    logger.error('[auto-sort-daemon] Failed to load folders for account:', accountId, e);
   }
 
   let accountEmail = accountId;
@@ -551,9 +552,9 @@ async function startWatchingAccount(accountId: string): Promise<void> {
     const account = await provider.getAccount(accountId);
     if (account?.email) accountEmail = account.email;
   } catch (e) {
-    console.error('[auto-sort-daemon] Failed to load account email for:', accountId, e);
+    logger.error('[auto-sort-daemon] Failed to load account email for:', accountId, e);
   }
-  console.log('[auto-sort-daemon] Push target accountId:', accountId, 'email:', accountEmail);
+  logger.debug('[auto-sort-daemon] Push target accountId:', accountId, 'email:', accountEmail);
 
   const unsubscribe = provider.subscribeToUpdates(accountId, async (event) => {
     if (event.type !== 'message.new') {
@@ -599,7 +600,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
         const reserved = await reservePushOnce(pushKey);
         if (reserved) {
           try {
-            console.log('[auto-sort-daemon] Sending push to:', accountEmail, 'subject:', message.subject);
+            logger.debug('[auto-sort-daemon] Sending push to:', accountEmail, 'subject:', message.subject);
             await sendPushNotification({
               accountId,
               messageId: message.id,
@@ -607,15 +608,15 @@ async function startWatchingAccount(accountId: string): Promise<void> {
               fromName: message.from.name || message.from.email,
             });
             await markPushSent(pushKey);
-            console.log('[auto-sort-daemon] Push sent OK:', message.id);
+            logger.debug('[auto-sort-daemon] Push sent OK:', message.id);
           } catch (pushError) {
-            console.error('[auto-sort-daemon] Push send FAILED:', pushError);
+            logger.error('[auto-sort-daemon] Push send FAILED:', pushError);
             await releasePushLock(pushKey);
             throw pushError;
           }
         }
       } catch (e) {
-        console.error('[auto-sort-daemon] Failed to process new message:', {
+        logger.error('[auto-sort-daemon] Failed to process new message:', {
           accountId,
           messageId,
           folderId,
@@ -631,7 +632,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
   });
 
   globalThis.__autoSortDaemonUnsubscribes.set(accountId, unsubscribe);
-  console.log('[auto-sort-daemon] Watching account for new messages:', accountId);
+  logger.debug('[auto-sort-daemon] Watching account for new messages:', accountId);
 }
 
 async function startAutoSortDaemon(): Promise<void> {
@@ -640,7 +641,7 @@ async function startAutoSortDaemon(): Promise<void> {
   }
   globalThis.__autoSortDaemonStarted = true;
 
-  console.log('[auto-sort-daemon] Starting auto-sort daemon...');
+  logger.debug('[auto-sort-daemon] Starting auto-sort daemon...');
 
   const refreshAccounts = async () => {
     try {
@@ -657,7 +658,7 @@ async function startAutoSortDaemon(): Promise<void> {
           accountIds.add(accountId);
         }
       } catch (e) {
-        console.error('[auto-sort-daemon] Failed to load OAuth tokens:', e);
+        logger.error('[auto-sort-daemon] Failed to load OAuth tokens:', e);
       }
 
       // Basic auth keeps accounts in credentials.enc instead of OAuth tokens,
@@ -669,12 +670,12 @@ async function startAutoSortDaemon(): Promise<void> {
             accountIds.add(accountId);
           }
         } catch (e) {
-          console.error('[auto-sort-daemon] Failed to load stored credentials:', e);
+          logger.error('[auto-sort-daemon] Failed to load stored credentials:', e);
         }
       }
 
       if (accountIds.size === 0) {
-        console.log('[auto-sort-daemon] No accounts found to watch');
+        logger.debug('[auto-sort-daemon] No accounts found to watch');
         return;
       }
 
@@ -682,11 +683,11 @@ async function startAutoSortDaemon(): Promise<void> {
         try {
           await startWatchingAccount(accountId);
         } catch (e) {
-          console.error('[auto-sort-daemon] Failed to start watcher for account:', accountId, e);
+          logger.error('[auto-sort-daemon] Failed to start watcher for account:', accountId, e);
         }
       }
     } catch (e) {
-      console.error('[auto-sort-daemon] Failed to refresh accounts:', e);
+      logger.error('[auto-sort-daemon] Failed to refresh accounts:', e);
     }
   };
 
@@ -699,7 +700,7 @@ async function startAutoSortDaemon(): Promise<void> {
     try {
       await processJobQueue();
     } catch (error) {
-      console.error('[auto-sort-daemon] Error in job processing:', error);
+      logger.error('[auto-sort-daemon] Error in job processing:', error);
     }
   };
 
@@ -715,7 +716,7 @@ async function startAutoSortDaemon(): Promise<void> {
       const { processAutoSortRules } = await import('@/scripts/process-auto-sort-rules');
       await processAutoSortRules();
     } catch (error) {
-      console.error('[auto-sort-daemon] Error in periodic full-scan:', error);
+      logger.error('[auto-sort-daemon] Error in periodic full-scan:', error);
     }
   };
 
