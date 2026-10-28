@@ -36,7 +36,7 @@ const LabelSchema = z.object({
   color: z.string().max(64).optional(),
 }).passthrough();
 
-const SettingsSchema = z.record(z.unknown()).nullable();
+const SettingsSchema = z.record(z.string(), z.unknown()).nullable();
 
 const EmailTemplateSchema = z.object({
   id: z.string().max(256),
@@ -45,7 +45,7 @@ const EmailTemplateSchema = z.object({
   body: z.string().max(102400).optional(),
 }).passthrough();
 
-const MessageLabelsSchema = z.record(z.array(z.string().max(256)));
+const MessageLabelsSchema = z.record(z.string(), z.array(z.string().max(256)));
 
 const ContactGroupSchema = z.object({
   id: z.string().max(256),
