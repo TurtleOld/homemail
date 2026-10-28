@@ -22,6 +22,8 @@ export interface ScheduledMessage {
   }>;
   sendAt: string;
   draftId?: string;
+  inReplyTo?: string;
+  references?: string[];
   createdAt: string;
 }
 

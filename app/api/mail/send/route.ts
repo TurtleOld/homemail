@@ -30,6 +30,8 @@ const sendSchema = z.object({
     )
     .optional(),
   requestReadReceipt: z.boolean().optional(),
+  inReplyTo: z.string().max(1000).optional(),
+  references: z.array(z.string().max(1000)).max(100).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -110,6 +112,8 @@ export async function POST(request: NextRequest) {
         attachments: validatedData.attachments,
         sendAt: sendAt.toISOString(),
         draftId: validatedData.draftId,
+        inReplyTo: validatedData.inReplyTo,
+        references: validatedData.references,
         createdAt: new Date().toISOString(),
       };
 
@@ -134,6 +138,8 @@ export async function POST(request: NextRequest) {
       bcc: validatedData.bcc,
       subject: validatedData.subject,
       html: validatedData.html,
+      inReplyTo: validatedData.inReplyTo,
+      references: validatedData.references,
       attachments: validatedData.attachments?.map((att) => ({
         filename: att.filename,
         mime: att.mime,

@@ -88,6 +88,8 @@ interface ComposeProps {
     from: { email: string; name?: string };
     body: string;
     recipients?: string[];
+    inReplyTo?: string;
+    references?: string[];
   };
   forwardFrom?: { subject: string; body: string };
   signatures?: Signature[];
@@ -446,6 +448,8 @@ export function Compose({
         draftId: draftId,
         attachments: attachmentsData,
         requestReadReceipt,
+        ...(replyTo?.inReplyTo ? { inReplyTo: replyTo.inReplyTo } : {}),
+        ...(replyTo?.references?.length ? { references: replyTo.references } : {}),
       };
 
       if (scheduledSend && scheduledDate && scheduledTime) {

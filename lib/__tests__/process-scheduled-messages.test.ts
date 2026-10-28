@@ -77,6 +77,28 @@ describe('processScheduledMessages', () => {
     expect(mocks.writeStorage).toHaveBeenCalledWith('allScheduledMessages', {});
   });
 
+  it('passes threading headers saved with a scheduled reply', async () => {
+    mocks.readStorage.mockResolvedValue({
+      'acc-1': [
+        {
+          ...scheduledMessage('reply', '<p>Reply body</p>'),
+          inReplyTo: 'original@example.test',
+          references: ['root@example.test', 'original@example.test'],
+        },
+      ],
+    });
+
+    await processScheduledMessages();
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      'acc-1',
+      expect.objectContaining({
+        inReplyTo: 'original@example.test',
+        references: ['root@example.test', 'original@example.test'],
+      }),
+    );
+  });
+
   it('keeps a message queued when its body cannot be decrypted', async () => {
     process.env.SESSION_SECRET = 'a-different-session-secret-at-least-32-chars';
     const foreignBody = encryptData('<p>Encrypted with the old secret</p>');
