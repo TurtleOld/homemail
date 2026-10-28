@@ -68,6 +68,25 @@ describe('mail send route', () => {
     expect(mocks.deleteDraft).toHaveBeenCalledWith('current-account', 'draft-message-id');
   });
 
+  it('passes the original Message-ID and references when sending a reply', async () => {
+    const response = await POST(sendRequest({
+      to: ['recipient@example.test'],
+      subject: 'Re: Hello',
+      html: '<p>Reply body</p>',
+      inReplyTo: 'original@example.test',
+      references: ['root@example.test', 'original@example.test'],
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      'current-account',
+      expect.objectContaining({
+        inReplyTo: 'original@example.test',
+        references: ['root@example.test', 'original@example.test'],
+      })
+    );
+  });
+
   it('returns validation issues as details for an invalid body', async () => {
     const response = await POST(sendRequest({ subject: 'Hello', html: '<p>Hi</p>' }));
 

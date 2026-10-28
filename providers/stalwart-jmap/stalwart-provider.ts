@@ -699,6 +699,9 @@ export class StalwartJMAPProvider implements MailProvider {
           'bcc',
           'subject',
           'receivedAt',
+          'messageId',
+          'inReplyTo',
+          'references',
           'bodyStructure',
           'bodyValues',
           'textBody',
@@ -899,6 +902,9 @@ export class StalwartJMAPProvider implements MailProvider {
           important: email.keywords?.['$important'] === true,
           hasAttachments: attachments.length > 0,
         },
+        messageId: email.messageId?.[0],
+        inReplyTo: email.inReplyTo?.[0],
+        references: email.references,
         authResults,
       };
     } catch (error) {
@@ -1348,6 +1354,8 @@ export class StalwartJMAPProvider implements MailProvider {
       subject: string;
       html: string;
       attachments?: Array<{ filename: string; mime: string; data: Buffer }>;
+      inReplyTo?: string;
+      references?: string[];
     }
   ): Promise<string> {
     const client = await this.getClient(accountId);
@@ -1452,6 +1460,12 @@ export class StalwartJMAPProvider implements MailProvider {
     }
     if (bcc && bcc.length > 0) {
       emailBody.bcc = bcc;
+    }
+    if (message.inReplyTo) {
+      emailBody.inReplyTo = [message.inReplyTo];
+    }
+    if (message.references && message.references.length > 0) {
+      emailBody.references = message.references;
     }
 
     if (emailAttachments.length > 0) {

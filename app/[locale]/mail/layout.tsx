@@ -151,6 +151,8 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     from: { email: string; name?: string };
     body: string;
     recipients?: string[];
+    inReplyTo?: string;
+    references?: string[];
   } | null>(null);
   const [forwardFrom, setForwardFrom] = useState<{ subject: string; body: string } | null>(null);
   const [composerMode, setComposerMode] = useState<'floating' | 'inline'>('floating');
@@ -844,6 +846,13 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     }
   }, [selectedFolderId, isSelectingAllInFolder, debouncedSearch, quickFilter, filterGroup, t]);
 
+  const replyThreading = (message: MessageDetail) => ({
+    inReplyTo: message.messageId,
+    references: message.messageId
+      ? [...(message.references ?? []), message.messageId]
+      : message.references,
+  });
+
   const handleReply = () => {
     if (!selectedMessage) return;
     const replyRecipient = selectedMessage.replyTo?.[0] || selectedMessage.from;
@@ -851,6 +860,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       subject: selectedMessage.subject,
       from: replyRecipient,
       body: selectedMessage.body.html || selectedMessage.body.text || '',
+      ...replyThreading(selectedMessage),
     });
     setForwardFrom(null);
     setLoadedDraft(null);
@@ -880,6 +890,7 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
       from: replyRecipients[0] || selectedMessage.from,
       body: selectedMessage.body.html || selectedMessage.body.text || '',
       recipients,
+      ...replyThreading(selectedMessage),
     });
     setForwardFrom(null);
     setLoadedDraft(null);
