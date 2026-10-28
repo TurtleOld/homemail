@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(rule);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid rule data', details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid rule data', details: error.issues }, { status: 400 });
     }
     console.error('[filter-rules] Error saving rule:', error);
     return NextResponse.json(
