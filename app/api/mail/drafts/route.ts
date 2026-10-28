@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, id: draftId });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.error('[drafts] Validation error:', error.errors);
-      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
+      logger.error('[drafts] Validation error:', error.issues);
+      return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
     }
     logger.error('[drafts] Error saving draft:', error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
