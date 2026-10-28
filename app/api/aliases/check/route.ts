@@ -17,17 +17,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'aliases must be an array' }, { status: 400 });
     }
 
-    if (process.env.MAIL_PROVIDER !== 'stalwart') {
-      return NextResponse.json({ 
-        error: 'Alias checking is only available for Stalwart provider',
-        results: aliases.map((alias: { email: string }) => ({
-          email: alias.email,
-          exists: false,
-          error: 'Not Stalwart provider',
-        })),
-      });
-    }
-
     try {
       const provider = getMailProviderForAccount(session.accountId);
       const client = await (provider as any).getClient(session.accountId);

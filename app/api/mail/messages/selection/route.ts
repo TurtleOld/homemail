@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { FilterQueryParser } from '@/lib/filter-parser';
 import type { FilterGroup, MessageFilter } from '@/lib/types';
 
@@ -45,9 +45,7 @@ export async function GET(request: NextRequest) {
     }
 
     const provider =
-      process.env.MAIL_PROVIDER === 'stalwart'
-        ? getMailProviderForAccount(session.accountId)
-        : getMailProvider();
+      getMailProviderForAccount(session.accountId);
 
     const ids: string[] = [];
     let cursor: string | undefined;

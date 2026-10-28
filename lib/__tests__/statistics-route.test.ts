@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/session', () => ({ getSession: mocks.getSession }));
 vi.mock('@/lib/get-provider', () => ({
   getMailProviderForAccount: mocks.getProvider,
-  getMailProvider: mocks.getProvider,
 }));
 vi.mock('@/lib/storage', () => ({ readStorage: mocks.readStorage }));
 
@@ -18,7 +17,6 @@ import { GET } from '@/app/api/mail/statistics/route';
 describe('mail statistics read-only failure boundary', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    process.env.MAIL_PROVIDER = 'stalwart';
     mocks.readStorage.mockResolvedValue({});
   });
 

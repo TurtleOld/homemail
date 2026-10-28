@@ -116,7 +116,6 @@ sudo certbot --nginx -d your-domain.com
 Минимальная конфигурация для `.env.production`:
 
 ```env
-MAIL_PROVIDER=stalwart
 STALWART_BASE_URL=https://example.com
 STALWART_SMTP_HOST=example.com
 STALWART_SMTP_PORT=587

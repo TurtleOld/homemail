@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { FilterQueryParser } from '@/lib/filter-parser';
 import { readStorage } from '@/lib/storage';
 import type { FilterGroup, MessageFilter } from '@/lib/types';
@@ -54,9 +54,7 @@ export async function GET(request: NextRequest) {
       // params.q is passed directly to the provider for simple text search
 
 
-      const provider = process.env.MAIL_PROVIDER === 'stalwart'
-        ? getMailProviderForAccount(session.accountId)
-        : getMailProvider();
+      const provider = getMailProviderForAccount(session.accountId);
 
       const result = await provider.getMessages(session.accountId, params.folderId, {
         cursor: params.cursor,

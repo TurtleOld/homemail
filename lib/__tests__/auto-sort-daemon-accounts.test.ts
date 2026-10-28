@@ -28,7 +28,6 @@ vi.mock('@/lib/storage', () => ({
   loadCredentials: mocks.loadCredentials,
 }));
 vi.mock('@/lib/get-provider', () => ({
-  getMailProvider: mocks.getProvider,
   getMailProviderForAccount: mocks.getProviderForAccount,
 }));
 vi.mock('@/lib/process-new-message', () => ({ processNewMessage: mocks.processNewMessage }));
@@ -51,7 +50,6 @@ describe('auto-sort daemon account discovery', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.useFakeTimers();
-    process.env.MAIL_PROVIDER = 'stalwart';
     process.env.STALWART_AUTH_MODE = 'basic';
     globalThis.__autoSortDaemonStarted = false;
     globalThis.__autoSortDaemonUnsubscribes = new Map();
