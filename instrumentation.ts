@@ -19,5 +19,13 @@ export async function register() {
     startAutoSortDaemon().catch((e) => {
       console.error('[instrumentation] Failed to start auto-sort daemon:', e);
     });
+
+    // Scheduled sends previously needed a separate process that nobody ran.
+    try {
+      const { startScheduledSendDaemon } = await import('@/scripts/process-scheduled-messages');
+      startScheduledSendDaemon();
+    } catch (e) {
+      console.error('[instrumentation] Failed to start scheduled-send daemon:', e);
+    }
   }
 }

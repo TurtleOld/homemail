@@ -3,7 +3,8 @@ import { processNewMessage } from '@/lib/process-new-message';
 import { sendPushNotification } from '@/lib/ntfy';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
 import { getPendingJobs, markJobProcessing, markJobCompleted, markJobFailed, cleanupOldJobs, type FilterJob } from '@/lib/filter-job-queue';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, loadCredentials } from '@/lib/storage';
+import { getAuthMode } from '@/lib/auth-config';
 import { loadRules } from '@/lib/filter-rules-store';
 import type { AutoSortRule, FilterGroup } from '@/lib/types';
 import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort-rules';
@@ -663,6 +664,19 @@ async function startAutoSortDaemon(): Promise<void> {
         }
       } catch (e) {
         console.error('[auto-sort-daemon] Failed to load OAuth tokens:', e);
+      }
+
+      // Basic auth keeps accounts in credentials.enc instead of OAuth tokens,
+      // so include them to keep rules running with no browser tabs open.
+      if (getAuthMode() === 'basic') {
+        try {
+          const credentials = await loadCredentials();
+          for (const accountId of credentials.keys()) {
+            accountIds.add(accountId);
+          }
+        } catch (e) {
+          console.error('[auto-sort-daemon] Failed to load stored credentials:', e);
+        }
       }
 
       if (accountIds.size === 0) {
