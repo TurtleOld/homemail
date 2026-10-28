@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
     const baseUrls = getStalwartBaseUrlCandidates();
     let jmapSession;
     let lastError: unknown = null;
+    let credentialsRejected = false;
 
     for (const baseUrl of baseUrls) {
       try {
@@ -67,16 +68,24 @@ export async function POST(request: NextRequest) {
         break;
       } catch (candidateError) {
         lastError = candidateError;
+        // All candidates point at the same Stalwart, so one rejection is final.
+        if (
+          candidateError instanceof Error &&
+          /JMAP (session|discovery) failed: 40[13]\b/.test(candidateError.message)
+        ) {
+          credentialsRejected = true;
+        }
         logger.warn('[Basic Login] Failed to connect using Stalwart base URL candidate', {
           baseUrl,
           error: candidateError instanceof Error ? candidateError.message : String(candidateError),
         });
+        if (credentialsRejected) break;
       }
     }
 
     if (!jmapSession) {
       // Only a rejected password counts: an unreachable Stalwart must not lock the household out.
-      if (lastError instanceof Error && /JMAP (session|discovery) failed: 401\b/.test(lastError.message)) {
+      if (credentialsRejected) {
         recordFailedAttempt(ip, bruteForceKey);
       }
       throw lastError instanceof Error

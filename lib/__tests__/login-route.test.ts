@@ -11,8 +11,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/providers/stalwart-jmap/jmap-client', () => ({
-  JMAPClient: vi.fn(function (this: { getSession: typeof mocks.getJmapSession }) {
-    this.getSession = mocks.getJmapSession;
+  JMAPClient: vi.fn(function (this: { getSession: () => Promise<unknown> }, baseUrl: string) {
+    this.getSession = () => mocks.getJmapSession(baseUrl);
   }),
 }));
 vi.mock('@/lib/session', () => ({ createSession: mocks.createSession }));
@@ -27,7 +27,7 @@ vi.mock('@/lib/security-logger', () => ({
 }));
 vi.mock('@/lib/client-ip', () => ({ getClientIp: () => '203.0.113.10' }));
 vi.mock('@/lib/stalwart-base-url', () => ({
-  getStalwartBaseUrlCandidates: () => ['https://mail.example.test'],
+  getStalwartBaseUrlCandidates: () => ['https://mail.example.test', 'https://unreachable.example.test'],
 }));
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -94,6 +94,18 @@ describe('basic login brute-force protection', () => {
     for (let attempt = 0; attempt < 6; attempt++) {
       expect((await POST(loginRequest())).status).toBe(401);
     }
-    expect(mocks.getJmapSession).toHaveBeenCalledTimes(6);
+    expect(mocks.getJmapSession).toHaveBeenCalledTimes(12);
+  });
+
+  it('counts a rejection even when another base URL is unreachable', async () => {
+    mocks.getJmapSession.mockImplementation(async (baseUrl: string) => {
+      throw new Error(
+        baseUrl.includes('unreachable') ? 'fetch failed' : 'JMAP session failed: 401 Unauthorized'
+      );
+    });
+    for (let attempt = 0; attempt < 5; attempt++) {
+      expect((await POST(loginRequest())).status).toBe(401);
+    }
+    expect((await POST(loginRequest())).status).toBe(429);
   });
 });
