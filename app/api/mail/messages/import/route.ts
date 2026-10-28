@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Import not supported by provider' }, { status: 501 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
     }
     logger.error('[Import] Error:', error);
     return NextResponse.json({ error: 'Failed to import message' }, { status: 500 });

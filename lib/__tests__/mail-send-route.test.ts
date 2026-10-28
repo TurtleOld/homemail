@@ -69,4 +69,22 @@ describe('mail send route', () => {
     expect(mocks.sendMessage).toHaveBeenCalledOnce();
     expect(mocks.deleteDraft).toHaveBeenCalledWith('current-account', 'draft-message-id');
   });
+
+  it('returns validation issues as details for an invalid body', async () => {
+    const response = await POST(sendRequest({ subject: 'Hello', html: '<p>Hi</p>' }));
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toBe('Invalid input');
+    expect(Array.isArray(body.details)).toBe(true);
+    expect(body.details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'invalid_type',
+          path: ['to'],
+          message: expect.any(String),
+        }),
+      ])
+    );
+  });
 });
