@@ -1352,9 +1352,26 @@ export class JMAPClient {
     return uploadData.blobId;
   }
 
-  async sendEmail(emailId: string, accountId?: string, identityId?: string): Promise<string> {
+  /**
+   * Submits an email that already exists in the account.
+   *
+   * @param emailId - Id of the email to submit.
+   * @param accountId - Account that owns the email; defaults to the client account.
+   * @param identityId - Explicit submission identity. When omitted, the identity
+   *   matching `options.fromEmail` is used.
+   * @param options.fromEmail - Sender address that selects the submission identity.
+   * @param options.sentMailboxId - Mailbox to move the email to once the server
+   *   accepts the submission. JMAP applies the update only on success, so a
+   *   rejected submission leaves the email where it was created.
+   * @returns Id of the created EmailSubmission.
+   */
+  async sendEmail(
+    emailId: string,
+    accountId?: string,
+    identityId?: string,
+    options?: { fromEmail?: string; sentMailboxId?: string }
+  ): Promise<string> {
     const targetAccountId = accountId || this.accountId;
-    const session = await this.getSession();
 
     let actualIdentityId = identityId;
     if (!actualIdentityId) {
@@ -1362,26 +1379,42 @@ export class JMAPClient {
       if (identities.length === 0) {
         throw new Error('No identity found for account');
       }
-      actualIdentityId = identities[0].id;
+      const fromEmail = options?.fromEmail;
+      const matchingIdentity = fromEmail
+        ? identities.find(
+            (identity) => identity.email.toLowerCase() === fromEmail.toLowerCase()
+          )
+        : undefined;
+      if (fromEmail && !matchingIdentity) {
+        throw new Error(`No identity found for sender address ${fromEmail}`);
+      }
+      actualIdentityId = matchingIdentity?.id ?? identities[0].id;
+    }
+
+    const submission: Record<string, any> = {
+      emailId,
+      identityId: actualIdentityId,
+      envelope: null,
+    };
+
+    const setArguments: Record<string, any> = {
+      accountId: targetAccountId,
+      create: {
+        submission1: submission,
+      },
+    };
+
+    if (options?.sentMailboxId) {
+      setArguments.onSuccessUpdateEmail = {
+        '#submission1': {
+          mailboxIds: { [options.sentMailboxId]: true },
+          keywords: { $seen: true },
+        },
+      };
     }
 
     const response = await this.requestWithUsing(
-      [
-        [
-          'EmailSubmission/set',
-          {
-            accountId: targetAccountId,
-            create: {
-              submission1: {
-                emailId,
-                identityId: actualIdentityId,
-                envelope: null,
-              },
-            },
-          },
-          '0',
-        ],
-      ],
+      [['EmailSubmission/set', setArguments, '0']],
       ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'urn:ietf:params:jmap:submission']
     );
 
