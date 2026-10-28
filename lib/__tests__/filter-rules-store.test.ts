@@ -125,6 +125,23 @@ describe('filter rules store', () => {
     expect(migrated['legacy-account']).toHaveLength(1);
   });
 
+  it('still reads legacy rules when DATA_DIR cannot be written', async () => {
+    await fs.mkdir(path.join(root, 'data'), { recursive: true });
+    await fs.writeFile(
+      path.join(root, 'data', 'filter-rules.json'),
+      JSON.stringify({ 'legacy-account': [rule] }),
+      'utf-8'
+    );
+    // A file where the data directory should be makes every write fail with
+    // ENOTDIR while reads of the legacy file keep working.
+    await fs.writeFile(path.join(root, 'read-only'), 'not a directory', 'utf-8');
+    process.env.DATA_DIR = path.join(root, 'read-only', 'storage');
+
+    const { loadRules } = await import('@/lib/filter-rules-store');
+
+    await expect(loadRules('legacy-account')).resolves.toEqual([rule]);
+  });
+
   it('does not resurrect legacy rules for an account whose rules were deleted', async () => {
     await fs.mkdir(path.join(root, 'data'), { recursive: true });
     await fs.writeFile(

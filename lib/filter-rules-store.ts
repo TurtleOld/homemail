@@ -67,7 +67,14 @@ async function loadAllRules(): Promise<RulesByAccount> {
   }
 
   if (migrated) {
-    await writeStorage(RULES_STORAGE_KEY, stored);
+    try {
+      await writeStorage(RULES_STORAGE_KEY, stored);
+    } catch {
+      // The copy is best effort: callers still get the legacy rules from
+      // memory, and the next read retries. Failing the read here would break
+      // rule loading on an install whose DATA_DIR is not writable, which
+      // worked before rules moved into the storage slot.
+    }
   }
 
   return stored;
