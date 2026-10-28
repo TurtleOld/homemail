@@ -6,9 +6,15 @@
 
 ## Workflow
 
-Work on a ticket/issue follows the chain `/implement` → `/ponytail-review` → `/pr`.
+Work on a ticket/issue follows the chain `/implement` → `/ponytail-review` → `/pr`. Load each step through the skill tool by that name and follow the loaded instructions.
 
-Write PR descriptions in Russian.
+- Base the branch on fresh `origin/main` (`git fetch origin main`, then rebase if `git merge-base HEAD origin/main` differs): local `main` is often stale.
+- `/ponytail-review` covers the whole branch diff (`git diff origin/main...HEAD`) plus the code it touches.
+- A step is done when `npm test` and `npx tsc --noEmit` pass.
+- Commit messages: short, in Russian, with a conventional prefix (`fix(mail): …`).
+- Write PR descriptions in Russian, in the `/pr` template, ending with `Closes #<N>`.
+- Commits and PRs carry the author only: no AI attribution (Co-Authored-By, "Generated with", session links).
+- Merging and issue labels stay with the owner.
 
 ## Agent skills
 
