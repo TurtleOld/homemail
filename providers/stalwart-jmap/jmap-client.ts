@@ -107,8 +107,21 @@ interface JMAPThread {
   emailIds: string[];
 }
 
-const sessionCache = new Map<string, { session: JMAPSession; expiresAt: number }>();
+const sessionCache = new Map<
+  string,
+  { session: JMAPSession; expiresAt: number; authHeader: string }
+>();
 const SESSION_CACHE_TTL = 5 * 60 * 1000;
+
+/**
+ * Returns how many JMAP sessions are currently cached.
+ *
+ * Tests use this to verify that a refreshed OAuth access token replaces an
+ * account's cache entry instead of accumulating stale ones.
+ */
+export function getJmapSessionCacheSize(): number {
+  return sessionCache.size;
+}
 
 // Email/set resolves without a top-level error even when the server
 // rejects individual messages (e.g. a Junk move) — that only shows up in
@@ -338,11 +351,22 @@ export class JMAPClient {
   }
 
   async getSession(): Promise<JMAPSession> {
-    const cacheKey = `${this.accountId}:${this.authHeader}`;
+    // Keyed by account only: the bearer token rotates on OAuth refresh, and
+    // including it in the key would leave one dead entry per refresh forever.
+    const cacheKey = this.accountId;
     const cached = sessionCache.get(cacheKey);
 
-    if (cached && cached.expiresAt > Date.now()) {
+    if (
+      cached &&
+      cached.expiresAt > Date.now() &&
+      cached.authHeader === this.authHeader
+    ) {
       return cached.session;
+    }
+
+    // Drop a stale entry so a failed refetch does not keep an old token alive.
+    if (cached && cached.authHeader !== this.authHeader) {
+      sessionCache.delete(cacheKey);
     }
 
     const baseUrlObj = new URL(this.baseUrl);
@@ -403,6 +427,7 @@ export class JMAPClient {
           sessionCache.set(cacheKey, {
             session: directSession,
             expiresAt: Date.now() + SESSION_CACHE_TTL,
+            authHeader: this.authHeader,
           });
           return directSession;
         }
@@ -565,6 +590,7 @@ export class JMAPClient {
       sessionCache.set(cacheKey, {
         session,
         expiresAt: Date.now() + SESSION_CACHE_TTL,
+        authHeader: this.authHeader,
       });
 
       return session;
