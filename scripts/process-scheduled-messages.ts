@@ -11,7 +11,7 @@ import {
   updateScheduledMessages,
   type ScheduledMessages,
 } from '../lib/scheduled-messages';
-import { getMailProvider, getMailProviderForAccount } from '../lib/get-provider';
+import { getMailProviderForAccount } from '../lib/get-provider';
 import { logger } from '../lib/logger';
 
 declare global {
@@ -48,9 +48,7 @@ async function processScheduledMessages() {
         continue;
       }
 
-      const provider = process.env.MAIL_PROVIDER === 'stalwart'
-        ? getMailProviderForAccount(accountId)
-        : getMailProvider();
+      const provider = getMailProviderForAccount(accountId);
 
       for (const message of pendingMessages) {
         const html = readScheduledHtml(message.html);

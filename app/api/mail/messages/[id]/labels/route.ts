@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { readStorage, writeStorage } from '@/lib/storage';
 
 const updateLabelsSchema = z.object({

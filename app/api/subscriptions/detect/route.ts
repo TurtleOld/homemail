@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { readStorage, writeStorage } from '@/lib/storage';
 import type { EmailSubscription, MessageDetail } from '@/lib/types';
 
@@ -19,9 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'messageIds required' }, { status: 400 });
     }
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     const subscriptions = await readStorage<EmailSubscription[]>(
       `subscriptions:${session.accountId}`,

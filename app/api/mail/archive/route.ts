@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
@@ -17,9 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'folderId and days required' }, { status: 400 });
     }
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     const messages = await provider.getMessages(session.accountId, folderId, {
       limit: 1000,

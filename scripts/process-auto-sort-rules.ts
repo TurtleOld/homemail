@@ -1,5 +1,5 @@
 import { logger } from '../lib/logger';
-import { getMailProvider, getMailProviderForAccount } from '../lib/get-provider';
+import { getMailProviderForAccount } from '../lib/get-provider';
 import { checkMessageMatchesRule, applyRuleActions } from '../lib/apply-auto-sort-rules';
 import type { MessageListItem, Folder } from '../lib/types';
 import { readStorage, writeStorage } from '../lib/storage';
@@ -204,9 +204,7 @@ export async function processAutoSortRules(): Promise<void> {
 
     for (const accountId of accountIds) {
       const provider =
-        process.env.MAIL_PROVIDER === 'stalwart'
-          ? getMailProviderForAccount(accountId)
-          : getMailProvider();
+        getMailProviderForAccount(accountId);
 
       await processAccount(accountId, provider);
     }

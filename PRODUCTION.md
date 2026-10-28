@@ -183,9 +183,6 @@ sudo journalctl -u mailclient -f   # Логи
 Создайте `.env.production` на основе `.env.production.example`:
 
 ```env
-# Mail Provider
-MAIL_PROVIDER=stalwart
-
 # Stalwart Configuration
 STALWART_BASE_URL=https://mail.example.com
 STALWART_SMTP_HOST=mail.example.com

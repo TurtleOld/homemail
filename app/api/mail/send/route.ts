@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
 import { writeStorage, encryptData, decryptData } from '@/lib/storage';
 import { updateScheduledMessages } from '@/lib/scheduled-messages';
@@ -126,9 +126,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, scheduled: true, scheduledId: scheduledMessage.id, sendAt: sendAt.toISOString() });
     }
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     const messageId = await provider.sendMessage(session.accountId, {
       to: validatedData.to,

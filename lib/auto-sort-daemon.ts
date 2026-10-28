@@ -1,4 +1,4 @@
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { processNewMessage } from '@/lib/process-new-message';
 import { sendPushNotification } from '@/lib/ntfy';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
@@ -286,9 +286,7 @@ async function processApplyJob(jobId: string, accountId: string, ruleId: string)
   console.log(`[auto-sort-daemon] Processing filter job ${jobId} for rule ${ruleId}`);
 
   try {
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(accountId);
 
     const rules = (await loadRules(accountId)).filter((r) => r.enabled);
     const rule = rules.find((r) => r.id === ruleId);
@@ -398,9 +396,7 @@ async function processPreviewJob(jobId: string, accountId: string, conditions: F
   console.log(`[auto-sort-daemon] Processing preview job ${jobId}`);
 
   try {
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(accountId);
 
     const folders = await provider.getFolders(accountId);
     // A preview has no destination folder yet (the draft may not even have an
@@ -537,9 +533,7 @@ async function startWatchingAccount(accountId: string): Promise<void> {
   // these are old messages that shouldn't trigger push.
   const daemonStartedAt = Date.now();
 
-  const provider = process.env.MAIL_PROVIDER === 'stalwart'
-    ? getMailProviderForAccount(accountId)
-    : getMailProvider();
+  const provider = getMailProviderForAccount(accountId);
 
   let folderRoleById = new Map<string, string>();
   let folderNameById = new Map<string, string>();

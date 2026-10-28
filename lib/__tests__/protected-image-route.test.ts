@@ -20,7 +20,6 @@ vi.mock('@/lib/protected-image-fetcher', async (importOriginal) => {
 });
 vi.mock('@/lib/get-provider', () => ({
   getMailProviderForAccount: mocks.getProvider,
-  getMailProvider: mocks.getProvider,
 }));
 vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: mocks.checkRateLimit }));
 vi.mock('@/lib/client-ip', () => ({ getClientIp: () => '203.0.113.10' }));
@@ -42,7 +41,6 @@ function request() {
 describe('protected image resource route', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    process.env.MAIL_PROVIDER = 'stalwart';
     mocks.getSession.mockResolvedValue({ accountId: 'account-1' });
     mocks.checkRateLimit.mockReturnValue({ allowed: true });
     mocks.getProvider.mockReturnValue({ getAttachment: mocks.getAttachment });

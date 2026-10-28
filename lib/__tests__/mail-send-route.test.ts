@@ -13,7 +13,6 @@ vi.mock('@/lib/csrf', () => ({ validateCsrf: mocks.validateCsrf }));
 vi.mock('@/lib/session', () => ({ getSession: mocks.getSession }));
 vi.mock('@/lib/get-provider', () => ({
   getMailProviderForAccount: mocks.getMailProviderForAccount,
-  getMailProvider: mocks.getMailProviderForAccount,
 }));
 vi.mock('@/lib/email-validator', () => ({
   validateEmailList: (emails: string[]) => ({
@@ -46,7 +45,6 @@ function sendRequest(body: Record<string, unknown>) {
 describe('mail send route', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    process.env.MAIL_PROVIDER = 'stalwart';
     mocks.validateCsrf.mockResolvedValue(true);
     mocks.getSession.mockResolvedValue({ accountId: 'current-account' });
     mocks.sendMessage.mockResolvedValue('sent-message-id');

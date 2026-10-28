@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 
 const flagsSchema = z.object({
   unread: z.boolean().optional(),
@@ -21,9 +21,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
     const flags = flagsSchema.parse(body);
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
     await provider.updateMessageFlags(session.accountId, id, flags);
 
     return NextResponse.json({ success: true });

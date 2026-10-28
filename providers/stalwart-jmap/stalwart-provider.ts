@@ -1350,181 +1350,149 @@ export class StalwartJMAPProvider implements MailProvider {
       attachments?: Array<{ filename: string; mime: string; data: Buffer }>;
     }
   ): Promise<string> {
-    try {
-      const client = await this.getClient(accountId);
-      const session = await client.getSession();
-      const actualAccountId =
-        session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
+    const client = await this.getClient(accountId);
+    const session = await client.getSession();
+    const actualAccountId =
+      session.primaryAccounts?.mail || Object.keys(session.accounts)[0] || accountId;
 
-      const mailboxes = await client.getMailboxes(actualAccountId);
-      const sentMailbox = mailboxes.find((mb) => mb.role === 'sent');
+    const mailboxes = await client.getMailboxes(actualAccountId);
+    const sentMailbox = mailboxes.find((mb) => mb.role === 'sent');
+    const draftsMailbox = mailboxes.find((mb) => mb.role === 'drafts');
 
-      if (!sentMailbox) {
-        throw new Error('Sent mailbox not found');
-      }
-
-      const account = await this.getAccount(accountId);
-      if (!account) {
-        throw new Error('Account not found');
-      }
-      const fromEmail = account.email;
-
-      const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
-      const to = message.to.map((email) => ({ email }));
-      const cc = message.cc?.map((email) => ({ email }));
-      const bcc = message.bcc?.map((email) => ({ email }));
-
-      const emailAttachments: Array<{ blobId: string; type: string; name: string; size: number }> =
-        [];
-
-      if (message.attachments && message.attachments.length > 0) {
-        for (const att of message.attachments) {
-          const blobId = await client.uploadBlob(att.data, actualAccountId, att.mime);
-          emailAttachments.push({
-            blobId,
-            type: att.mime,
-            name: att.filename,
-            size: att.data.length,
-          });
-        }
-      }
-
-      const isEncrypted = message.html.includes('-----BEGIN PGP MESSAGE-----');
-
-      // Ensure HTML body has a proper <html> wrapper
-      const htmlContent = isEncrypted
-        ? message.html
-        : message.html.trimStart().startsWith('<html')
-          ? message.html
-          : `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${message.html}</body></html>`;
-
-      // Generate plain text fallback by stripping HTML tags
-      const plainText = isEncrypted
-        ? message.html
-        : message.html
-            .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<\/p>/gi, '\n\n')
-            .replace(/<\/div>/gi, '\n')
-            .replace(/<\/li>/gi, '\n')
-            .replace(/<li[^>]*>/gi, '• ')
-            .replace(/<[^>]+>/g, '')
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
-
-      const emailBody: any = isEncrypted
-        ? {
-            mailboxIds: { [sentMailbox.id]: true },
-            from,
-            to,
-            subject: message.subject,
-            keywords: { $seen: true },
-            bodyStructure: { partId: 'body', type: 'text/plain' },
-            bodyValues: { body: { value: message.html } },
-          }
-        : {
-            mailboxIds: { [sentMailbox.id]: true },
-            from,
-            to,
-            subject: message.subject,
-            keywords: { $seen: true },
-            bodyStructure: {
-              type: 'multipart/alternative',
-              subParts: [
-                { partId: 'plain', type: 'text/plain' },
-                { partId: 'html', type: 'text/html' },
-              ],
-            },
-            bodyValues: {
-              plain: { value: plainText },
-              html: { value: htmlContent },
-            },
-          };
-
-      if (cc && cc.length > 0) {
-        emailBody.cc = cc;
-      }
-      if (bcc && bcc.length > 0) {
-        emailBody.bcc = bcc;
-      }
-
-      if (emailAttachments.length > 0) {
-        emailBody.attachments = emailAttachments;
-      }
-
-      const response = await client.request([
-        [
-          'Email/set',
-          {
-            accountId: actualAccountId,
-            create: {
-              message1: emailBody,
-            },
-          },
-          '0',
-        ],
-      ]);
-
-      const setResponse = response.methodResponses[0];
-      if (setResponse[0] !== 'Email/set') {
-        throw new Error('Invalid email create response');
-      }
-
-      if ('type' in setResponse[1] && setResponse[1].type === 'error') {
-        const errorDesc = (setResponse[1] as any).description || 'Unknown error';
-        throw new Error(`JMAP email create error: ${errorDesc}`);
-      }
-
-      const data = setResponse[1] as { created?: Record<string, { id: string }> };
-      if (!data.created || Object.keys(data.created).length === 0) {
-        throw new Error('Failed to create email');
-      }
-
-      const emailId = Object.values(data.created)[0].id;
-      await client.sendEmail(emailId, actualAccountId);
-
-      const targetSentMailbox =
-        mailboxes.find((mb) => mb.id === 'e' && mb.role === 'sent') || sentMailbox;
-
-      const emailAfterSend = await client.getEmails([emailId], {
-        accountId: actualAccountId,
-        properties: ['mailboxIds', 'keywords'],
-      });
-
-      if (emailAfterSend.length > 0) {
-        const currentMailboxIds = emailAfterSend[0].mailboxIds || {};
-        const isInSent = currentMailboxIds[targetSentMailbox.id] === true;
-        const isRead = emailAfterSend[0].keywords?.['$seen'] === true;
-
-        if (!isInSent || !isRead) {
-          const updates: Record<
-            string,
-            { mailboxIds: Record<string, boolean>; keywords: Record<string, boolean> }
-          > = {};
-          const newMailboxIds: Record<string, boolean> = {};
-          newMailboxIds[targetSentMailbox.id] = true;
-
-          const newKeywords: Record<string, boolean> = { ...(emailAfterSend[0].keywords || {}) };
-          newKeywords['$seen'] = true;
-
-          updates[emailId] = {
-            mailboxIds: newMailboxIds,
-            keywords: newKeywords,
-          };
-
-          await client.bulkSetEmails(updates, actualAccountId);
-        }
-      }
-
-      return emailId;
-    } catch (error) {
-      throw error;
+    if (!sentMailbox) {
+      throw new Error('Sent mailbox not found');
     }
+    if (!draftsMailbox) {
+      throw new Error('Drafts mailbox not found');
+    }
+
+    const account = await this.getAccount(accountId);
+    if (!account) {
+      throw new Error('Account not found');
+    }
+    const fromEmail = account.email;
+
+    const from = [{ email: fromEmail, name: fromEmail.split('@')[0] }];
+    const to = message.to.map((email) => ({ email }));
+    const cc = message.cc?.map((email) => ({ email }));
+    const bcc = message.bcc?.map((email) => ({ email }));
+
+    const emailAttachments: Array<{ blobId: string; type: string; name: string; size: number }> =
+      [];
+
+    if (message.attachments && message.attachments.length > 0) {
+      for (const att of message.attachments) {
+        const blobId = await client.uploadBlob(att.data, actualAccountId, att.mime);
+        emailAttachments.push({
+          blobId,
+          type: att.mime,
+          name: att.filename,
+          size: att.data.length,
+        });
+      }
+    }
+
+    const isEncrypted = message.html.includes('-----BEGIN PGP MESSAGE-----');
+
+    // Ensure HTML body has a proper <html> wrapper
+    const htmlContent = isEncrypted
+      ? message.html
+      : message.html.trimStart().startsWith('<html')
+        ? message.html
+        : `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${message.html}</body></html>`;
+
+    // Generate plain text fallback by stripping HTML tags
+    const plainText = isEncrypted
+      ? message.html
+      : message.html
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/p>/gi, '\n\n')
+          .replace(/<\/div>/gi, '\n')
+          .replace(/<\/li>/gi, '\n')
+          .replace(/<li[^>]*>/gi, '• ')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+
+    const emailBody: any = isEncrypted
+      ? {
+          mailboxIds: { [draftsMailbox.id]: true },
+          from,
+          to,
+          subject: message.subject,
+          bodyStructure: { partId: 'body', type: 'text/plain' },
+          bodyValues: { body: { value: message.html } },
+        }
+      : {
+          mailboxIds: { [draftsMailbox.id]: true },
+          from,
+          to,
+          subject: message.subject,
+          bodyStructure: {
+            type: 'multipart/alternative',
+            subParts: [
+              { partId: 'plain', type: 'text/plain' },
+              { partId: 'html', type: 'text/html' },
+            ],
+          },
+          bodyValues: {
+            plain: { value: plainText },
+            html: { value: htmlContent },
+          },
+        };
+
+    if (cc && cc.length > 0) {
+      emailBody.cc = cc;
+    }
+    if (bcc && bcc.length > 0) {
+      emailBody.bcc = bcc;
+    }
+
+    if (emailAttachments.length > 0) {
+      emailBody.attachments = emailAttachments;
+    }
+
+    const response = await client.request([
+      [
+        'Email/set',
+        {
+          accountId: actualAccountId,
+          create: {
+            message1: emailBody,
+          },
+        },
+        '0',
+      ],
+    ]);
+
+    const setResponse = response.methodResponses[0];
+    if (setResponse[0] !== 'Email/set') {
+      throw new Error('Invalid email create response');
+    }
+
+    if ('type' in setResponse[1] && setResponse[1].type === 'error') {
+      const errorDesc = (setResponse[1] as any).description || 'Unknown error';
+      throw new Error(`JMAP email create error: ${errorDesc}`);
+    }
+
+    const data = setResponse[1] as { created?: Record<string, { id: string }> };
+    if (!data.created || Object.keys(data.created).length === 0) {
+      throw new Error('Failed to create email');
+    }
+
+    const emailId = Object.values(data.created)[0].id;
+    await client.sendEmail(emailId, actualAccountId, undefined, {
+      fromEmail,
+      sentMailboxId: sentMailbox.id,
+    });
+
+    return emailId;
   }
 
   async importMessage(

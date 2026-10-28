@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
 import { simpleParser } from 'mailparser';
 
@@ -21,9 +21,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = importSchema.parse(body);
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     const parsed = await simpleParser(data.emlContent);
 
