@@ -1,22 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { validateCsrf } from '@/lib/csrf';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import type { AutoSortRule } from '@/lib/types';
 import { addJob, getActiveJobs } from '@/lib/filter-job-queue';
-
-const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
-
-async function loadRules(accountId: string): Promise<AutoSortRule[]> {
-  try {
-    const data = await readFile(rulesFilePath, 'utf-8');
-    const allRules = JSON.parse(data) as Record<string, AutoSortRule[]>;
-    return allRules[accountId] || [];
-  } catch {
-    return [];
-  }
-}
+import { loadRules } from '@/lib/filter-rules-store';
 
 /**
  * POST /api/mail/filters/rules/apply

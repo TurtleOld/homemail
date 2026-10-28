@@ -4,7 +4,6 @@ import { promisify } from 'node:util';
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
-import { getStalwartSystemStatus } from '@/lib/stalwart-monitoring';
 
 const lookup = promisify(dns.lookup);
 
@@ -13,8 +12,6 @@ type ServiceStatus = 'up' | 'down' | 'unknown';
 interface ServerStatus {
   smtp: ServiceStatus;
   imapJmap: ServiceStatus;
-  queueSize: number | null;
-  reportBacklog: number | null;
   updatedAt: string;
 }
 
@@ -117,35 +114,20 @@ const resolveImapJmapStatus = async (accountId: string): Promise<ServiceStatus> 
   }
 };
 
-const resolveQueueStats = async (): Promise<{ queueSize: number | null; reportBacklog: number | null }> => {
-  if (MAIL_PROVIDER !== 'stalwart') {
-    return { queueSize: null, reportBacklog: null };
-  }
-
-  const status = await getStalwartSystemStatus();
-  return {
-    queueSize: status.queue?.total ?? null,
-    reportBacklog: status.reports?.total ?? null,
-  };
-};
-
 export async function GET() {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const [smtp, imapJmap, queueStats] = await Promise.all([
+  const [smtp, imapJmap] = await Promise.all([
     resolveSmtpStatus(),
     resolveImapJmapStatus(session.accountId),
-    resolveQueueStats(),
   ]);
 
   const payload: ServerStatus = {
     smtp,
     imapJmap,
-    queueSize: queueStats.queueSize,
-    reportBacklog: queueStats.reportBacklog,
     updatedAt: new Date().toISOString(),
   };
 

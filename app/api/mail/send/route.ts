@@ -4,7 +4,8 @@ import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { validateCsrf } from '@/lib/csrf';
 import { logger } from '@/lib/logger';
-import { writeStorage, readStorage, encryptData, decryptData } from '@/lib/storage';
+import { writeStorage, encryptData, decryptData } from '@/lib/storage';
+import { updateScheduledMessages } from '@/lib/scheduled-messages';
 import { validateEmailList, sanitizeEmail } from '@/lib/email-validator';
 import { SecurityLogger } from '@/lib/security-logger';
 import type { DeliveryTracking } from '@/lib/types';
@@ -118,15 +119,13 @@ export async function POST(request: NextRequest) {
         createdAt: new Date().toISOString(),
       };
 
-      const allScheduled = await readStorage<Record<string, Array<typeof scheduledMessage>>>(
-        'allScheduledMessages',
-        {}
-      );
-      if (!allScheduled[session.accountId]) {
-        allScheduled[session.accountId] = [];
-      }
-      allScheduled[session.accountId].push(scheduledMessage);
-      await writeStorage('allScheduledMessages', allScheduled);
+      await updateScheduledMessages((allScheduled) => {
+        if (!allScheduled[session.accountId]) {
+          allScheduled[session.accountId] = [];
+        }
+        allScheduled[session.accountId].push(scheduledMessage);
+        return allScheduled;
+      });
 
       logger.info(`Scheduled message ${scheduledMessage.id} for ${sendAt.toISOString()}`);
 

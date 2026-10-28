@@ -217,6 +217,28 @@ export async function deleteSession(sessionId: string): Promise<void> {
   await saveSessions();
 }
 
+/**
+ * Count the live (non-expired) sessions belonging to an account.
+ *
+ * The OAuth token is stored once per account and shared by every session of
+ * that account, so callers need to know whether any other device still relies
+ * on it. Expiry is re-checked here because `loadSessions` only filters at load
+ * time and the cache may still hold sessions that expired since.
+ */
+export async function countAccountSessions(accountId: string): Promise<number> {
+  const sessions = await loadSessions();
+  const now = Date.now();
+  let count = 0;
+
+  for (const session of sessions.values()) {
+    if (session.accountId === accountId && session.expiresAt > now) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
 export async function loadCredentials(): Promise<Map<string, StoredCredentials>> {
   if (credentialsCache !== null) {
     return credentialsCache;

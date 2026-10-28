@@ -876,11 +876,6 @@
       "mailServer": "Mail server",
       "security": "Security",
       "responseTime": "Response time: {milliseconds} ms",
-      "stalwartHeading": "Stalwart mail server",
-      "stalwartUnavailable": "Read-only queue data is unavailable. Check the narrowly scoped monitoring credential and Stalwart reachability.",
-      "stalwartPartial": "One read-only Stalwart check is unavailable. The available result is shown independently.",
-      "queue": "Messages waiting to send",
-      "reports": "Pending DMARC/TLS reports",
       "warnings": "Warnings",
       "alerts": {
         "storage": "HomeMail storage is unavailable or read-only.",

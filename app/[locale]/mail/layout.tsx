@@ -115,8 +115,6 @@ interface UserSettings {
 interface ServerStatus {
   smtp: 'up' | 'down' | 'unknown';
   imapJmap: 'up' | 'down' | 'unknown';
-  queueSize: number | null;
-  reportBacklog: number | null;
   updatedAt: string;
 }
 
