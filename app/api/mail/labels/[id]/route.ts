@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
 import type { Label } from '@/lib/types';
-import { validateOrigin } from '@/lib/csrf';
 
 const updateLabelSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -14,10 +13,6 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 
@@ -58,10 +53,6 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 

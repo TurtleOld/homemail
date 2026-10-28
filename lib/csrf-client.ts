@@ -8,3 +8,64 @@ export function getCsrfHeader(): Record<string, string> {
   const token = match ? decodeURIComponent(match[1]!) : '';
   return token ? { 'x-csrf-token': token } : {};
 }
+
+function isMutating(method: string): boolean {
+  const normalized = method.toUpperCase();
+  return normalized !== 'GET' && normalized !== 'HEAD' && normalized !== 'OPTIONS';
+}
+
+function requestUrl(input: RequestInfo | URL): URL | null {
+  try {
+    const value = input instanceof Request ? input.url : input;
+    return new URL(value, window.location.href);
+  } catch {
+    return null;
+  }
+}
+
+let installed = false;
+
+type CsrfFetch = typeof fetch & { __homemailCsrfInstalled?: boolean };
+
+/**
+ * Install a fetch interceptor that attaches the CSRF header to every
+ * same-origin mutating request.
+ *
+ * The app has hand-written fetch calls across many client components, so a
+ * single interceptor is safer than editing each call site and missing one.
+ * Mutating requests now need the token because middleware validates all of
+ * them; a missed call site would start returning 403.
+ */
+export function installCsrfFetch(): void {
+  if (installed || typeof window === 'undefined') return;
+
+  const currentFetch = window.fetch as CsrfFetch;
+  if (currentFetch.__homemailCsrfInstalled) return;
+  installed = true;
+
+  const originalFetch = currentFetch.bind(window);
+
+  const wrappedFetch: CsrfFetch = async (input, init) => {
+    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    const url = requestUrl(input);
+
+    if (!isMutating(method) || !url || url.origin !== window.location.origin) {
+      return originalFetch(input, init);
+    }
+
+    const headers = new Headers(input instanceof Request ? input.headers : undefined);
+    new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
+
+    const token = getCsrfHeader()['x-csrf-token'];
+    if (token && !headers.has('x-csrf-token')) {
+      headers.set('x-csrf-token', token);
+    }
+
+    // init.headers would replace a Request's headers wholesale, so pass the merged set.
+    return originalFetch(input, { ...init, headers });
+  };
+
+  // HMR can re-run this module while the page keeps the old window.fetch.
+  wrappedFetch.__homemailCsrfInstalled = true;
+  window.fetch = wrappedFetch;
+}

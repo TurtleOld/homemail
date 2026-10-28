@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { getMailProviderForAccount } from '@/lib/get-provider';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { validateOrigin } from '@/lib/csrf';
 
 const updateLabelsSchema = z.object({
   labelIds: z.array(z.string()),
@@ -13,10 +12,6 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { validateCsrf } from '@/lib/csrf';
 import { addJob, getActiveJobs } from '@/lib/filter-job-queue';
 import { loadRules } from '@/lib/filter-rules-store';
 
@@ -12,11 +11,6 @@ import { loadRules } from '@/lib/filter-rules-store';
  * The auto-sort daemon processes the job queue every 30 seconds.
  */
 export async function POST(request: NextRequest) {
-  const csrfValid = await validateCsrf(request);
-  if (!csrfValid) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 

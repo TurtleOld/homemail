@@ -1,5 +1,42 @@
-import { validateCsrfToken } from './csrf-tokens';
-import { SecurityLogger } from './security-logger';
+import { logger } from './logger';
+
+const CSRF_COOKIE_NAME = 'csrf_token';
+const CSRF_HEADER_NAME = 'x-csrf-token';
+
+/**
+ * Read a cookie directly from the request header.
+ *
+ * Middleware runs on the Edge runtime, where `cookies()` from `next/headers`
+ * is unavailable, so CSRF validation must not depend on it.
+ */
+function readCookie(request: Request, name: string): string | undefined {
+  const header = request.headers.get('cookie');
+  if (!header) return undefined;
+
+  for (const part of header.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator === -1) continue;
+    const cookieName = part.slice(0, separator).trim();
+    if (cookieName !== name) continue;
+    const value = part.slice(separator + 1).trim();
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const length = Math.max(a.length, b.length);
+  let mismatch = a.length ^ b.length;
+  for (let i = 0; i < length; i += 1) {
+    mismatch |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return mismatch === 0;
+}
 
 export function validateOrigin(request: Request): boolean {
   if (process.env.NODE_ENV === 'development') {
@@ -85,20 +122,33 @@ export function validateOrigin(request: Request): boolean {
   return true;
 }
 
+/**
+ * Validate the double-submit CSRF token and request origin.
+ *
+ * Safe methods pass so the same check can guard every API route from
+ * middleware. This module must stay Edge-compatible: it only uses Web APIs.
+ */
 export async function validateCsrf(request: Request): Promise<boolean> {
-  const method = request.method;
-  
+  const method = request.method.toUpperCase();
+
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
     return true;
   }
 
+  if (process.env.NODE_ENV === 'development' && process.env.DISABLE_CSRF === 'true') {
+    return true;
+  }
+
   if (!validateOrigin(request)) {
-    SecurityLogger.logCsrfViolation(request, { reason: 'origin_validation_failed' });
+    logger.warn('[csrf] origin validation failed', { method });
     return false;
   }
 
-  const csrfValidation = await validateCsrfToken(request);
-  if (!csrfValidation.valid) {
+  const cookieToken = readCookie(request, CSRF_COOKIE_NAME);
+  const headerToken = request.headers.get(CSRF_HEADER_NAME);
+
+  if (!cookieToken || !headerToken || !constantTimeEqual(cookieToken, headerToken)) {
+    logger.warn('[csrf] token validation failed', { method });
     return false;
   }
 

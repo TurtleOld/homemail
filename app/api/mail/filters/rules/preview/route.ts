@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { validateCsrf } from '@/lib/csrf';
 import { addPreviewJob } from '@/lib/filter-job-queue';
 import type { FilterGroup } from '@/lib/types';
 
@@ -45,11 +44,6 @@ const filterGroupSchema: z.ZodType<FilterGroup> = z.lazy(() =>
  * so the client can poll /api/mail/filters/rules/jobs for the result.
  */
 export async function POST(request: NextRequest) {
-  const csrfValid = await validateCsrf(request);
-  if (!csrfValid) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
     if (!session) {

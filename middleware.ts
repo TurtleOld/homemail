@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { buildPublicUrl } from '@/lib/public-url';
+import { validateCsrf } from '@/lib/csrf';
 import createMiddleware from 'next-intl/middleware';
 import { routing } from '@/i18n/routing';
 
@@ -56,15 +57,11 @@ function getLocaleFromPath(pathname: string): string {
   return locales.includes(segment) ? segment : routing.defaultLocale;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // API routes: auth is handled separately (no locale prefix)
   if (pathname.startsWith('/api/auth/')) {
-    return NextResponse.next();
-  }
-
-  if (pathname === '/api/health') {
     return NextResponse.next();
   }
 
@@ -73,7 +70,22 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Browsers post CSP reports on their own, without cookies or custom headers.
+  if (pathname === '/api/csp-report') {
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith('/api/')) {
+    // Checked before the session gate so unauthenticated mutating requests are
+    // rejected as CSRF failures and never reach a route handler.
+    if (!(await validateCsrf(request))) {
+      return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+    }
+
+    if (pathname === '/api/health') {
+      return NextResponse.next();
+    }
+
     const sessionCookie = request.cookies.get('mail_session');
     if (!sessionCookie) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
