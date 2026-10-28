@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
-import { readStorage } from '@/lib/storage';
 import { validateOrigin } from '@/lib/csrf';
-import type { AutoSortRule } from '@/lib/types';
-import { applyRuleActions, checkMessageMatchesRule } from '@/lib/apply-auto-sort-rules';
-
-async function loadRules(accountId: string): Promise<AutoSortRule[]> {
-  return await readStorage<AutoSortRule[]>(`filterRules:${accountId}`, []);
-}
 
 export async function POST(request: NextRequest) {
   if (!validateOrigin(request)) {

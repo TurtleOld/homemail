@@ -1,7 +1,6 @@
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import type { AutoSortRule, MessageListItem, MessageDetail } from './types';
+import type { MessageListItem, MessageDetail } from './types';
 import { checkMessageMatchesRule, applyRuleActions } from './apply-auto-sort-rules';
+import { loadRules } from './filter-rules-store';
 import type { MailProvider } from '@/providers/mail-provider';
 
 const EXCLUDED_FOLDER_ROLES = new Set(['sent', 'trash', 'drafts']);
@@ -40,18 +39,6 @@ async function getFolderRole(
   }
 }
 
-const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
-
-async function loadRules(accountId: string): Promise<AutoSortRule[]> {
-  try {
-    const data = await readFile(rulesFilePath, 'utf-8');
-    const allRules = JSON.parse(data) as Record<string, AutoSortRule[]>;
-    return (allRules[accountId] || []).filter((r) => r.enabled);
-  } catch {
-    return [];
-  }
-}
-
 export async function processNewMessage(
   message: MessageListItem | MessageDetail,
   accountId: string,
@@ -70,7 +57,7 @@ export async function processNewMessage(
       return;
     }
 
-    const rules = await loadRules(accountId);
+    const rules = (await loadRules(accountId)).filter((r) => r.enabled);
 
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];

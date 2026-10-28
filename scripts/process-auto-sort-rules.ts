@@ -1,28 +1,15 @@
-import { readFile } from 'fs/promises';
-import { join } from 'path';
 import { logger } from '../lib/logger';
 import { getMailProvider, getMailProviderForAccount } from '../lib/get-provider';
 import { checkMessageMatchesRule, applyRuleActions } from '../lib/apply-auto-sort-rules';
-import type { AutoSortRule, MessageListItem, Folder } from '../lib/types';
+import type { MessageListItem, Folder } from '../lib/types';
 import { readStorage, writeStorage } from '../lib/storage';
+import { loadRules } from '../lib/filter-rules-store';
 import { OAuthTokenStore } from '../lib/oauth-token-store';
 
-const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
 const PROCESSED_MESSAGES_KEY = 'autoSortProcessedMessages';
 const MAX_PROCESSED_MESSAGES = 10000;
 
 const EXCLUDED_FOLDER_ROLES = new Set(['sent', 'trash', 'drafts']);
-
-async function loadRules(accountId: string): Promise<AutoSortRule[]> {
-  try {
-    const data = await readFile(rulesFilePath, 'utf-8');
-    const allRules = JSON.parse(data) as Record<string, AutoSortRule[]>;
-    return (allRules[accountId] || []).filter((r) => r.enabled);
-  } catch (error) {
-    logger.error(`[auto-sort] Error loading rules for account ${accountId}:`, error);
-    return [];
-  }
-}
 
 /**
  * Load processed messages map from disk.
@@ -67,7 +54,7 @@ async function processAccount(accountId: string, provider: any): Promise<void> {
   try {
     logger.info(`[auto-sort] Processing account ${accountId}`);
 
-    const rules = await loadRules(accountId);
+    const rules = (await loadRules(accountId)).filter((r) => r.enabled);
     if (rules.length === 0) {
       logger.info(`[auto-sort] No enabled rules for account ${accountId}`);
       return;
