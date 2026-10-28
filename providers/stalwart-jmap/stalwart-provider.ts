@@ -1356,6 +1356,7 @@ export class StalwartJMAPProvider implements MailProvider {
       attachments?: Array<{ filename: string; mime: string; data: Buffer }>;
       inReplyTo?: string;
       references?: string[];
+      requestReadReceipt?: boolean;
     }
   ): Promise<string> {
     const client = await this.getClient(accountId);
@@ -1470,6 +1471,12 @@ export class StalwartJMAPProvider implements MailProvider {
 
     if (emailAttachments.length > 0) {
       emailBody.attachments = emailAttachments;
+    }
+
+    if (message.requestReadReceipt) {
+      // RFC 8098 MDN request; JMAP exposes address-list headers as `asAddresses`
+      // (RFC 8621, section 4.1.4).
+      emailBody['header:Disposition-Notification-To:asAddresses'] = [{ email: fromEmail }];
     }
 
     const response = await client.request([
