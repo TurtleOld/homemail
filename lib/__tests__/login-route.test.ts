@@ -3,11 +3,8 @@ import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
   getJmapSession: vi.fn(),
-  getSession: vi.fn(),
   createSession: vi.fn(),
   setCredentials: vi.fn(),
-  addUserAccount: vi.fn(),
-  setActiveAccount: vi.fn(),
   logLoginSuccess: vi.fn(),
   logLoginFailed: vi.fn(),
   logLoginBlocked: vi.fn(),
@@ -18,15 +15,8 @@ vi.mock('@/providers/stalwart-jmap/jmap-client', () => ({
     this.getSession = mocks.getJmapSession;
   }),
 }));
-vi.mock('@/lib/session', () => ({
-  getSession: mocks.getSession,
-  createSession: mocks.createSession,
-}));
-vi.mock('@/lib/storage', () => ({
-  setCredentials: mocks.setCredentials,
-  addUserAccount: mocks.addUserAccount,
-  setActiveAccount: mocks.setActiveAccount,
-}));
+vi.mock('@/lib/session', () => ({ createSession: mocks.createSession }));
+vi.mock('@/lib/storage', () => ({ setCredentials: mocks.setCredentials }));
 vi.mock('@/lib/auth-config', () => ({ isPasswordLoginEnabled: () => true }));
 vi.mock('@/lib/security-logger', () => ({
   SecurityLogger: {
@@ -58,7 +48,6 @@ describe('basic login brute-force protection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __resetBruteForceStoreForTests();
-    mocks.getSession.mockResolvedValue(null);
   });
 
   it('blocks further attempts after repeated authentication failures', async () => {
