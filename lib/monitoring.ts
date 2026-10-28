@@ -2,7 +2,6 @@ import { SecurityLogger } from './security-logger';
 import { logger } from './logger';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getStalwartSystemStatus } from './stalwart-monitoring';
 
 const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : path.join(process.cwd(), 'data'));
 
@@ -46,12 +45,6 @@ export interface MailProviderStatus {
   error?: string;
 }
 
-export interface StalwartStatus {
-  reachable: boolean;
-  queue: { total: number; hasEntries: boolean } | null;
-  reports: { total: number; hasEntries: boolean } | null;
-}
-
 export interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
@@ -59,7 +52,6 @@ export interface HealthStatus {
   security: SecurityMetrics;
   storage: StorageStatus;
   mailProvider?: MailProviderStatus;
-  stalwart?: StalwartStatus;
   checks: {
     storage: boolean;
     mailProvider: boolean;
@@ -242,11 +234,10 @@ function getSystemMetrics(): SystemMetrics {
 }
 
 export async function getHealthStatus(includeMailProvider: boolean = true): Promise<HealthStatus> {
-  const [storage, security, mailProvider, stalwart] = await Promise.all([
+  const [storage, security, mailProvider] = await Promise.all([
     checkStorageStatus(),
     getSecurityMetrics(),
     includeMailProvider ? checkMailProviderStatus() : Promise.resolve(undefined),
-    process.env.MAIL_PROVIDER === 'stalwart' ? getStalwartSystemStatus() : Promise.resolve(undefined),
   ]);
 
   const system = getSystemMetrics();
@@ -274,7 +265,6 @@ export async function getHealthStatus(includeMailProvider: boolean = true): Prom
     security,
     storage,
     mailProvider,
-    stalwart,
     checks,
   };
 }

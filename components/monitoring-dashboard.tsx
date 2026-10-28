@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, AlertTriangle, CheckCircle2, Clock, HardDrive, Mail, RefreshCw, Server, Shield, XCircle } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, Clock, HardDrive, RefreshCw, Server, Shield, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   SettingsSectionError,
@@ -20,11 +20,6 @@ interface HealthStatus {
   };
   storage: { available: boolean; writable: boolean };
   mailProvider?: { available: boolean; responseTime?: number; error?: string };
-  stalwart?: {
-    reachable: boolean;
-    queue: { total: number; hasEntries: boolean } | null;
-    reports: { total: number; hasEntries: boolean } | null;
-  };
   checks: { storage: boolean; mailProvider: boolean; security: boolean };
 }
 
@@ -171,23 +166,6 @@ export function MonitoringDashboard() {
           )}
         </section>
       </div>
-
-      {data.stalwart && (
-        <section className="rounded-lg border border-border p-4" aria-labelledby="stalwart-monitoring-title">
-          <h3 id="stalwart-monitoring-title" className="flex items-center gap-2 font-semibold"><Mail className="h-4 w-4 text-muted-foreground" />{t('stalwartHeading')}</h3>
-          {!data.stalwart.reachable ? (
-            <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--status-warning))]" /><p>{t('stalwartUnavailable')}</p></div>
-          ) : (
-            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div><dt className="text-sm text-muted-foreground">{t('queue')}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{data.stalwart.queue?.total ?? '-'}</dd></div>
-              <div><dt className="text-sm text-muted-foreground">{t('reports')}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{data.stalwart.reports?.total ?? '-'}</dd></div>
-            </dl>
-          )}
-          {data.stalwart.reachable && (!data.stalwart.queue || !data.stalwart.reports) && (
-            <p className="mt-3 text-sm text-muted-foreground">{t('stalwartPartial')}</p>
-          )}
-        </section>
-      )}
 
       {alerts.length > 0 && (
         <section className="rounded-lg border border-[hsl(var(--status-warning)/0.45)] bg-[hsl(var(--status-warning)/0.08)] p-4" aria-labelledby="monitoring-alerts-title">

@@ -22,6 +22,8 @@ HomeMail never creates, updates, or deletes Stalwart principals, domains, mailbo
 
 HomeMail may read operational data from Stalwart for display purposes only: mail queue status, delivery/report backlog, and other server health or usage signals exposed by read-only Stalwart API calls. This uses a dedicated, narrowly scoped Stalwart API-key credential (`STALWART_ADMIN_API_KEY`, already reserved in `.env.production.example`) restricted to read-only operations — it must never be granted `/api/settings/*` access, since that surface returns raw configuration including credential hashes and private key material regardless of the caller's intent.
 
+Примечание (2026-10-28): этот ключ так и не был настроен на проде, а блок очереди Stalwart удалён из HomeMail в [issue #97](https://github.com/TurtleOld/homemail/issues/97); см. отмену ADR 0010. Остальная часть решения — HomeMail не администрирует Stalwart — остаётся в силе.
+
 Family member activation and password recovery are not HomeMail capabilities. Both remain entirely Stalwart's and the operator's responsibility, exactly as they are today, with no HomeMail-issued bearer link, no HomeMail-generated bootstrap password, and no HomeMail credential-recovery workflow.
 
 ## Consequences

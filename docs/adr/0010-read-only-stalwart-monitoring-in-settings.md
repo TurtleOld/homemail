@@ -1,8 +1,12 @@
 # ADR 0010: Read-only Stalwart monitoring in Settings
 
-Status: Accepted
+Status: Superseded (отменён)
 
 Date: 2026-07-19
+
+Superseded: 2026-10-28, by [issue #97](https://github.com/TurtleOld/homemail/issues/97)
+
+Причина отмены: в Stalwart 0.16 REST-эндпоинта `/api/queue/messages` нет, ключ мониторинга на проде не был настроен, а очередь и так видна в админке Stalwart. Блок очереди удалён из HomeMail целиком.
 
 ## Context
 

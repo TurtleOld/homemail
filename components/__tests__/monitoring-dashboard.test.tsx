@@ -34,59 +34,7 @@ describe('MonitoringDashboard', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows queue and report totals when Stalwart is reachable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        ...baseHealth,
-        stalwart: {
-          reachable: true,
-          queue: { total: 3, hasEntries: true },
-          reports: { total: 0, hasEntries: false },
-        },
-      }),
-    })));
-
-    renderWithQueryClient(<MonitoringDashboard />);
-
-    await waitFor(() => expect(screen.getByText('Почтовый сервер Stalwart')).toBeInTheDocument());
-    expect(screen.getByText('3')).toBeInTheDocument();
-    expect(screen.getByText('Писем в очереди на отправку')).toBeInTheDocument();
-    expect(screen.getByText('Отчётов DMARC/TLS в очереди')).toBeInTheDocument();
-  });
-
-  it('shows an unavailable message when Stalwart is unreachable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        ...baseHealth,
-        stalwart: { reachable: false, queue: null, reports: null },
-      }),
-    })));
-
-    renderWithQueryClient(<MonitoringDashboard />);
-
-    await waitFor(() =>
-      expect(screen.getByText(/Данные очереди недоступны/)).toBeInTheDocument(),
-    );
-  });
-
-  it('shows an independent partial-failure state', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        ...baseHealth,
-        stalwart: { reachable: true, queue: { total: 4, hasEntries: true }, reports: null },
-      }),
-    })));
-
-    renderWithQueryClient(<MonitoringDashboard />);
-
-    await waitFor(() => expect(screen.getByText('4')).toBeInTheDocument());
-    expect(screen.getByText(/Одна из проверок Stalwart/)).toBeInTheDocument();
-  });
-
-  it('does not render the Stalwart block when the field is absent (non-Stalwart provider)', async () => {
+  it('renders the general monitoring sections without a Stalwart queue block', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       json: async () => baseHealth,
@@ -95,6 +43,8 @@ describe('MonitoringDashboard', () => {
     renderWithQueryClient(<MonitoringDashboard />);
 
     await waitFor(() => expect(screen.getByText('Общий статус')).toBeInTheDocument());
+    expect(screen.getByText('Проверки системы')).toBeInTheDocument();
+    expect(screen.getByText('Безопасность за 24 часа')).toBeInTheDocument();
     expect(screen.queryByText('Почтовый сервер Stalwart')).not.toBeInTheDocument();
   });
 });
