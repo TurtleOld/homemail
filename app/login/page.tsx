@@ -14,7 +14,6 @@ function LoginForm() {
   const [authMode, setAuthMode] = useState<'basic' | 'oauth'>('oauth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const isAddingAccount = searchParams.get('addAccount') === 'true';
   const redirect = searchParams.get('redirect') || `/${routing.defaultLocale}/mail`;
 
   useEffect(() => {
@@ -60,7 +59,6 @@ function LoginForm() {
         body: JSON.stringify({
           email,
           password,
-          addAccount: isAddingAccount,
         }),
       });
 
@@ -99,12 +97,10 @@ function LoginForm() {
           </div>
 
           <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-            {isAddingAccount ? 'Добавить аккаунт' : 'Добро пожаловать'}
+            Добро пожаловать
           </h1>
           <p className="mt-3 text-base text-gray-600 sm:text-lg">
-            {isAddingAccount
-              ? 'Авторизуйтесь, чтобы добавить новый аккаунт'
-              : 'Войдите в свой почтовый ящик'}
+            Войдите в свой почтовый ящик
           </p>
         </div>
 

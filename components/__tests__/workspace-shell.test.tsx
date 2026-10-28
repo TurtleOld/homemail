@@ -23,7 +23,6 @@ vi.mock('next-intl', () => ({
       defaultAccount: 'Account',
       accountMenu: 'Account menu',
       currentMailbox: 'Current mailbox',
-      switchMailbox: 'Switch mailbox',
       mailSettings: 'Mail settings',
       manageInStalwart: 'Manage in Stalwart',
       logout: 'Sign out',
@@ -89,22 +88,6 @@ describe('Workspace shell', () => {
 
   it('shows the current mailbox once and routes account management to Stalwart', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          accounts: [
-            {
-              id: 'account-1',
-              email: 'alexander@example.com',
-              displayName: 'Alexander',
-              isActive: true,
-            },
-          ],
-        }),
-      }))
-    );
 
     renderWithQueryClient(
       <AccountMenu
@@ -115,7 +98,6 @@ describe('Workspace shell', () => {
     await user.click(screen.getByRole('button', { name: 'Account menu' }));
 
     expect(screen.getAllByText('alexander@example.com')).toHaveLength(1);
-    expect(screen.queryByText('Add account')).not.toBeInTheDocument();
 
     await user.click(await screen.findByRole('menuitem', { name: 'Manage in Stalwart' }));
     expect(push).toHaveBeenCalledWith('/en/settings/stalwart');

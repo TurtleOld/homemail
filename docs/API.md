@@ -272,53 +272,6 @@ HomeMail предоставляет RESTful API для управления по
 }
 ```
 
-### Аккаунты
-
-#### GET /api/accounts
-
-Получение списка аккаунтов пользователя.
-
-**Ответ:**
-```json
-{
-  "accounts": [
-    {
-      "id": "account1@example.com",
-      "email": "account1@example.com",
-      "displayName": "Account 1",
-      "isActive": true
-    }
-  ]
-}
-```
-
-#### POST /api/accounts
-
-Добавление нового аккаунта.
-
-**Тело запроса:**
-```json
-{
-  "email": "newaccount@example.com",
-  "password": "password"
-}
-```
-
-#### DELETE /api/accounts?accountId=account@example.com
-
-Удаление аккаунта.
-
-#### POST /api/accounts/switch
-
-Переключение между аккаунтами.
-
-**Тело запроса:**
-```json
-{
-  "accountId": "account@example.com"
-}
-```
-
 ## Обработка ошибок
 
 Все ошибки возвращаются в следующем формате:

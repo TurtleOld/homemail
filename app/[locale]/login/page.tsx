@@ -17,7 +17,6 @@ function LoginForm() {
   const [authMode, setAuthMode] = useState<'basic' | 'oauth'>('oauth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const isAddingAccount = searchParams.get('addAccount') === 'true';
   const redirect = searchParams.get('redirect') || `/${locale}/mail`;
   const t = useTranslations('login');
 
@@ -60,7 +59,6 @@ function LoginForm() {
         body: JSON.stringify({
           email,
           password,
-          addAccount: isAddingAccount,
         }),
       });
 
@@ -87,10 +85,10 @@ function LoginForm() {
           </div>
 
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            {isAddingAccount ? t('addAccount') : t('welcomeBack')}
+            {t('welcomeBack')}
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            {isAddingAccount ? t('addAccountDesc') : t('signInDesc')}
+            {t('signInDesc')}
           </p>
         </div>
 

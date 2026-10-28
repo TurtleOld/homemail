@@ -278,12 +278,9 @@
     "defaultAccount": "Account",
     "accountMenu": "Account menu",
     "currentMailbox": "Current mailbox",
-    "switchMailbox": "Switch mailbox",
     "mailSettings": "Mail settings",
     "manageInStalwart": "Manage in Stalwart",
     "logout": "Sign out",
-    "accountSwitched": "Account switched",
-    "accountSwitchError": "Failed to switch account",
     "statusUp": "available",
     "statusDown": "unavailable",
     "statusUnknown": "n/a"
@@ -315,9 +312,7 @@
   },
   "login": {
     "welcomeBack": "Welcome back",
-    "addAccount": "Add account",
     "signInDesc": "Sign in to your mailbox",
-    "addAccountDesc": "Sign in to add a new account",
     "email": "Email",
     "password": "Password",
     "signInBasic": "Sign in with password",
