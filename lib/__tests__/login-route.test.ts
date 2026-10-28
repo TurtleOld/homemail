@@ -51,7 +51,7 @@ describe('basic login brute-force protection', () => {
   });
 
   it('blocks further attempts after repeated authentication failures', async () => {
-    mocks.getJmapSession.mockRejectedValue(new Error('invalid credentials'));
+    mocks.getJmapSession.mockRejectedValue(new Error('JMAP session failed: 401 Unauthorized'));
 
     for (let attempt = 0; attempt < 5; attempt++) {
       const email = attempt % 2 === 0 ? 'user@example.test' : 'User@example.test';
@@ -70,7 +70,7 @@ describe('basic login brute-force protection', () => {
   });
 
   it('keeps the account usable after a successful login', async () => {
-    mocks.getJmapSession.mockRejectedValue(new Error('invalid credentials'));
+    mocks.getJmapSession.mockRejectedValue(new Error('JMAP session failed: 401 Unauthorized'));
     for (let attempt = 0; attempt < 4; attempt++) {
       expect((await POST(loginRequest())).status).toBe(401);
     }
@@ -82,10 +82,18 @@ describe('basic login brute-force protection', () => {
     expect((await POST(loginRequest())).status).toBe(200);
     expect(mocks.logLoginSuccess).toHaveBeenCalled();
 
-    mocks.getJmapSession.mockRejectedValue(new Error('invalid credentials'));
+    mocks.getJmapSession.mockRejectedValue(new Error('JMAP session failed: 401 Unauthorized'));
     for (let attempt = 0; attempt < 2; attempt++) {
       expect((await POST(loginRequest())).status).toBe(401);
     }
     expect((await POST(loginRequest())).status).toBe(429);
+  });
+
+  it('does not count an unreachable server as a failed attempt', async () => {
+    mocks.getJmapSession.mockRejectedValue(new Error('fetch failed'));
+    for (let attempt = 0; attempt < 6; attempt++) {
+      expect((await POST(loginRequest())).status).toBe(401);
+    }
+    expect(mocks.getJmapSession).toHaveBeenCalledTimes(6);
   });
 });

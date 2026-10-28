@@ -75,7 +75,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (!jmapSession) {
-      recordFailedAttempt(ip, bruteForceKey);
+      // Only a rejected password counts: an unreachable Stalwart must not lock the household out.
+      if (lastError instanceof Error && /JMAP (session|discovery) failed: 401\b/.test(lastError.message)) {
+        recordFailedAttempt(ip, bruteForceKey);
+      }
       throw lastError instanceof Error
         ? lastError
         : new Error('Unable to connect to Stalwart using any configured base URL');
