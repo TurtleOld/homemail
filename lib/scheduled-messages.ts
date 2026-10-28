@@ -24,6 +24,7 @@ export interface ScheduledMessage {
   draftId?: string;
   inReplyTo?: string;
   references?: string[];
+  requestReadReceipt?: boolean;
   createdAt: string;
 }
 
