@@ -60,7 +60,7 @@ export async function PUT(
     return NextResponse.json(contacts[contactIndex]);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
     }
     console.error('Error updating contact:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

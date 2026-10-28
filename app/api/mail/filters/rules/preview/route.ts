@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ jobId: job.id });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid conditions', details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid conditions', details: error.issues }, { status: 400 });
     }
     console.error('[filter-rules/preview] Error queueing preview job:', error);
     return NextResponse.json(
