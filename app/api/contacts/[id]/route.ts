@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { validateOrigin } from '@/lib/csrf';
 import type { Contact } from '@/lib/types';
 
 const updateContactSchema = z.object({
@@ -17,10 +16,6 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 
@@ -71,10 +66,6 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 

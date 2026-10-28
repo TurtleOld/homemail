@@ -3,7 +3,6 @@ import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import type { Folder } from '@/lib/types';
 import { z } from 'zod';
-import { validateOrigin } from '@/lib/csrf';
 
 const FOLDER_ORDER: Record<string, number> = {
   inbox: 1,
@@ -88,10 +87,6 @@ const deleteFolderSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 
@@ -122,10 +117,6 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 

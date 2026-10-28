@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { validateOrigin } from '@/lib/csrf';
 
 const bulkActionSchema = z.object({
   ids: z.array(z.string()).min(1),
@@ -16,10 +15,6 @@ const bulkActionSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   const session = await getSession();
 
   if (!session) {

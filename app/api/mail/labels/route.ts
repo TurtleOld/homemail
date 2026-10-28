@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { validateOrigin } from '@/lib/csrf';
 import { getAccountAccentColor } from '@/lib/settings-store';
 import type { Label } from '@/lib/types';
 
@@ -29,10 +28,6 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 

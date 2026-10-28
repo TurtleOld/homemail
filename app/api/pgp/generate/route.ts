@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { readEncryptedStorage, writeEncryptedStorage } from '@/lib/storage';
-import { validateOrigin } from '@/lib/csrf';
 import { z } from 'zod';
 import type { PGPKey } from '@/lib/types';
 
@@ -12,10 +11,6 @@ const generateKeySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 

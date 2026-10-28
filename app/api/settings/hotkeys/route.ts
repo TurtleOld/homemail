@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { validateOrigin } from '@/lib/csrf';
 
 export interface CustomHotkey {
   id: string;
@@ -28,10 +27,6 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   try {
     const session = await getSession();
 

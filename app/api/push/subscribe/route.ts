@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { validateOrigin } from '@/lib/csrf';
 import { z } from 'zod';
 
 const subscribeSchema = z.object({
@@ -15,10 +14,6 @@ const subscribeSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   const session = await getSession();
 
   if (!session) {

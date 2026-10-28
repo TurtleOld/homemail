@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { validateOrigin } from '@/lib/csrf';
 import type { Contact } from '@/lib/types';
 import { parse } from 'csv-parse/sync';
 
@@ -86,10 +85,6 @@ function parseCSV(content: string): Contact[] {
 }
 
 export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   const session = await getSession();
 
   if (!session) {

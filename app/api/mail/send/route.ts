@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
-import { validateCsrf } from '@/lib/csrf';
 import { logger } from '@/lib/logger';
 import { writeStorage, encryptData, decryptData } from '@/lib/storage';
 import { updateScheduledMessages } from '@/lib/scheduled-messages';
@@ -34,11 +33,6 @@ const sendSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const csrfValid = await validateCsrf(request);
-  if (!csrfValid) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
   const session = await getSession();
 
   if (!session) {

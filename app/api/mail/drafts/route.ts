@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
-import { validateOrigin } from '@/lib/csrf';
 import { logger } from '@/lib/logger';
 
 const draftSchema = z.object({
@@ -15,10 +14,6 @@ const draftSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   const session = await getSession();
 
   if (!session) {

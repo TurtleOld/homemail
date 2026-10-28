@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { validateOrigin } from '@/lib/csrf';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 
@@ -25,10 +24,6 @@ const translateSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  if (!validateOrigin(request)) {
-    return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
-  }
-
   if (TRANSLATE_PROVIDER === 'disabled') {
     return NextResponse.json({ error: 'Translation feature is disabled' }, { status: 503 });
   }
