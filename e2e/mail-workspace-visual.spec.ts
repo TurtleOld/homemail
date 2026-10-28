@@ -8,7 +8,6 @@ for (const screen of ['list', 'reader'] as const) {
           json: { theme, locale: { language: locale } },
         }));
         await page.route('**/api/mail/labels', async (route) => route.fulfill({ json: [] }));
-        await page.route('**/api/accounts', async (route) => route.fulfill({ json: { accounts: [] } }));
 
         await page.goto(`/${locale}/visual-regression/mail/${screen}`);
         await page.evaluate(() => document.fonts.ready);

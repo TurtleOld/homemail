@@ -23,7 +23,6 @@ vi.mock('next-intl', () => ({
       defaultAccount: 'Account',
       accountMenu: 'Account menu',
       currentMailbox: 'Current mailbox',
-      switchMailbox: 'Switch mailbox',
       mailSettings: 'Mail settings',
       manageInStalwart: 'Manage in Stalwart',
       logout: 'Sign out',

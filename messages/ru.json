@@ -278,12 +278,9 @@
     "defaultAccount": "Аккаунт",
     "accountMenu": "Меню аккаунта",
     "currentMailbox": "Текущий почтовый ящик",
-    "switchMailbox": "Переключить ящик",
     "mailSettings": "Настройки почты",
     "manageInStalwart": "Управление в Stalwart",
     "logout": "Выйти",
-    "accountSwitched": "Аккаунт переключен",
-    "accountSwitchError": "Ошибка переключения аккаунта",
     "statusUp": "доступен",
     "statusDown": "недоступен",
     "statusUnknown": "н/д"
@@ -315,9 +312,7 @@
   },
   "login": {
     "welcomeBack": "Добро пожаловать",
-    "addAccount": "Добавить аккаунт",
     "signInDesc": "Войдите в свой почтовый ящик",
-    "addAccountDesc": "Авторизуйтесь, чтобы добавить новый аккаунт",
     "email": "Логин",
     "password": "Пароль",
     "signInBasic": "Войти по логину и паролю",

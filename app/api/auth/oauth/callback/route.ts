@@ -5,7 +5,6 @@ import { consumeOAuthState, isStateRecentlyConsumed } from '@/lib/oauth-state-st
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
 import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
 import { createSession, getSession } from '@/lib/session';
-import { addUserAccount, setActiveAccount, type UserAccount } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 import { getClientIp } from '@/lib/client-ip';
 import { SecurityLogger } from '@/lib/security-logger';
@@ -302,21 +301,9 @@ export async function GET(request: NextRequest) {
 
     logger.info('[OAuth Callback] Session created', { sessionId, accountId, email });
 
-    // 9. Store user account info
-    const userAccount: UserAccount = {
-      id: accountId,
-      email,
-      displayName: account.name || email.split('@')[0],
-      addedAt: Date.now(),
-      isActive: true,
-    };
-
-    await addUserAccount(email, userAccount);
-    await setActiveAccount(email, accountId);
-
     SecurityLogger.logLoginSuccess(request, email, accountId);
 
-    // 10. Redirect to mail inbox with the user's preferred locale
+    // 9. Redirect to mail inbox with the user's preferred locale
     const userLocale = await getUserLocale(accountId);
     const mailUrl = buildPublicUrl(`/${userLocale}/mail`, request);
     logger.info('[OAuth Callback] Redirecting to mail inbox', { locale: userLocale });

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { JMAPClient } from '@/providers/stalwart-jmap/jmap-client';
-import { createSession, getSession } from '@/lib/session';
-import { addUserAccount, setActiveAccount, setCredentials, type UserAccount } from '@/lib/storage';
+import { createSession } from '@/lib/session';
+import { setCredentials } from '@/lib/storage';
 import { isPasswordLoginEnabled } from '@/lib/auth-config';
 import { SecurityLogger } from '@/lib/security-logger';
 import { logger } from '@/lib/logger';
@@ -11,7 +11,6 @@ import { getStalwartBaseUrlCandidates } from '@/lib/stalwart-base-url';
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
-  addAccount: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -29,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const rawBody = await request.json();
-    const { email, password, addAccount = false } = loginSchema.parse(rawBody);
+    const { email, password } = loginSchema.parse(rawBody);
     const accountId = email.trim();
     emailForLogging = accountId;
     const baseUrls = getStalwartBaseUrlCandidates();
@@ -59,32 +58,15 @@ export async function POST(request: NextRequest) {
     const primaryAccountId = jmapSession.primaryAccounts?.mail;
     const account = primaryAccountId ? jmapSession.accounts[primaryAccountId] : undefined;
     const displayName = account?.name || accountId.split('@')[0];
-    const existingSession = await getSession(request);
-    const isAddAccountFlow = addAccount && !!existingSession;
-    const userId = isAddAccountFlow ? existingSession.email : accountId;
-
     await setCredentials(accountId, accountId, password);
 
-    const userAccount: UserAccount = {
-      id: accountId,
-      email: accountId,
-      displayName,
-      addedAt: Date.now(),
-      isActive: !isAddAccountFlow,
-    };
-
-    await addUserAccount(userId, userAccount);
-
-    if (isAddAccountFlow) {
-      SecurityLogger.logLoginSuccess(request, accountId, accountId);
-      return NextResponse.json({ success: true, account: userAccount, addedAccount: true });
-    }
-
-    await setActiveAccount(userId, accountId);
     await createSession(accountId, accountId, request);
     SecurityLogger.logLoginSuccess(request, accountId, accountId);
 
-    return NextResponse.json({ success: true, account: userAccount });
+    return NextResponse.json({
+      success: true,
+      account: { id: accountId, email: accountId, displayName },
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });

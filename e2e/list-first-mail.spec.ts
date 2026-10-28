@@ -6,7 +6,6 @@ test.describe('list-first mail fixtures', () => {
       json: { theme: 'light', locale: { language: 'en' } },
     }));
     await page.route('**/api/mail/labels', async (route) => route.fulfill({ json: [] }));
-    await page.route('**/api/accounts', async (route) => route.fulfill({ json: { accounts: [] } }));
   });
 
   test('exposes full-width conversation rows and durable reader links', async ({ page }) => {
