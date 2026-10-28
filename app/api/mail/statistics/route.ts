@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { readStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 
@@ -12,9 +12,7 @@ export async function GET() {
   }
 
   try {
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     const folders = await provider.getFolders(session.accountId);
     const inbox = folders.find((f) => f.role === 'inbox');

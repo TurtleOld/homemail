@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { getSession } from '@/lib/session';
 import { protectMessageForDelivery } from '@/lib/protected-message-content';
 
@@ -29,9 +29,7 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid thread request' }, { status: 400 });
   }
 
-  const provider = process.env.MAIL_PROVIDER === 'stalwart'
-    ? getMailProviderForAccount(session.accountId)
-    : getMailProvider();
+  const provider = getMailProviderForAccount(session.accountId);
   const thread = await provider.getThread(
     session.accountId,
     parsedParams.data.threadId,

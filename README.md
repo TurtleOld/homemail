@@ -99,7 +99,6 @@ npm run test:e2e:ui
 Система построена на абстракции `MailProvider`, что позволяет использовать реальные реализации:
 
 - **Stalwart JMAP Provider** (`providers/stalwart-jmap/`): реализация для JMAP + SMTP
-- **IMAP Provider** (`providers/imap/`): заглушка с инструкциями по реализации
 
 ### Безопасность
 
@@ -157,7 +156,6 @@ npm install
 
 2. Настройте переменные окружения в `.env.local`:
 ```env
-MAIL_PROVIDER=stalwart
 STALWART_BASE_URL=https://example.com
 STALWART_SMTP_HOST=example.com
 STALWART_SMTP_PORT=587
@@ -174,54 +172,6 @@ curl https://example.com/.well-known/jmap
 
 **Подробная документация:** См. `providers/stalwart-jmap/README.md`
 
-### IMAP/SMTP (альтернатива)
-
-Для подключения через IMAP:
-
-1. **Установите зависимости**:
-
-```bash
-npm install imap nodemailer
-npm install --save-dev @types/imap
-```
-
-2. **Реализуйте IMAP Provider**:
-
-См. `providers/imap/README.md` для детальных инструкций. Основные моменты:
-
-- Реализуйте все методы интерфейса `MailProvider`
-- Маппинг IMAP папок на `Folder` тип
-- Маппинг IMAP сообщений на `MessageDetail`/`MessageListItem`
-- Использование IMAP IDLE для realtime обновлений
-- SMTP через nodemailer для отправки
-
-3. **Хранение credentials**:
-
-- Учетные данные хранятся в server session (HTTPOnly cookie)
-- Никогда не логируйте credentials
-- В production рассмотрите шифрование в базе данных
-
-4. **Переключение на IMAP**:
-
-Установите переменную окружения:
-
-```bash
-MAIL_PROVIDER=imap
-```
-
-5. **Конфигурация**:
-
-Создайте `.env.local`:
-
-```env
-IMAP_HOST=imap.example.com
-IMAP_PORT=993
-IMAP_SECURE=true
-SMTP_HOST=smtp.example.com
-SMTP_PORT=465
-SMTP_SECURE=true
-```
-
 ### Маппинг сущностей
 
 **JMAP (Stalwart):**
@@ -230,12 +180,6 @@ SMTP_SECURE=true
 - **JMAP Email.id** → `MessageDetail.id`
 - **JMAP Email.keywords** → `MessageFlags` ($seen → unread, $flagged → starred)
 - **JMAP Blob.id** → `Attachment.id` (скачивание через downloadUrl)
-
-**IMAP:**
-- **IMAP UIDs** → `message.id` (сохраняйте в базе для стабильности)
-- **IMAP folders** → `Folder` (role определяется по стандартным именам: INBOX, Sent, Drafts, Trash, Spam)
-- **IMAP flags** → `MessageFlags` (\\Seen → unread, \\Flagged → starred)
-- **IMAP attachments** → `Attachment` (скачивание через IMAP FETCH)
 
 ## Структура проекта
 
@@ -262,7 +206,6 @@ mailclient/
 ├── providers/             # Mail провайдеры
 │   ├── mail-provider.ts  # Интерфейс
 │   ├── mock/            # Mock реализация
-│   └── imap/             # IMAP реализация (заглушка)
 ├── e2e/                  # E2E тесты
 └── lib/__tests__/        # Unit тесты
 ```

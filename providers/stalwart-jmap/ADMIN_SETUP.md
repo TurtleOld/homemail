@@ -162,8 +162,7 @@ superuser = false
 
 1. Убедитесь, что `.env.production` содержит правильные настройки:
    ```env
-   MAIL_PROVIDER=stalwart
-   STALWART_BASE_URL=https://example.com
+      STALWART_BASE_URL=https://example.com
    ```
 
 2. Проверьте логи webmail:

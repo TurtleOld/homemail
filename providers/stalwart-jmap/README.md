@@ -9,7 +9,6 @@
 Добавьте в `.env.local`:
 
 ```env
-MAIL_PROVIDER=stalwart
 STALWART_BASE_URL=https://example.com
 STALWART_SMTP_HOST=example.com
 STALWART_SMTP_PORT=587
@@ -19,7 +18,6 @@ STALWART_AUTH_MODE=basic
 
 ### Описание переменных
 
-- `MAIL_PROVIDER=stalwart` - включает использование Stalwart provider
 - `STALWART_BASE_URL` - базовый URL сервера (https://example.com)
 - `STALWART_SMTP_HOST` - хост SMTP сервера (example.com)
 - `STALWART_SMTP_PORT` - порт SMTP (587 для STARTTLS)

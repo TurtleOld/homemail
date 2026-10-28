@@ -3,7 +3,7 @@ import dns from 'node:dns';
 import { promisify } from 'node:util';
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 
 const lookup = promisify(dns.lookup);
 
@@ -14,8 +14,6 @@ interface ServerStatus {
   imapJmap: ServiceStatus;
   updatedAt: string;
 }
-
-const MAIL_PROVIDER = process.env.MAIL_PROVIDER;
 
 const isDockerInternalIp = (ip: string): boolean => {
   if (ip === '127.0.0.1' || ip === 'localhost') return true;
@@ -72,10 +70,6 @@ const checkTcp = (host: string, port: number, timeoutMs: number): Promise<boolea
   });
 
 const resolveSmtpStatus = async (): Promise<ServiceStatus> => {
-  if (MAIL_PROVIDER !== 'stalwart') {
-    return MAIL_PROVIDER === 'imap' ? 'unknown' : 'up';
-  }
-
   const host = process.env.STALWART_SMTP_HOST;
   const portRaw = process.env.STALWART_SMTP_PORT;
   const port = portRaw ? Number.parseInt(portRaw, 10) : NaN;
@@ -99,14 +93,8 @@ const resolveSmtpStatus = async (): Promise<ServiceStatus> => {
 };
 
 const resolveImapJmapStatus = async (accountId: string): Promise<ServiceStatus> => {
-  if (MAIL_PROVIDER === 'imap') {
-    return 'unknown';
-  }
-
   try {
-    const provider = MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(accountId);
     await provider.getAccount(accountId);
     return 'up';
   } catch {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import type { Folder } from '@/lib/types';
 import { z } from 'zod';
 import { validateOrigin } from '@/lib/csrf';
@@ -36,9 +36,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     const folders = await provider.getFolders(session.accountId);
 
@@ -102,9 +100,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = createFolderSchema.parse(body);
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     const folder = await provider.createFolder(session.accountId, data.name, data.parentId);
 
@@ -140,9 +136,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'folderId is required' }, { status: 400 });
     }
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     await provider.deleteFolder(session.accountId, folderId);
 
