@@ -52,6 +52,8 @@ export interface MailProvider {
       subject: string;
       html: string;
       attachments?: Array<{ filename: string; mime: string; data: Buffer }>;
+      inReplyTo?: string;
+      references?: string[];
     }
   ): Promise<string>;
   saveDraft(accountId: string, draft: Draft): Promise<string>;

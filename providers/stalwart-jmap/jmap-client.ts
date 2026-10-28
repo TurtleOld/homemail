@@ -93,6 +93,9 @@ interface JMAPEmail {
   to?: Array<{ name?: string; email: string }>;
   cc?: Array<{ name?: string; email: string }>;
   bcc?: Array<{ name?: string; email: string }>;
+  messageId?: string[];
+  inReplyTo?: string[];
+  references?: string[];
   bodyStructure?: any;
   bodyValues?: Record<
     string,

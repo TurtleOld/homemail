@@ -66,6 +66,8 @@ async function processScheduledMessages() {
             bcc: message.bcc,
             subject: message.subject,
             html,
+            inReplyTo: message.inReplyTo,
+            references: message.references,
             attachments: message.attachments?.map((att) => ({
               filename: att.filename,
               mime: att.mime,

@@ -16,6 +16,43 @@ function providerWithClient(client: unknown) {
 }
 
 describe('StalwartJMAPProvider sendMessage', () => {
+  it('adds In-Reply-To and References headers when replying', async () => {
+    const request = vi.fn().mockResolvedValue({
+      methodResponses: [['Email/set', { created: { message1: { id: 'email-1' } } }, '0']],
+    });
+    const client = {
+      getSession: vi.fn().mockResolvedValue({
+        primaryAccounts: { mail: 'account-1' },
+        accounts: { 'account-1': {} },
+      }),
+      getMailboxes: vi.fn().mockResolvedValue([
+        { id: 'drafts-1', role: 'drafts' },
+        { id: 'sent-1', role: 'sent' },
+      ]),
+      request,
+      sendEmail: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const provider = providerWithClient(client);
+
+    await provider.sendMessage('account-1', {
+      to: ['recipient@example.test'],
+      subject: 'Re: Subject',
+      html: '<p>Reply</p>',
+      inReplyTo: 'original@example.test',
+      references: ['root@example.test', 'original@example.test'],
+    });
+
+    const [methodCalls] = request.mock.calls[0];
+    const [method, args] = methodCalls[0];
+    expect(method).toBe('Email/set');
+    expect(args.create.message1.inReplyTo).toEqual(['original@example.test']);
+    expect(args.create.message1.references).toEqual([
+      'root@example.test',
+      'original@example.test',
+    ]);
+  });
+
   it('keeps the email out of Sent when EmailSubmission/set is rejected', async () => {
     const request = vi.fn().mockResolvedValue({
       methodResponses: [['Email/set', { created: { message1: { id: 'email-1' } } }, '0']],
