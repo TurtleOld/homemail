@@ -1,4 +1,4 @@
-import { readStorage, writeStorage } from '../lib/storage';
+import { readStorage, writeStorage, decryptData } from '../lib/storage';
 import { getMailProvider, getMailProviderForAccount } from '../lib/get-provider';
 import { logger } from '../lib/logger';
 
@@ -20,7 +20,19 @@ interface ScheduledMessage {
   createdAt: string;
 }
 
+declare global {
+  var __scheduledSendDaemonStarted: boolean | undefined;
+}
+
+let isProcessing = false;
+
 async function processScheduledMessages() {
+  // The interval and a manual run must not write allScheduledMessages concurrently.
+  if (isProcessing) {
+    logger.warn('Skipping scheduled-message run: previous run is still in progress');
+    return;
+  }
+  isProcessing = true;
   try {
     const allScheduled = await readStorage<Record<string, ScheduledMessage[]>>('allScheduledMessages', {});
     const now = new Date();
@@ -47,7 +59,8 @@ async function processScheduledMessages() {
             cc: message.cc,
             bcc: message.bcc,
             subject: message.subject,
-            html: message.html,
+            // Rows written before the encryption change hold plain HTML.
+            html: decryptData(message.html) ?? message.html,
             attachments: message.attachments?.map((att) => ({
               filename: att.filename,
               mime: att.mime,
@@ -88,7 +101,31 @@ async function processScheduledMessages() {
     }
   } catch (error) {
     logger.error('Error processing scheduled messages:', error);
+  } finally {
+    isProcessing = false;
   }
+}
+
+/**
+ * Starts the in-process scheduled-send loop.
+ *
+ * Runs inside Next.js so OAuth token refreshes and schedule-file writes stay in
+ * one process; a separate script could rotate tokens behind Next's cache.
+ * Repeated calls are ignored, and overlapping runs are skipped in
+ * processScheduledMessages itself.
+ */
+function startScheduledSendDaemon() {
+  if (globalThis.__scheduledSendDaemonStarted) {
+    return;
+  }
+  globalThis.__scheduledSendDaemonStarted = true;
+
+  const run = () => {
+    void processScheduledMessages();
+  };
+
+  run();
+  setInterval(run, 60_000);
 }
 
 if (require.main === module) {
@@ -100,4 +137,4 @@ if (require.main === module) {
     });
 }
 
-export { processScheduledMessages };
+export { processScheduledMessages, startScheduledSendDaemon };
