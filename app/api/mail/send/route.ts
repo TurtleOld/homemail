@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
         draftId: validatedData.draftId,
         inReplyTo: validatedData.inReplyTo,
         references: validatedData.references,
+        requestReadReceipt: validatedData.requestReadReceipt,
         createdAt: new Date().toISOString(),
       };
 
@@ -140,6 +141,7 @@ export async function POST(request: NextRequest) {
       html: validatedData.html,
       inReplyTo: validatedData.inReplyTo,
       references: validatedData.references,
+      requestReadReceipt: validatedData.requestReadReceipt,
       attachments: validatedData.attachments?.map((att) => ({
         filename: att.filename,
         mime: att.mime,

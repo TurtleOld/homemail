@@ -68,6 +68,7 @@ async function processScheduledMessages() {
             html,
             inReplyTo: message.inReplyTo,
             references: message.references,
+            requestReadReceipt: message.requestReadReceipt,
             attachments: message.attachments?.map((att) => ({
               filename: att.filename,
               mime: att.mime,
