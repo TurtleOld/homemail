@@ -979,6 +979,9 @@ export class JMAPClient {
       ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']
     );
 
+    // requestWithUsing leaves method errors to callers; Sieve validation relies on that.
+    throwIfMethodError(response);
+
     const setResponse = response.methodResponses[0];
     if (setResponse[0] !== 'Identity/set') {
       throw new Error('Invalid identity set response');

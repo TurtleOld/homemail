@@ -56,4 +56,17 @@ describe('JMAPClient method errors', () => {
       cannotCalculateChanges: true,
     });
   });
+
+  it('reports the server error for Identity/set', async () => {
+    const client = clientWithMockedFetch([
+      'error',
+      { type: 'forbidden', description: 'identity not allowed' },
+      '0',
+    ]);
+    vi.spyOn(client, 'getIdentities').mockResolvedValue([]);
+
+    await expect(client.setIdentities([{ email: 'user@example.test' }])).rejects.toThrow(
+      /forbidden.*identity not allowed/
+    );
+  });
 });
