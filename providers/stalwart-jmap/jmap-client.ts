@@ -110,14 +110,22 @@ interface JMAPThread {
 const sessionCache = new Map<string, { session: JMAPSession; expiresAt: number }>();
 const SESSION_CACHE_TTL = 5 * 60 * 1000;
 
-// Email/set resolves without a top-level error even when the server
-// rejects individual messages (e.g. a Junk move or a refused destroy) —
-// that only shows up in `notUpdated` / `notDestroyed`, so callers must
-// check it explicitly or silently no-op.
-function throwIfEmailsRejected(
-  data: unknown,
-  field: 'notUpdated' | 'notDestroyed'
-): void {
+/**
+ * Throws when Email/set rejected individual messages.
+ *
+ * Email/set resolves without a top-level error even when the server refuses
+ * some messages (e.g. a Junk move or a destroy), so without this check the
+ * client reports success while the message stays where it was.
+ *
+ * Args:
+ *   data: The `Email/set` method response arguments.
+ *   field: The rejection map to inspect, `notUpdated` or `notDestroyed`.
+ *
+ * Raises:
+ *   Error: The server rejected one or more messages; the message names the
+ *     count and the first rejected id.
+ */
+function throwIfEmailsRejected(data: unknown, field: 'notUpdated' | 'notDestroyed'): void {
   const rejected = (data as { [key: string]: Record<string, any> | undefined } | undefined)?.[
     field
   ];
