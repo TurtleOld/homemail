@@ -1,5 +1,16 @@
-import { readStorage, decryptData } from '../lib/storage';
-import { updateScheduledMessages, type ScheduledMessage } from '../lib/scheduled-messages';
+/**
+ * Sends due scheduled messages and removes them from storage.
+ *
+ * Runs from the in-process daemon started by `instrumentation.ts`, and once
+ * from the command line when this file is executed directly.
+ */
+
+import { readStorage } from '../lib/storage';
+import {
+  readScheduledHtml,
+  updateScheduledMessages,
+  type ScheduledMessages,
+} from '../lib/scheduled-messages';
 import { getMailProvider, getMailProviderForAccount } from '../lib/get-provider';
 import { logger } from '../lib/logger';
 
@@ -9,6 +20,12 @@ declare global {
 
 let isProcessing = false;
 
+/**
+ * Sends every scheduled message whose time has come.
+ *
+ * A message that cannot be sent stays in storage and is retried on the next
+ * run, because send failures are usually transient (network or token refresh).
+ */
 async function processScheduledMessages() {
   // The interval and a manual run must not write allScheduledMessages concurrently.
   if (isProcessing) {
@@ -17,7 +34,7 @@ async function processScheduledMessages() {
   }
   isProcessing = true;
   try {
-    const allScheduled = await readStorage<Record<string, ScheduledMessage[]>>('allScheduledMessages', {});
+    const allScheduled = await readStorage<ScheduledMessages>('allScheduledMessages', {});
     const now = new Date();
     const processed: string[] = [];
 
@@ -36,14 +53,21 @@ async function processScheduledMessages() {
         : getMailProvider();
 
       for (const message of pendingMessages) {
+        const html = readScheduledHtml(message.html);
+        if (html === null) {
+          logger.error(
+            `Cannot decrypt scheduled message ${message.id}; keeping it queued instead of sending ciphertext`,
+          );
+          continue;
+        }
+
         try {
           await provider.sendMessage(accountId, {
             to: message.to,
             cc: message.cc,
             bcc: message.bcc,
             subject: message.subject,
-            // Rows written before the encryption change hold plain HTML.
-            html: decryptData(message.html) ?? message.html,
+            html,
             attachments: message.attachments?.map((att) => ({
               filename: att.filename,
               mime: att.mime,

@@ -82,6 +82,21 @@ describe('processScheduledMessages', () => {
     expect(mocks.writeStorage).toHaveBeenCalledWith('allScheduledMessages', {});
   });
 
+  it('keeps a message queued when its body cannot be decrypted', async () => {
+    process.env.SESSION_SECRET = 'a-different-session-secret-at-least-32-chars';
+    const foreignBody = encryptData('<p>Encrypted with the old secret</p>');
+    process.env.SESSION_SECRET = 'test-session-secret-at-least-32-characters-long';
+
+    mocks.readStorage.mockResolvedValue({
+      'acc-1': [scheduledMessage('foreign', foreignBody)],
+    });
+
+    await processScheduledMessages();
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(mocks.writeStorage).not.toHaveBeenCalled();
+  });
+
   it('does not start a second run while a run is still in progress', async () => {
     let finishSend: ((id: string) => void) | undefined;
     mocks.sendMessage.mockImplementation(
