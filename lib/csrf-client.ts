@@ -25,6 +25,8 @@ function requestUrl(input: RequestInfo | URL): URL | null {
 
 let installed = false;
 
+type CsrfFetch = typeof fetch & { __homemailCsrfInstalled?: boolean };
+
 /**
  * Install a fetch interceptor that attaches the CSRF header to every
  * same-origin mutating request.
@@ -36,11 +38,14 @@ let installed = false;
  */
 export function installCsrfFetch(): void {
   if (installed || typeof window === 'undefined') return;
+
+  const currentFetch = window.fetch as CsrfFetch;
+  if (currentFetch.__homemailCsrfInstalled) return;
   installed = true;
 
-  const originalFetch = window.fetch.bind(window);
+  const originalFetch = currentFetch.bind(window);
 
-  window.fetch = async (input, init) => {
+  const wrappedFetch: CsrfFetch = async (input, init) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
     const url = requestUrl(input);
 
@@ -62,4 +67,8 @@ export function installCsrfFetch(): void {
 
     return originalFetch(input, { ...init, headers });
   };
+
+  // HMR can re-run this module while the page keeps the old window.fetch.
+  wrappedFetch.__homemailCsrfInstalled = true;
+  window.fetch = wrappedFetch;
 }

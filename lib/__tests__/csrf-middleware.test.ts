@@ -39,6 +39,26 @@ describe('middleware CSRF guard', () => {
     expect(response.status).toBe(403);
   });
 
+  it('rejects a mutating API request when the CSRF cookie is missing', async () => {
+    const response = await middleware(
+      apiRequest('/api/contacts', 'POST', {
+        headers: { cookie: 'mail_session=session-token', 'x-csrf-token': 'cookie-token' },
+      })
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it('rejects a same-site request from another origin even with a valid token', async () => {
+    const response = await middleware(
+      apiRequest('/api/contacts', 'POST', {
+        headers: { 'x-csrf-token': 'cookie-token', origin: 'https://other.example' },
+      })
+    );
+
+    expect(response.status).toBe(403);
+  });
+
   it('accepts a mutating API request with a matching token', async () => {
     const response = await middleware(
       apiRequest('/api/contacts', 'POST', { headers: { 'x-csrf-token': 'cookie-token' } })
