@@ -12,6 +12,7 @@ import type {
   SourceAuthResult,
   SourceAuthStatus,
 } from '@/lib/types';
+import { logger } from '@/lib/logger';
 import { JMAPClient } from './jmap-client';
 import { convertFilterToJMAP } from '@/lib/filter-to-jmap';
 import { OAuthJMAPClient } from '@/lib/oauth-jmap-client';
@@ -66,18 +67,18 @@ if (oauthDiscoveryUrl) {
 if (!oauthDiscoveryUrl || oauthDiscoveryUrl.includes('example.com')) {
   if (isInternalBaseUrl) {
     oauthDiscoveryUrl = baseUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
-    console.log(
+    logger.debug(
       `[StalwartProvider] Using internal discovery URL from STALWART_BASE_URL: ${oauthDiscoveryUrl}`
     );
   } else {
     const publicUrl = process.env.STALWART_PUBLIC_URL;
     if (publicUrl) {
       oauthDiscoveryUrl = publicUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
-      console.log(
+      logger.debug(
         `[StalwartProvider] OAuth discovery URL determined from STALWART_PUBLIC_URL: ${oauthDiscoveryUrl}`
       );
     } else {
-      console.error(
+      logger.error(
         `[StalwartProvider] OAuth discovery URL not configured. OAUTH_DISCOVERY_URL: ${process.env.OAUTH_DISCOVERY_URL || 'not set'}, STALWART_PUBLIC_URL: ${process.env.STALWART_PUBLIC_URL || 'not set'}, STALWART_BASE_URL: ${baseUrl}`
       );
     }
@@ -85,15 +86,15 @@ if (!oauthDiscoveryUrl || oauthDiscoveryUrl.includes('example.com')) {
 } else if (isPublicDiscoveryUrl && isInternalBaseUrl) {
   const internalDiscoveryUrl =
     baseUrl.replace(/\/$/, '') + '/.well-known/oauth-authorization-server';
-  console.log(
+  logger.debug(
     `[StalwartProvider] OAUTH_DISCOVERY_URL is public (${process.env.OAUTH_DISCOVERY_URL}), but STALWART_BASE_URL is internal. Using internal URL for request: ${internalDiscoveryUrl}`
   );
-  console.log(
+  logger.debug(
     `[StalwartProvider] Public URL will be used for normalizing endpoints in discovery response`
   );
   oauthDiscoveryUrl = internalDiscoveryUrl;
 } else {
-  console.log(`[StalwartProvider] Using explicit OAUTH_DISCOVERY_URL: ${oauthDiscoveryUrl}`);
+  logger.debug(`[StalwartProvider] Using explicit OAUTH_DISCOVERY_URL: ${oauthDiscoveryUrl}`);
 }
 
 const config: StalwartConfig = {
@@ -113,13 +114,13 @@ if (
   try {
     const url = new URL(config.baseUrl);
     if (url.hostname.includes('.')) {
-      console.warn(
+      logger.warn(
         `[StalwartProvider] ⚠ WARNING: STALWART_BASE_URL contains domain name (${url.hostname}) instead of container name!`
       );
-      console.warn(
+      logger.warn(
         `[StalwartProvider] ⚠ Domain names resolve to external IPs and won't work for Docker container communication.`
       );
-      console.warn(
+      logger.warn(
         `[StalwartProvider] ⚠ Please use container name (e.g., 'stalwart' or 'homemail-stalwart') instead: STALWART_BASE_URL=http://stalwart:8080`
       );
     }
@@ -343,7 +344,7 @@ export class StalwartJMAPProvider implements MailProvider {
       const mailboxes = await client.getMailboxes(actualAccountId);
 
       if (!mailboxes || mailboxes.length === 0) {
-        console.warn(
+        logger.warn(
           `[StalwartProvider] No mailboxes found for accountId: ${accountId}, actualAccountId: ${actualAccountId}`
         );
         return [];
@@ -372,12 +373,12 @@ export class StalwartJMAPProvider implements MailProvider {
         error instanceof Error &&
         (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed'))
       ) {
-        console.error(
+        logger.error(
           `[StalwartProvider] Connection error in getFolders for accountId ${accountId}. Cannot connect to Stalwart at ${stalwartUrl}:`,
           error
         );
       } else {
-        console.error(`[StalwartProvider] Error in getFolders for accountId ${accountId}:`, error);
+        logger.error(`[StalwartProvider] Error in getFolders for accountId ${accountId}:`, error);
       }
       throw error;
     }
@@ -478,7 +479,7 @@ export class StalwartJMAPProvider implements MailProvider {
         if (filter.header && filter.header.length > 0) cleanFilter.header = filter.header;
       }
 
-      console.error('[StalwartProvider] getMessages called:', {
+      logger.debug('[StalwartProvider] getMessages called:', {
         accountId,
         folderId,
         mailboxIdToQuery,
@@ -501,7 +502,7 @@ export class StalwartJMAPProvider implements MailProvider {
         sort: [{ property: 'receivedAt', isAscending: false }],
       });
 
-      console.error('[StalwartProvider] Query result:', {
+      logger.debug('[StalwartProvider] Query result:', {
         idsCount: queryResult.ids.length,
         total: queryResult.total,
         position: queryResult.position,
@@ -522,7 +523,7 @@ export class StalwartJMAPProvider implements MailProvider {
         cleanFilter.notKeyword !== undefined ||
         (parsedMessageFilter && parsedMessageFilter.quickFilter);
 
-      console.error('[StalwartProvider] Checking fallback:', {
+      logger.debug('[StalwartProvider] Checking fallback:', {
         emailIdsCount: emailIds.length,
         hasQuickFilter,
         cleanFilterHasAttachment: cleanFilter.hasAttachment,
@@ -532,7 +533,7 @@ export class StalwartJMAPProvider implements MailProvider {
       });
 
       if (emailIds.length === 0 && hasQuickFilter) {
-        console.error(
+        logger.debug(
           '[StalwartProvider] Server-side quick filter returned 0 results, trying client-side filtering'
         );
         const allEmailsQuery = await client.queryEmails(mailboxIdToQuery, {
@@ -577,7 +578,7 @@ export class StalwartJMAPProvider implements MailProvider {
           emailIds = filteredIds.slice(0, limit);
           hasMore = filteredIds.length > limit;
 
-          console.error('[StalwartProvider] Client-side filtering result:', {
+          logger.debug('[StalwartProvider] Client-side filtering result:', {
             totalEmails: allEmailIds.length,
             filteredCount: filteredIds.length,
             returnedCount: emailIds.length,
@@ -665,12 +666,12 @@ export class StalwartJMAPProvider implements MailProvider {
         error instanceof Error &&
         (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed'))
       ) {
-        console.error(
+        logger.error(
           `[StalwartProvider] Connection error in getMessages for accountId ${accountId}, folderId ${folderId}. Cannot connect to Stalwart at ${stalwartUrl}:`,
           error
         );
       } else {
-        console.error(
+        logger.error(
           `[StalwartProvider] Error in getMessages for accountId ${accountId}, folderId ${folderId}:`,
           error
         );
@@ -1356,6 +1357,7 @@ export class StalwartJMAPProvider implements MailProvider {
       attachments?: Array<{ filename: string; mime: string; data: Buffer }>;
       inReplyTo?: string;
       references?: string[];
+      requestReadReceipt?: boolean;
     }
   ): Promise<string> {
     const client = await this.getClient(accountId);
@@ -1470,6 +1472,12 @@ export class StalwartJMAPProvider implements MailProvider {
 
     if (emailAttachments.length > 0) {
       emailBody.attachments = emailAttachments;
+    }
+
+    if (message.requestReadReceipt) {
+      // RFC 8098 MDN request; JMAP exposes address-list headers as `asAddresses`
+      // (RFC 8621, section 4.1.4).
+      emailBody['header:Disposition-Notification-To:asAddresses'] = [{ email: fromEmail }];
     }
 
     const response = await client.request([
@@ -2043,7 +2051,7 @@ export class StalwartJMAPProvider implements MailProvider {
         emailObjectState,
         savedAt: Date.now(),
       });
-      console.log('[stalwart-provider] syncMessages: seeded state', {
+      logger.debug('[stalwart-provider] syncMessages: seeded state', {
         mailboxState,
         emailObjectState,
       });
@@ -2185,7 +2193,7 @@ export class StalwartJMAPProvider implements MailProvider {
           callback({ type: 'message.updated', data: {} });
         }
       } catch (error) {
-        console.error('[stalwart-provider] Error in subscribeToUpdates poll:', error);
+        logger.error('[stalwart-provider] Error in subscribeToUpdates poll:', error);
       } finally {
         isPollRunning = false;
       }

@@ -87,6 +87,21 @@ describe('mail send route', () => {
     );
   });
 
+  it('forwards the read receipt request to the provider', async () => {
+    const response = await POST(sendRequest({
+      to: ['recipient@example.test'],
+      subject: 'Hello',
+      html: '<p>Body</p>',
+      requestReadReceipt: true,
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      'current-account',
+      expect.objectContaining({ requestReadReceipt: true })
+    );
+  });
+
   it('returns validation issues as details for an invalid body', async () => {
     const response = await POST(sendRequest({ subject: 'Hello', html: '<p>Hi</p>' }));
 
