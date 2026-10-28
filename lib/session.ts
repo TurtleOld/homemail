@@ -25,7 +25,6 @@ function isValidAccountId(accountId: string): boolean {
 }
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-const TAG_LENGTH = 16;
 
 export interface SessionData {
   sessionId: string;
@@ -73,33 +72,6 @@ function encryptSessionData(data: SessionData): string {
     tag,
     encrypted
   ]).toString('base64url');
-}
-
-function decryptSessionData(encryptedData: string): SessionData | null {
-  try {
-    const key = getEncryptionKey();
-    const data = Buffer.from(encryptedData, 'base64url');
-    
-    if (data.length < IV_LENGTH + TAG_LENGTH) {
-      return null;
-    }
-    
-    const iv = data.subarray(0, IV_LENGTH);
-    const tag = data.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
-    const encrypted = data.subarray(IV_LENGTH + TAG_LENGTH);
-    
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(tag);
-    
-    const decrypted = Buffer.concat([
-      decipher.update(encrypted),
-      decipher.final()
-    ]).toString('utf8');
-    
-    return JSON.parse(decrypted) as SessionData;
-  } catch (error) {
-    return null;
-  }
 }
 
 export async function createSession(
@@ -168,7 +140,7 @@ export async function regenerateSession(
   return createSession(accountId, email, request);
 }
 
-export async function getSession(request?: Request): Promise<SessionData | null> {
+export async function getSession(_request?: Request): Promise<SessionData | null> {
   const cookieStore = await cookies();
   const encryptedSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -176,61 +148,22 @@ export async function getSession(request?: Request): Promise<SessionData | null>
     return null;
   }
 
+  // sessions.json is the only source of truth. A cookie that was removed on
+  // logout must never be resurrected just because it still decrypts.
   const storedSession = await getSessionByCookie(encryptedSession);
-  let session: SessionData | null = null;
-
-  if (storedSession) {
-    session = {
-      sessionId: storedSession.sessionId,
-      accountId: storedSession.accountId,
-      email: storedSession.email,
-      expiresAt: storedSession.expiresAt,
-      createdAt: Date.now(),
-    };
-  } else {
-    session = decryptSessionData(encryptedSession);
-  }
-
-  if (!session) {
-    await deleteSession();
-    return null;
-  }
-
-  if (session.expiresAt < Date.now()) {
-    await deleteSession();
-    return null;
-  }
-
-  if (request && session.ipAddress && session.userAgent) {
-    const currentIp = getClientIp(request);
-    const currentUserAgent = request.headers.get('user-agent') || 'unknown';
-
-    if (session.ipAddress !== currentIp || session.userAgent !== currentUserAgent) {
-      if (request) {
-        SecurityLogger.logSessionHijackAttempt(request, session.email, {
-          originalIp: session.ipAddress,
-          currentIp,
-          originalUserAgent: session.userAgent,
-          currentUserAgent,
-        });
-      }
-      await deleteSession();
-      return null;
-    }
-  }
 
   if (!storedSession) {
-    const storedSessionNew: StoredSession = {
-      sessionId: session.sessionId,
-      accountId: session.accountId,
-      email: session.email,
-      expiresAt: session.expiresAt,
-      cookieValue: encryptedSession,
-    };
-    await saveSessionToStorage(storedSessionNew);
+    await deleteSession();
+    return null;
   }
 
-  return session;
+  return {
+    sessionId: storedSession.sessionId,
+    accountId: storedSession.accountId,
+    email: storedSession.email,
+    expiresAt: storedSession.expiresAt,
+    createdAt: Date.now(),
+  };
 }
 
 export async function deleteSession(): Promise<void> {
@@ -238,9 +171,9 @@ export async function deleteSession(): Promise<void> {
   const encryptedSession = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   
   if (encryptedSession) {
-    const session = decryptSessionData(encryptedSession);
-    if (session) {
-      await deleteSessionFromStorage(session.sessionId);
+    const storedSession = await getSessionByCookie(encryptedSession);
+    if (storedSession) {
+      await deleteSessionFromStorage(storedSession.sessionId);
     }
   }
 
