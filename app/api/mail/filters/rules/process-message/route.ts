@@ -1,22 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import type { AutoSortRule, MessageDetail } from '@/lib/types';
 import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort-rules';
-
-const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
-
-async function loadRules(accountId: string): Promise<AutoSortRule[]> {
-  try {
-    const data = await readFile(rulesFilePath, 'utf-8');
-    const allRules = JSON.parse(data) as Record<string, AutoSortRule[]>;
-    return (allRules[accountId] || []).filter((r) => r.enabled);
-  } catch {
-    return [];
-  }
-}
+import { loadRules } from '@/lib/filter-rules-store';
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,7 +30,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 });
     }
 
-    const rules = await loadRules(session.accountId);
+    const rules = (await loadRules(session.accountId)).filter((r) => r.enabled);
     const targetFolderId = folderId || 'inbox';
 
     let appliedCount = 0;

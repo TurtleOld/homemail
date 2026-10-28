@@ -324,7 +324,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.error('[OAuth Callback] Validation error', { errors: error.errors });
+      logger.error('[OAuth Callback] Validation error', { errors: error.issues });
       const loginUrl = buildPublicUrl('/login', request);
       loginUrl.searchParams.set('error_code', 'oauth_invalid_request');
       return NextResponse.redirect(loginUrl);

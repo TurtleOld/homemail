@@ -3,9 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Link from '@tiptap/extension-link';
-import CodeBlock from '@tiptap/extension-code-block';
-import Underline from '@tiptap/extension-underline';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,7 +13,6 @@ import {
   ListOrdered,
   Quote,
   Code,
-  Link as LinkIcon,
   X,
   Paperclip,
   File,
@@ -41,6 +37,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
+
+export const composeExtensions = [StarterKit.configure({ link: { openOnClick: false } })];
 
 function removeSignatureFromHtml(html: string, signatures: Signature[]): string {
   if (signatures.length === 0) return html;
@@ -191,7 +189,7 @@ export function Compose({
   }, [signatures]);
 
   const editor = useEditor({
-    extensions: [StarterKit, Link.configure({ openOnClick: false }), CodeBlock, Underline],
+    extensions: composeExtensions,
     content: '',
     immediatelyRender: false,
     editorProps: {
