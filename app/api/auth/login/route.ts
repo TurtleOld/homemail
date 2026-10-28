@@ -7,6 +7,12 @@ import { isPasswordLoginEnabled } from '@/lib/auth-config';
 import { SecurityLogger } from '@/lib/security-logger';
 import { logger } from '@/lib/logger';
 import { getStalwartBaseUrlCandidates } from '@/lib/stalwart-base-url';
+import { getClientIp } from '@/lib/client-ip';
+import {
+  checkBruteForce,
+  recordFailedAttempt,
+  recordSuccess,
+} from '@/lib/brute-force-protection';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -31,6 +37,25 @@ export async function POST(request: NextRequest) {
     const { email, password } = loginSchema.parse(rawBody);
     const accountId = email.trim();
     emailForLogging = accountId;
+    // Mailbox addresses are case-insensitive, so a changed case must not buy a new attempt budget.
+    const bruteForceKey = accountId.toLowerCase();
+    const ip = getClientIp(request);
+    const bruteForce = checkBruteForce(ip, bruteForceKey, request);
+
+    if (!bruteForce.allowed) {
+      const retryAfter = bruteForce.blockedUntil
+        ? Math.max(1, Math.ceil((bruteForce.blockedUntil - Date.now()) / 1000))
+        : undefined;
+
+      return NextResponse.json(
+        { error: bruteForce.reason || 'Too many failed login attempts' },
+        {
+          status: 429,
+          headers: retryAfter ? { 'Retry-After': String(retryAfter) } : undefined,
+        }
+      );
+    }
+
     const baseUrls = getStalwartBaseUrlCandidates();
     let jmapSession;
     let lastError: unknown = null;
@@ -50,10 +75,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (!jmapSession) {
+      recordFailedAttempt(ip, bruteForceKey);
       throw lastError instanceof Error
         ? lastError
         : new Error('Unable to connect to Stalwart using any configured base URL');
     }
+
+    recordSuccess(ip, bruteForceKey);
 
     const primaryAccountId = jmapSession.primaryAccounts?.mail;
     const account = primaryAccountId ? jmapSession.accounts[primaryAccountId] : undefined;
