@@ -61,10 +61,7 @@ export function installCsrfFetch(): void {
       headers.set('x-csrf-token', token);
     }
 
-    if (input instanceof Request) {
-      return originalFetch(new Request(input, { headers }), init);
-    }
-
+    // init.headers would replace a Request's headers wholesale, so pass the merged set.
     return originalFetch(input, { ...init, headers });
   };
 

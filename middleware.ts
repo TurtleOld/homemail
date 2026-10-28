@@ -70,6 +70,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Browsers post CSP reports on their own, without cookies or custom headers.
+  if (pathname === '/api/csp-report') {
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith('/api/')) {
     // Checked before the session gate so unauthenticated mutating requests are
     // rejected as CSRF failures and never reach a route handler.

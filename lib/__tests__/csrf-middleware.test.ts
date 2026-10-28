@@ -92,4 +92,12 @@ describe('middleware CSRF guard', () => {
     expect(authResponse.status).toBe(200);
     expect(mobileResponse.status).toBe(200);
   });
+
+  it('accepts CSP violation reports sent by the browser without a token or session', async () => {
+    const response = await middleware(
+      new NextRequest(`${APP_ORIGIN}/api/csp-report`, { method: 'POST' })
+    );
+
+    expect(response.status).toBe(200);
+  });
 });

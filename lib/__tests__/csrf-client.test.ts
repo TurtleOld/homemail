@@ -66,4 +66,18 @@ describe('installCsrfFetch', () => {
     const headers = new Headers(init.headers);
     expect(headers.get('x-csrf-token')).toBe('explicit-token');
   });
+
+  it('keeps the token when a Request is passed together with init headers', async () => {
+    const { installCsrfFetch } = await import('../csrf-client');
+    installCsrfFetch();
+
+    await fetch(new Request(`${window.location.origin}/api/contacts`, { method: 'POST' }), {
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const [, init] = mockFetch.mock.calls[0] as [RequestInfo | URL, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('x-csrf-token')).toBe('client-token');
+    expect(headers.get('content-type')).toBe('application/json');
+  });
 });
