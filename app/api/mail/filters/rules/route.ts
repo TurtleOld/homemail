@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
 import type { AutoSortRule } from '@/lib/types';
 import { addJob } from '@/lib/filter-job-queue';
 import { syncRulesToSieve } from '@/lib/sync-rules-to-sieve';
+import { loadRules, saveRules } from '@/lib/filter-rules-store';
 
 function triggerSieveSync(accountId: string): void {
   // Fire-and-forget: call syncRulesToSieve directly (no HTTP round-trip needed).
@@ -13,8 +12,6 @@ function triggerSieveSync(accountId: string): void {
     console.error('[filter-rules] Background Sieve sync failed:', err);
   });
 }
-
-const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
 
 const autoSortRuleSchema = z.object({
   id: z.string().optional(),
@@ -24,34 +21,6 @@ const autoSortRuleSchema = z.object({
   actions: z.array(z.any()),
   applyToExisting: z.boolean().optional(),
 });
-
-async function loadRules(accountId: string): Promise<AutoSortRule[]> {
-  try {
-    const data = await readFile(rulesFilePath, 'utf-8');
-    const allRules = JSON.parse(data) as Record<string, AutoSortRule[]>;
-    return allRules[accountId] || [];
-  } catch {
-    return [];
-  }
-}
-
-async function saveRules(accountId: string, rules: AutoSortRule[]): Promise<void> {
-  try {
-    const { mkdir } = await import('fs/promises');
-    await mkdir(join(process.cwd(), 'data'), { recursive: true });
-  } catch {
-  }
-
-  let allRules: Record<string, AutoSortRule[]> = {};
-  try {
-    const data = await readFile(rulesFilePath, 'utf-8');
-    allRules = JSON.parse(data);
-  } catch {
-  }
-
-  allRules[accountId] = rules;
-  await writeFile(rulesFilePath, JSON.stringify(allRules, null, 2), 'utf-8');
-}
 
 export async function GET(request: NextRequest) {
   try {

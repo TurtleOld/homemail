@@ -4,30 +4,20 @@
  * from other server-side code, e.g. after saving/deleting a rule.
  */
 
-import { readFile } from 'fs/promises';
-import { join } from 'path';
 import { getMailProviderForAccount } from '@/lib/get-provider';
 import { convertRulesToSieve } from '@/lib/auto-sort-to-sieve';
-import type { AutoSortRule } from '@/lib/types';
+import { loadRules } from '@/lib/filter-rules-store';
 import type { StalwartJMAPProvider } from '@/providers/stalwart-jmap/stalwart-provider';
 
 export const SIEVE_SCRIPT_NAME = 'mailclient-auto-sort';
-
-const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
 
 // Per-account mutex: if a sync is already in progress, queue at most one
 // additional run instead of spawning duplicate concurrent requests.
 const syncInProgress = new Map<string, Promise<{ success: boolean; ruleCount?: number; reason?: string }>>();
 const syncPending = new Map<string, boolean>();
 
-async function loadEnabledRules(accountId: string): Promise<AutoSortRule[]> {
-  try {
-    const data = await readFile(rulesFilePath, 'utf-8');
-    const allRules = JSON.parse(data) as Record<string, AutoSortRule[]>;
-    return (allRules[accountId] || []).filter((r) => r.enabled);
-  } catch {
-    return [];
-  }
+async function loadEnabledRules(accountId: string) {
+  return (await loadRules(accountId)).filter((r) => r.enabled);
 }
 
 async function doSync(accountId: string): Promise<{ success: boolean; ruleCount?: number; reason?: string }> {

@@ -4,8 +4,7 @@ import { sendPushNotification } from '@/lib/ntfy';
 import { OAuthTokenStore } from '@/lib/oauth-token-store';
 import { getPendingJobs, markJobProcessing, markJobCompleted, markJobFailed, cleanupOldJobs, type FilterJob } from '@/lib/filter-job-queue';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { loadRules } from '@/lib/filter-rules-store';
 import type { AutoSortRule, FilterGroup } from '@/lib/types';
 import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort-rules';
 import type { MailProvider } from '@/providers/mail-provider';
@@ -26,7 +25,6 @@ function isRateLimitError(error: unknown): boolean {
 }
 
 const EXCLUDED_FOLDER_ROLES = new Set(['sent', 'trash', 'drafts']);
-const rulesFilePath = join(process.cwd(), 'data', 'filter-rules.json');
 
 // v2: previous implementation could mark messages as "sent" before the actual
 // HTTP call succeeded, which could permanently suppress notifications.
@@ -153,16 +151,6 @@ function isDeletedFolderName(name: string | undefined): boolean {
   if (!name) return false;
   const n = name.toLowerCase();
   return n.includes('deleted');
-}
-
-async function loadRules(accountId: string): Promise<AutoSortRule[]> {
-  try {
-    const data = await readFile(rulesFilePath, 'utf-8');
-    const allRules = JSON.parse(data) as Record<string, AutoSortRule[]>;
-    return (allRules[accountId] || []).filter((r) => r.enabled);
-  } catch {
-    return [];
-  }
 }
 
 function resolveDestinationFolderId(
@@ -301,7 +289,7 @@ async function processApplyJob(jobId: string, accountId: string, ruleId: string)
       ? getMailProviderForAccount(accountId)
       : getMailProvider();
 
-    const rules = await loadRules(accountId);
+    const rules = (await loadRules(accountId)).filter((r) => r.enabled);
     const rule = rules.find((r) => r.id === ruleId);
 
     if (!rule) {
