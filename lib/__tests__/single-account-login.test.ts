@@ -36,6 +36,7 @@ vi.mock('@/providers/stalwart-jmap/jmap-client', () => ({
 
 import { POST } from '@/app/api/auth/login/route';
 
+/** Builds a JSON login request for the given body. */
 function loginRequest(body: Record<string, unknown>) {
   return new NextRequest('https://app.example.test/api/auth/login', {
     method: 'POST',
@@ -49,7 +50,15 @@ describe('single-account password login', () => {
     vi.resetAllMocks();
   });
 
-  it('signs in the entered mailbox and ignores a leftover addAccount flag', async () => {
+  it('opens a new session for the entered mailbox when a session already exists', async () => {
+    mocks.getSession.mockResolvedValue({
+      sessionId: 'existing-session',
+      accountId: 'first@example.com',
+      email: 'first@example.com',
+      expiresAt: Date.now() + 60_000,
+      createdAt: Date.now(),
+    });
+
     const request = loginRequest({
       email: 'user@example.com',
       password: 'secret',
@@ -57,12 +66,14 @@ describe('single-account password login', () => {
     });
 
     const response = await POST(request);
+    const body = await response.json();
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    expect(body).toEqual({
       success: true,
       account: { id: 'user@example.com', email: 'user@example.com', displayName: 'User' },
     });
+    expect(body).not.toHaveProperty('addedAccount');
     expect(mocks.setCredentials).toHaveBeenCalledWith(
       'user@example.com',
       'user@example.com',
@@ -74,5 +85,6 @@ describe('single-account password login', () => {
       'user@example.com',
       request
     );
+    expect(mocks.getSession).not.toHaveBeenCalled();
   });
 });
