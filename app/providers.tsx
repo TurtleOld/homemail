@@ -7,6 +7,9 @@ import { PerformanceReporter } from '@/components/performance-reporter';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { RouteAwareShell } from '@/components/product-shell/route-aware-shell';
+import { installCsrfFetch } from '@/lib/csrf-client';
+
+installCsrfFetch();
 
 export function Providers({
   children,
