@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
-import { processNewMessage } from '@/lib/process-new-message';
 import { logger } from '@/lib/logger';
 
 // ─── Connection limits ────────────────────────────────────────────────────────
@@ -94,27 +93,9 @@ export async function GET(request: NextRequest) {
       try {
         sendEvent('connected', { accountId: session.accountId });
 
-        unsubscribe = provider.subscribeToUpdates(session.accountId, async (event) => {
+        unsubscribe = provider.subscribeToUpdates(session.accountId, (event) => {
           if (isClosed) return;
           sendEvent(event.type, event.data);
-
-          if (event.type === 'message.new' && event.data?.messageId) {
-            setTimeout(async () => {
-              try {
-                const messageId = event.data.messageId || event.data.id;
-                const folderId = event.data.folderId || event.data.mailboxId || 'inbox';
-                await new Promise((resolve) => setTimeout(resolve, 200));
-                const message = await provider.getMessage(session.accountId, messageId);
-                if (message) {
-                  await processNewMessage(message, session.accountId, folderId, provider);
-                }
-              } catch (error) {
-                logger.error('[SSE] Error processing new message', {
-                  error: error instanceof Error ? error.message : String(error),
-                });
-              }
-            }, 500);
-          }
         });
 
         // Single shared heartbeat timer.
