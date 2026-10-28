@@ -110,17 +110,32 @@ interface JMAPThread {
 const sessionCache = new Map<string, { session: JMAPSession; expiresAt: number }>();
 const SESSION_CACHE_TTL = 5 * 60 * 1000;
 
-// Email/set resolves without a top-level error even when the server
-// rejects individual messages (e.g. a Junk move) — that only shows up in
-// `notUpdated`, so callers must check it explicitly or silently no-op.
-function throwIfEmailsNotUpdated(data: unknown): void {
-  const notUpdated = (data as { notUpdated?: Record<string, any> } | undefined)?.notUpdated;
-  if (!notUpdated) return;
-  const failedIds = Object.keys(notUpdated);
+/**
+ * Throws when Email/set rejected individual messages.
+ *
+ * Email/set resolves without a top-level error even when the server refuses
+ * some messages (e.g. a Junk move or a destroy), so without this check the
+ * client reports success while the message stays where it was.
+ *
+ * Args:
+ *   data: The `Email/set` method response arguments.
+ *   field: The rejection map to inspect, `notUpdated` or `notDestroyed`.
+ *
+ * Raises:
+ *   Error: The server rejected one or more messages; the message names the
+ *     count and the first rejected id.
+ */
+function throwIfEmailsRejected(data: unknown, field: 'notUpdated' | 'notDestroyed'): void {
+  const rejected = (data as { [key: string]: Record<string, any> | undefined } | undefined)?.[
+    field
+  ];
+  if (!rejected) return;
+  const failedIds = Object.keys(rejected);
   if (failedIds.length === 0) return;
   const [firstId] = failedIds;
+  const action = field === 'notDestroyed' ? 'destroy' : 'update';
   throw new Error(
-    `JMAP email set error: server rejected the update for ${failedIds.length} message(s) (e.g. ${firstId}: ${JSON.stringify(notUpdated[firstId])})`
+    `JMAP email set error: server rejected the ${action} of ${failedIds.length} message(s) (e.g. ${firstId}: ${JSON.stringify(rejected[firstId])})`
   );
 }
 
@@ -1190,7 +1205,7 @@ export class JMAPClient {
       throw new Error(`JMAP email set error: ${(setResponse[1] as any).description}`);
     }
 
-    throwIfEmailsNotUpdated(setResponse[1]);
+    throwIfEmailsRejected(setResponse[1], 'notUpdated');
   }
 
   async bulkSetEmails(
@@ -1221,7 +1236,7 @@ export class JMAPClient {
       throw new Error(`JMAP email set error: ${(setResponse[1] as any).description}`);
     }
 
-    throwIfEmailsNotUpdated(setResponse[1]);
+    throwIfEmailsRejected(setResponse[1], 'notUpdated');
   }
 
   async destroyEmails(emailIds: string[], accountId?: string): Promise<void> {
@@ -1245,6 +1260,8 @@ export class JMAPClient {
     if ('type' in setResponse[1] && setResponse[1].type === 'error') {
       throw new Error(`JMAP email destroy error: ${(setResponse[1] as any).description}`);
     }
+
+    throwIfEmailsRejected(setResponse[1], 'notDestroyed');
   }
 
   async getBlobDownloadUrl(blobId: string, accountId: string, name?: string): Promise<string> {
