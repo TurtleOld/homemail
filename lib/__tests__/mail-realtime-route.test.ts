@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/session', () => ({ getSession: mocks.getSession }));
 vi.mock('@/lib/get-provider', () => ({
-  getMailProvider: mocks.getProvider,
   getMailProviderForAccount: mocks.getProvider,
 }));
 vi.mock('@/lib/process-new-message', () => ({ processNewMessage: mocks.processNewMessage }));
@@ -21,7 +20,6 @@ import { GET } from '@/app/api/mail/realtime/route';
 describe('mail realtime SSE route', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    process.env.MAIL_PROVIDER = 'stalwart';
     mocks.getSession.mockResolvedValue({ accountId: 'account-1' });
     mocks.getProvider.mockReturnValue({
       subscribeToUpdates: mocks.subscribeToUpdates,

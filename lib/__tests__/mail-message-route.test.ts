@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/session', () => ({ getSession: mocks.getSession }));
 vi.mock('@/lib/get-provider', () => ({
   getMailProviderForAccount: mocks.getProvider,
-  getMailProvider: mocks.getProvider,
 }));
 vi.mock('@/lib/storage', () => ({ readStorage: mocks.readStorage }));
 vi.mock('@/lib/protected-message-content', () => ({ protectMessageForDelivery: mocks.protectMessage }));
@@ -28,7 +27,6 @@ const message = {
 describe('mail message protected-content boundary', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    process.env.MAIL_PROVIDER = 'stalwart';
     mocks.getSession.mockResolvedValue({ accountId: 'account-1' });
     mocks.getProvider.mockReturnValue({ getMessage: mocks.getMessage });
     mocks.getMessage.mockResolvedValue({ ...message });

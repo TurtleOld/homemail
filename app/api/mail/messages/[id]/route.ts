@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { readStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 import { protectMessageForDelivery } from '@/lib/protected-message-content';
@@ -13,9 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params;
-  const provider = process.env.MAIL_PROVIDER === 'stalwart'
-    ? getMailProviderForAccount(session.accountId)
-    : getMailProvider();
+  const provider = getMailProviderForAccount(session.accountId);
   const message = await provider.getMessage(session.accountId, id);
 
   if (!message) {

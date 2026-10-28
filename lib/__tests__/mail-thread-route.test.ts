@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   getThread: vi.fn(),
   getMailProviderForAccount: vi.fn(),
-  getMailProvider: vi.fn(),
   protectMessage: vi.fn((message) => message),
 }));
 
@@ -19,7 +18,6 @@ vi.mock('@/lib/session', () => ({
 
 vi.mock('@/lib/get-provider', () => ({
   getMailProviderForAccount: mocks.getMailProviderForAccount,
-  getMailProvider: mocks.getMailProvider,
 }));
 
 import { GET } from '@/app/api/mail/threads/[threadId]/route';
@@ -31,7 +29,6 @@ function request(query = '') {
 describe('mail thread route', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    process.env.MAIL_PROVIDER = 'stalwart';
     mocks.getSession.mockResolvedValue({ accountId: 'current-account' });
     mocks.getThread.mockResolvedValue({
       id: 'thread-1',

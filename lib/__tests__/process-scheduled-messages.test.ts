@@ -17,10 +17,6 @@ vi.mock('@/lib/storage', async (importOriginal) => {
 });
 
 vi.mock('@/lib/get-provider', () => ({
-  getMailProvider: () => ({
-    sendMessage: mocks.sendMessage,
-    bulkUpdateMessages: mocks.bulkUpdateMessages,
-  }),
   getMailProviderForAccount: () => ({
     sendMessage: mocks.sendMessage,
     bulkUpdateMessages: mocks.bulkUpdateMessages,
@@ -53,7 +49,6 @@ describe('processScheduledMessages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.SESSION_SECRET = 'test-session-secret-at-least-32-characters-long';
-    process.env.MAIL_PROVIDER = 'stalwart';
     mocks.sendMessage.mockResolvedValue('sent-id');
     mocks.bulkUpdateMessages.mockResolvedValue(undefined);
     mocks.writeStorage.mockResolvedValue(undefined);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { checkMessageMatchesRule, applyRuleActions } from '@/lib/apply-auto-sort-rules';
 import { loadRules } from '@/lib/filter-rules-store';
 
@@ -19,9 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message ID required' }, { status: 400 });
     }
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     await new Promise((resolve) => setTimeout(resolve, 100));
     

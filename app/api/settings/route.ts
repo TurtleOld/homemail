@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
       customTheme: updatedSettings.customTheme,
     });
 
-    if (data.aliases !== undefined && process.env.MAIL_PROVIDER === 'stalwart') {
+    if (data.aliases !== undefined) {
       try {
         const provider = getMailProviderForAccount(session.accountId);
         if (provider && typeof (provider as any).syncAliases === 'function') {

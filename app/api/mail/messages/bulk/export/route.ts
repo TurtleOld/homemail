@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { readStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 import JSZip from 'jszip';
@@ -129,9 +129,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = exportSchema.parse(body);
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
 
     const messageLabels = await readStorage<Record<string, string[]>>(
       `messageLabels:${session.accountId}`,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIp } from '@/lib/client-ip';
@@ -49,9 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const download = request.nextUrl.searchParams.get('download') === '1';
 
   const provider =
-    process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    getMailProviderForAccount(session.accountId);
 
   let source;
   try {

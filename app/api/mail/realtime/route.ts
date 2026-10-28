@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
 
 // ─── Connection limits ────────────────────────────────────────────────────────
@@ -54,9 +54,7 @@ export async function GET(request: NextRequest) {
   }
 
   const provider =
-    process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    getMailProviderForAccount(session.accountId);
 
   const stream = new ReadableStream({
     start(controller) {

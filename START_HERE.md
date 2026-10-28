@@ -40,7 +40,6 @@ pm2 start npm --name "mailclient" -- start
 ## Что нужно настроить
 
 1. **Переменные окружения** (`.env.production`):
-   - `MAIL_PROVIDER=stalwart`
    - `STALWART_BASE_URL` - URL вашего Stalwart сервера
    - `STALWART_SMTP_HOST` - SMTP хост
    - И другие настройки (см. `env.production.example`)
