@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/session', () => ({ getSession: mocks.getSession }));
 vi.mock('@/lib/get-provider', () => ({
   getMailProviderForAccount: mocks.getProvider,
-  getMailProvider: mocks.getProvider,
 }));
 vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: mocks.checkRateLimit }));
 vi.mock('@/lib/client-ip', () => ({ getClientIp: () => '203.0.113.10' }));
@@ -28,7 +27,6 @@ function request(id: string) {
 describe('message source diagnostics HTTP route', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    process.env.MAIL_PROVIDER = 'stalwart';
     mocks.checkRateLimit.mockReturnValue({ allowed: true, remaining: 10, resetAt: Date.now() + 1000 });
     mocks.getSession.mockResolvedValue({ accountId: 'account-1' });
     mocks.getProvider.mockReturnValue({ getMessageSource: mocks.getMessageSource });

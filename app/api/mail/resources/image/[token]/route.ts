@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { getClientIp } from '@/lib/client-ip';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { logger } from '@/lib/logger';
 import { fetchProtectedImage, ProtectedImageError, validateImageBytes } from '@/lib/protected-image-fetcher';
 import { verifyImageResourceToken } from '@/lib/protected-message-content';
@@ -70,9 +70,7 @@ export async function GET(
       return imageResponse(result.data, result.mime, 'private, max-age=600');
     }
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
     const attachment = await provider.getAttachment(
       session.accountId,
       payload.messageId,

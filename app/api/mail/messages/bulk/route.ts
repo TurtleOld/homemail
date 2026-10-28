@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { getMailProvider, getMailProviderForAccount } from '@/lib/get-provider';
+import { getMailProviderForAccount } from '@/lib/get-provider';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { validateOrigin } from '@/lib/csrf';
 
@@ -40,9 +40,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const action = bulkActionSchema.parse(body);
 
-    const provider = process.env.MAIL_PROVIDER === 'stalwart'
-      ? getMailProviderForAccount(session.accountId)
-      : getMailProvider();
+    const provider = getMailProviderForAccount(session.accountId);
     await provider.bulkUpdateMessages(session.accountId, action);
 
     return NextResponse.json({ success: true });

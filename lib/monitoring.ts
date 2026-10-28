@@ -95,7 +95,7 @@ async function checkStorageStatus(): Promise<StorageStatus> {
 }
 
 async function checkMailProviderStatus(): Promise<MailProviderStatus> {
-  const baseUrl = process.env.STALWART_BASE_URL || process.env.IMAP_HOST;
+  const baseUrl = process.env.STALWART_BASE_URL;
   if (!baseUrl) {
     return {
       available: false,
