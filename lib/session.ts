@@ -9,7 +9,10 @@ import {
 import { SecurityLogger } from './security-logger';
 
 const SESSION_COOKIE_NAME = 'mail_session';
-const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
+// Sliding window: a session dies only after this long without any request.
+const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000;
+// Renew at most once a day so the sessions file is not rewritten on every request.
+const SESSION_RENEW_INTERVAL = 24 * 60 * 60 * 1000;
 
 /**
  * Allowlist for accountId characters.
@@ -159,13 +162,36 @@ export async function getSession(_request?: Request): Promise<SessionData | null
     return null;
   }
 
-  return {
+  const session: SessionData = {
     sessionId: storedSession.sessionId,
     accountId: storedSession.accountId,
     email: storedSession.email,
     expiresAt: storedSession.expiresAt,
     createdAt: Date.now(),
   };
+
+  const now = Date.now();
+  if (session.expiresAt - now < SESSION_DURATION - SESSION_RENEW_INTERVAL) {
+    session.expiresAt = now + SESSION_DURATION;
+    await saveSessionToStorage({ ...storedSession, expiresAt: session.expiresAt });
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    const secureCookie = isProduction || process.env.USE_HTTPS === 'true';
+    try {
+      cookieStore.set(SESSION_COOKIE_NAME, encryptedSession, {
+        httpOnly: true,
+        secure: secureCookie,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: SESSION_DURATION / 1000,
+      });
+    } catch {
+      // Cookies are read-only in Server Components; storage expiry is authoritative
+      // and the cookie maxAge is refreshed by the next renewal in a Route Handler.
+    }
+  }
+
+  return session;
 }
 
 /**
