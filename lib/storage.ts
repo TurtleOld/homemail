@@ -325,6 +325,120 @@ function storageKeyToPath(key: string): string {
   return resolved;
 }
 
+const STORAGE_LOCK_TIMEOUT_MS = 5_000;
+const STORAGE_LOCK_RETRY_MS = 10;
+
+interface StorageLock {
+  path: string;
+  token: string;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Creates the lock file for one storage key.
+ *
+ * The exclusive `wx` open is atomic, so every process that shares DATA_DIR
+ * contends for the same file. A lock left by a crashed process is not removed
+ * automatically: only an operator who confirmed the owner is dead may delete
+ * the lock file, so a slow live owner can never lose its lock.
+ *
+ * Args:
+ *   key: Storage key whose file should be locked.
+ *   deadline: Timestamp after which waiting is abandoned.
+ *
+ * Returns:
+ *   The held lock, to be passed to `releaseStorageLock`.
+ *
+ * Raises:
+ *   Error: The lock cannot be created, or waiting reaches the deadline.
+ */
+async function acquireStorageLock(key: string, deadline: number): Promise<StorageLock> {
+  const lockPath = `${storageKeyToPath(key)}.lock`;
+  const token = `${process.pid}:${crypto.randomUUID()}`;
+
+  for (;;) {
+    try {
+      await fs.mkdir(path.dirname(lockPath), { recursive: true });
+      const handle = await fs.open(lockPath, 'wx');
+      try {
+        await handle.writeFile(token, 'utf-8');
+      } finally {
+        await handle.close();
+      }
+      return { path: lockPath, token };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        throw error;
+      }
+    }
+
+    if (Date.now() >= deadline) {
+      throw Object.assign(new Error(`Timed out waiting for storage lock: ${key}`), {
+        code: 'STORAGE_LOCK_TIMEOUT',
+      });
+    }
+
+    await sleep(STORAGE_LOCK_RETRY_MS);
+  }
+}
+
+/**
+ * Removes a lock file only if this caller still owns it.
+ *
+ * Args:
+ *   lock: Lock returned by `acquireStorageLock`.
+ */
+async function releaseStorageLock(lock: StorageLock): Promise<void> {
+  try {
+    const owner = await fs.readFile(lock.path, 'utf-8');
+    if (owner === lock.token) {
+      await fs.unlink(lock.path);
+    }
+  } catch {
+    // Already released.
+  }
+}
+
+/**
+ * Runs a read-modify-write cycle on storage keys under exclusive locks.
+ *
+ * Locks are files in DATA_DIR, so the guarantee covers every process on one
+ * host that shares that directory (Next.js workers and command-line scripts).
+ * Keys are locked in sorted order to avoid deadlocks between transactions that
+ * touch the same set of collections. A lock left by a dead process must be
+ * removed by an operator; waiting never steals it.
+ *
+ * Args:
+ *   keys: Storage key or keys that the cycle reads and writes.
+ *   fn: Cycle body; reads and writes must go through this module.
+ *
+ * Returns:
+ *   Whatever `fn` returns.
+ *
+ * Raises:
+ *   Error: A lock cannot be acquired before the shared deadline.
+ */
+export async function withStorageLock<T>(
+  keys: string | string[],
+  fn: () => Promise<T>,
+): Promise<T> {
+  const orderedKeys = [...new Set(Array.isArray(keys) ? keys : [keys])].sort();
+  const deadline = Date.now() + STORAGE_LOCK_TIMEOUT_MS;
+  const held: StorageLock[] = [];
+
+  try {
+    for (const key of orderedKeys) {
+      held.push(await acquireStorageLock(key, deadline));
+    }
+    return await fn();
+  } finally {
+    await Promise.all(held.reverse().map(releaseStorageLock));
+  }
+}
+
 export async function readStorage<T>(key: string, defaultValue: T): Promise<T> {
   await ensureDataDir();
   const filePath = storageKeyToPath(key);
