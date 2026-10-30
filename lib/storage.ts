@@ -10,7 +10,7 @@ const CREDENTIALS_FILE = path.join(DATA_DIR, 'credentials.enc');
  * Write data to a file atomically: write to a temp file, then rename.
  * Prevents partial-write corruption for security-critical files.
  */
-async function atomicWriteFile(filePath: string, content: string): Promise<void> {
+export async function atomicWriteFile(filePath: string, content: string): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp.${process.pid}.${Date.now()}`;
   try {

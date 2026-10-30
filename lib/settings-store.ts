@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '@/lib/logger';
 import { withMigrationDefaults } from '@/lib/settings-defaults';
+import { atomicWriteFile } from '@/lib/storage';
 
 const DATA_DIR =
   process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : process.cwd());
@@ -35,13 +36,19 @@ async function ensureLoaded(): Promise<void> {
   await loadPromise;
 }
 
+async function writeSettings(settings: Map<string, any>): Promise<void> {
+  const data = Object.fromEntries(settings);
+  await atomicWriteFile(SETTINGS_FILE, JSON.stringify(data, null, 2));
+}
+
+/**
+ * Persist the in-memory settings map.
+ *
+ * Failures are propagated to the caller so an API request does not report a
+ * save that never reached the disk.
+ */
 export async function saveSettingsStore(): Promise<void> {
-  try {
-    const data = Object.fromEntries(settingsStore);
-    await fs.writeFile(SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (error) {
-    logger.error('Failed to save settings:', error);
-  }
+  await writeSettings(settingsStore);
 }
 
 export async function getAccountSettings(accountId: string) {
@@ -49,10 +56,18 @@ export async function getAccountSettings(accountId: string) {
   return withMigrationDefaults(settingsStore.get(accountId));
 }
 
+/**
+ * Save one account's settings.
+ *
+ * The cache is updated only after the new snapshot is on disk, so a failed
+ * write cannot make a later read return values that were never persisted.
+ */
 export async function setAccountSettings(accountId: string, settings: Record<string, any>) {
   await ensureLoaded();
+  const next = new Map(settingsStore);
+  next.set(accountId, settings);
+  await writeSettings(next);
   settingsStore.set(accountId, settings);
-  await saveSettingsStore();
 }
 
 /**
