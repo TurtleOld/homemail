@@ -293,17 +293,18 @@ export async function setCredentials(accountId: string, email: string, password:
 
 /**
  * Whitelist pattern for storage keys: alphanumeric, hyphens, underscores, colons,
- * `@` and `.`. The last two are required because callers key storage by account
- * identifiers that are real email addresses (e.g. `messageLabels:admin@rem.ru`).
+ * `@`, `.` and `+`. These are required because callers key storage by account
+ * identifiers that are real email addresses (e.g. `messageLabels:admin@rem.ru`),
+ * and `+` is valid in an email local part (e.g. `user+home@example.org`).
  * `..` is rejected explicitly below since a lone `.` is otherwise permitted.
  *
  * The pre-2026-03 implementation only replaced `:` with `_` and applied no
- * validation, so `@` and `.` were already passed through into existing
+ * validation, so `@`, `.` and `+` were already passed through into existing
  * on-disk filenames unescaped. Widening the whitelist (rather than changing
  * the filename encoding below) keeps this validation compatible with any
  * files created before that hardening.
  */
-const STORAGE_KEY_RE = /^[a-zA-Z0-9_\-:@.]{1,256}$/;
+const STORAGE_KEY_RE = /^[a-zA-Z0-9_\-:@.+]{1,256}$/;
 
 /**
  * Convert a storage key to an absolute file path that is guaranteed to stay
