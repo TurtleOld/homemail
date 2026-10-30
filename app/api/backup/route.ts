@@ -74,8 +74,8 @@ const RESTORE_SLOTS: RestoreSlot<any>[] = [
   {
     filename: 'settings.json',
     schema: SettingsSchema,
-    // Settings live in the canonical store, not the generic `settings:<id>` slot.
     restore: async (id, value) => {
+      // Older archives stored null when the separate settings slot was empty; keep current settings.
       if (value) await setAccountSettings(id, value);
     },
   },
