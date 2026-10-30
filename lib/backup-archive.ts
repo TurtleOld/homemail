@@ -27,10 +27,15 @@ export class BackupLimitExceededError extends Error {
  * The stream is destroyed as soon as the limit is crossed, so a highly
  * compressed entry cannot be inflated in full just to be rejected afterwards.
  *
- * @param entry Archive entry to read.
- * @param maxBytes Maximum allowed decompressed size for this entry.
- * @returns Raw decompressed bytes.
- * @throws {BackupLimitExceededError} When the entry exceeds `maxBytes`.
+ * Args:
+ *   entry: Archive entry to read.
+ *   maxBytes: Maximum allowed decompressed size for this entry.
+ *
+ * Returns:
+ *   Raw decompressed bytes.
+ *
+ * Raises:
+ *   BackupLimitExceededError: When the entry exceeds `maxBytes`.
  */
 export async function readZipEntryLimited(
   entry: Pick<JSZip.JSZipObject, 'nodeStream'>,
