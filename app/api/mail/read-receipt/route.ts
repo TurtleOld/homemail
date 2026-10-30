@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { getMailProviderForAccount } from '@/lib/get-provider';
 import type { DeliveryTracking } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { messageId, accountId, recipientEmail } = body;
+    const session = await getSession();
 
-    if (!messageId || !accountId) {
-      return NextResponse.json({ error: 'messageId and accountId required' }, { status: 400 });
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { messageId, recipientEmail } = body;
+
+    if (!messageId) {
+      return NextResponse.json({ error: 'messageId required' }, { status: 400 });
     }
 
     const tracking = await readStorage<DeliveryTracking | null>(
-      `delivery:${accountId}:${messageId}`,
+      `delivery:${session.accountId}:${messageId}`,
       null
     );
 
@@ -41,7 +46,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await writeStorage(`delivery:${accountId}:${messageId}`, updatedTracking);
+    await writeStorage(`delivery:${session.accountId}:${messageId}`, updatedTracking);
 
     return NextResponse.json({ success: true });
   } catch (error) {
