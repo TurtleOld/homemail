@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { logger } from './logger';
 
 const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : path.join(process.cwd(), 'data'));
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
@@ -325,15 +326,82 @@ function storageKeyToPath(key: string): string {
   return resolved;
 }
 
+/**
+ * Raised when a storage file exists but cannot be read or decoded.
+ *
+ * The message carries only the key and an error code. Node's JSON parse errors
+ * quote a fragment of the input, so forwarding the original error could leak
+ * stored secrets into route logs.
+ */
+export class StorageReadError extends Error {
+  readonly code: string | undefined;
+
+  constructor(key: string, code?: string) {
+    super(`Failed to read storage "${key}"${code ? ` (${code})` : ''}`);
+    this.name = 'StorageReadError';
+    this.code = code;
+  }
+}
+
+function filesystemErrorCode(error: unknown): string | undefined {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'string' ? code : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Log a sanitized diagnostic and abort the operation.
+ *
+ * Returning `defaultValue` on a corrupt or unreadable file would let the next
+ * write replace data the process never managed to read.
+ *
+ * Args:
+ *   key: Storage key that failed.
+ *   code: Stable error code, if one is known.
+ *   error: Original failure, used only for its name in the log.
+ *
+ * Raises:
+ *   StorageReadError: Always.
+ */
+function failStorageRead(key: string, code: string | undefined, error?: unknown): never {
+  logger.error(
+    `[storage] Failed to read "${key}"`,
+    code ?? (error instanceof Error ? error.name : 'unknown'),
+  );
+  throw new StorageReadError(key, code);
+}
+
+/**
+ * Read a JSON storage slot.
+ *
+ * Args:
+ *   key: Storage key scoped to an account or feature.
+ *   defaultValue: Value used only when the slot has not been created yet.
+ *
+ * Returns:
+ *   Parsed contents of the slot.
+ *
+ * Raises:
+ *   StorageReadError: The slot exists but cannot be read or parsed.
+ */
 export async function readStorage<T>(key: string, defaultValue: T): Promise<T> {
   await ensureDataDir();
   const filePath = storageKeyToPath(key);
 
+  let data: string;
   try {
-    const data = await fs.readFile(filePath, 'utf-8');
+    data = await fs.readFile(filePath, 'utf-8');
+  } catch (error) {
+    if (filesystemErrorCode(error) === 'ENOENT') return defaultValue;
+    failStorageRead(key, filesystemErrorCode(error), error);
+  }
+
+  try {
     return JSON.parse(data) as T;
   } catch (error) {
-    return defaultValue;
+    failStorageRead(key, undefined, error);
   }
 }
 
@@ -344,21 +412,41 @@ export async function writeStorage<T>(key: string, value: T): Promise<void> {
 }
 
 /**
- * Read an encrypted storage slot.
- * The file contains a base64url-encoded AES-256-GCM blob (same format as
- * encryptData/decryptData). Falls back to `defaultValue` if the file does
- * not exist or decryption fails.
+ * Read an encrypted JSON storage slot.
+ *
+ * The file is a base64url-encoded AES-256-GCM blob (same format as
+ * encryptData/decryptData). A decryption or parse failure leaves the file
+ * untouched.
+ *
+ * Args:
+ *   key: Storage key scoped to an account or feature.
+ *   defaultValue: Value used only when the slot has not been created yet.
+ *
+ * Returns:
+ *   Decrypted and parsed contents of the slot.
+ *
+ * Raises:
+ *   StorageReadError: The slot exists but cannot be decrypted or parsed.
  */
 export async function readEncryptedStorage<T>(key: string, defaultValue: T): Promise<T> {
   await ensureDataDir();
   const filePath = storageKeyToPath(key);
+
+  let encryptedData: string;
   try {
-    const encryptedData = await fs.readFile(filePath, 'utf-8');
-    const decrypted = decryptData(encryptedData.trim());
-    if (!decrypted) return defaultValue;
+    encryptedData = await fs.readFile(filePath, 'utf-8');
+  } catch (error) {
+    if (filesystemErrorCode(error) === 'ENOENT') return defaultValue;
+    failStorageRead(key, filesystemErrorCode(error), error);
+  }
+
+  const decrypted = decryptData(encryptedData.trim());
+  if (!decrypted) failStorageRead(key, 'DECRYPT_FAILED');
+
+  try {
     return JSON.parse(decrypted) as T;
-  } catch {
-    return defaultValue;
+  } catch (error) {
+    failStorageRead(key, 'INVALID_JSON', error);
   }
 }
 
