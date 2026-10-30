@@ -2,6 +2,8 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -73,4 +75,35 @@ describe('storage read-modify-write lock', () => {
 
     await expect(withStorageLock(key, async () => 'next')).resolves.toBe('next');
   });
+
+  it('does not remove an old lock whose owner is still alive', async () => {
+    const { withStorageLock } = await import('@/lib/storage');
+    const key = 'contacts:account-1';
+    const lockPath = path.join(dataDir, 'contacts_account-1.json.lock');
+    const ownerToken = `${process.pid}:other-request`;
+    await fs.writeFile(lockPath, ownerToken, 'utf-8');
+    const longAgo = new Date(Date.now() - 60_000);
+    await fs.utimes(lockPath, longAgo, longAgo);
+
+    const transaction = withStorageLock(key, async () => 'ran');
+    await sleep(150);
+
+    await expect(fs.readFile(lockPath, 'utf-8')).resolves.toBe(ownerToken);
+
+    await fs.unlink(lockPath);
+    await expect(transaction).resolves.toBe('ran');
+  });
+
+  it('reclaims a lock left by a process that no longer runs', async () => {
+    const { withStorageLock } = await import('@/lib/storage');
+    const key = 'templates:account-1';
+    const lockPath = path.join(dataDir, 'templates_account-1.json.lock');
+
+    const child = spawn(process.execPath, ['-e', '']);
+    await once(child, 'exit');
+    await fs.writeFile(lockPath, `${child.pid}:crashed-writer`, 'utf-8');
+
+    await expect(withStorageLock(key, async () => 'ran')).resolves.toBe('ran');
+    await expect(fs.stat(lockPath)).rejects.toMatchObject({ code: 'ENOENT' });
+  }, 10_000);
 });
