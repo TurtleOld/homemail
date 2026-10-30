@@ -94,16 +94,22 @@ describe('storage read-modify-write lock', () => {
     await expect(transaction).resolves.toBe('ran');
   });
 
-  it('reclaims a lock left by a process that no longer runs', async () => {
+  it('keeps a stale lock until an operator removes it', async () => {
     const { withStorageLock } = await import('@/lib/storage');
     const key = 'templates:account-1';
     const lockPath = path.join(dataDir, 'templates_account-1.json.lock');
 
     const child = spawn(process.execPath, ['-e', '']);
     await once(child, 'exit');
-    await fs.writeFile(lockPath, `${child.pid}:crashed-writer`, 'utf-8');
+    const ownerToken = `${child.pid}:crashed-writer`;
+    await fs.writeFile(lockPath, ownerToken, 'utf-8');
 
-    await expect(withStorageLock(key, async () => 'ran')).resolves.toBe('ran');
-    await expect(fs.stat(lockPath)).rejects.toMatchObject({ code: 'ENOENT' });
+    const transaction = withStorageLock(key, async () => 'ran');
+    await sleep(150);
+
+    await expect(fs.readFile(lockPath, 'utf-8')).resolves.toBe(ownerToken);
+
+    await fs.unlink(lockPath);
+    await expect(transaction).resolves.toBe('ran');
   }, 10_000);
 });

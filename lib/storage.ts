@@ -380,76 +380,7 @@ async function releaseTokenFile(filePath: string, token: string): Promise<void> 
       await fs.unlink(filePath);
     }
   } catch {
-    // Already gone, or reclaimed by another process.
-  }
-}
-
-/** Read the PID from a `<pid>:<token>` lock file, or null if malformed. */
-function lockOwnerPid(content: string): number | null {
-  const pid = Number(content.split(':')[0]);
-  return Number.isInteger(pid) && pid > 0 ? pid : null;
-}
-
-/**
- * Report whether a process is still running.
- *
- * `EPERM` means the process exists but belongs to another user, so it counts
- * as alive; only `ESRCH` means it is gone.
- */
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
-  }
-}
-
-/**
- * Remove the lock file only when its recorded owner process is gone.
- *
- * Age alone never justifies deletion: a live owner can be slow because of
- * filesystem I/O, and unlinking its lock would let a second writer run in
- * parallel. A malformed lock is treated as owned by an unknown live process,
- * so it is never deleted automatically; waiting ends with a timeout instead.
- * The same applies when the dead owner's PID has been reused by a live
- * process: the lock survives and callers time out rather than risk a steal.
- *
- * Deletion runs under a short-lived `.reap` guard. Without it two waiters
- * could both see a dead owner and one could unlink the fresh lock that the
- * other had just created. The guard lives for microseconds and is removed
- * only by the process that created it; if a process dies while holding it,
- * automatic reclamation stops until an operator removes the guard file.
- */
-async function reapDeadLock(lockPath: string): Promise<void> {
-  let content: string;
-  try {
-    content = await fs.readFile(lockPath, 'utf-8');
-  } catch {
-    return;
-  }
-
-  const ownerPid = lockOwnerPid(content);
-  if (ownerPid === null || isProcessAlive(ownerPid)) {
-    return;
-  }
-
-  const reapPath = `${lockPath}.reap`;
-  const token = `${process.pid}:${crypto.randomUUID()}`;
-  if ((await createExclusiveFile(reapPath, token)) === null) {
-    return;
-  }
-
-  try {
-    const currentContent = await fs.readFile(lockPath, 'utf-8').catch(() => null);
-    const currentOwnerPid = currentContent === null ? null : lockOwnerPid(currentContent);
-    if (currentOwnerPid === null || isProcessAlive(currentOwnerPid)) {
-      return;
-    }
-
-    await fs.unlink(lockPath).catch(() => {});
-  } finally {
-    await releaseTokenFile(reapPath, token);
+    // Already gone.
   }
 }
 
@@ -457,8 +388,12 @@ async function reapDeadLock(lockPath: string): Promise<void> {
  * Create the lock file for one storage key.
  *
  * Any number of processes that share DATA_DIR contend for the same file.
- * When another owner already holds it, waiting continues until the deadline;
- * a lock whose owner process is gone is reclaimed by `reapDeadLock`.
+ * When another owner holds it, waiting continues until the deadline and then
+ * fails with STORAGE_LOCK_TIMEOUT; a stale lock is never removed
+ * automatically. Age or a recorded PID cannot prove that the owner is gone
+ * (a live process may be paused in filesystem I/O, and PIDs are reused), so
+ * an operator removes a stale lock only after confirming that its owner no
+ * longer runs.
  */
 async function acquireStorageLock(key: string, deadline: number): Promise<StorageLock> {
   const lockPath = `${storageKeyToPath(key)}.lock`;
@@ -476,7 +411,6 @@ async function acquireStorageLock(key: string, deadline: number): Promise<Storag
       });
     }
 
-    await reapDeadLock(lockPath);
     await sleep(STORAGE_LOCK_RETRY_MS);
   }
 }
@@ -486,10 +420,10 @@ async function acquireStorageLock(key: string, deadline: number): Promise<Storag
  * locks, so concurrent requests cannot overwrite each other's changes.
  *
  * Locks are files in DATA_DIR, so the guarantee covers every process that
- * shares that directory in one PID namespace (Next.js worker processes and
- * cron scripts). Owner liveness is checked by PID, therefore containers with
- * separate PID namespaces must not share DATA_DIR; HomeMail is deployed as a
- * single instance with one data volume, so that case is out of scope.
+ * shares that directory on one host (Next.js worker processes and cron
+ * scripts). A lock is released in the same call that took it; a crash leaves
+ * the file behind and requires manual removal. Shared DATA_DIR across hosts
+ * or containers with independent filesystems is out of scope.
  *
  * Keys are locked in sorted order to avoid deadlocks between transactions
  * that touch the same pair of collections. The cycle body must do its reads
