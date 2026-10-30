@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, StorageReadError } from '@/lib/storage';
 import type { AutoSortRule } from '@/lib/types';
 
 /**
@@ -52,10 +52,21 @@ async function readLegacyRules(): Promise<RulesByAccount> {
  * their rules has an explicit empty array there, and must not have the old
  * file resurrect them.
  *
+ * An `ENOTDIR` read means DATA_DIR is not a directory, so the storage slot
+ * cannot exist and only the legacy file can hold rules. Other read failures
+ * (corrupt JSON, permissions) propagate: falling back would let the next save
+ * replace a slot this process never read.
+ *
  * @returns Rules grouped by account id.
  */
 async function loadAllRules(): Promise<RulesByAccount> {
-  const stored = await readStorage<RulesByAccount>(RULES_STORAGE_KEY, {});
+  let stored: RulesByAccount;
+  try {
+    stored = await readStorage<RulesByAccount>(RULES_STORAGE_KEY, {});
+  } catch (error) {
+    if (!(error instanceof StorageReadError) || error.code !== 'ENOTDIR') throw error;
+    stored = {};
+  }
   const legacy = await readLegacyRules();
 
   let migrated = false;
