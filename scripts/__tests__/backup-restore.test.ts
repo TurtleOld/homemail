@@ -64,6 +64,7 @@ describe('CLI backup', () => {
     await fs.writeFile(path.join(dataDir, '.health-check'), '');
     await fs.writeFile(path.join(dataDir, 'oauth_states.lock'), '');
     await fs.writeFile(path.join(dataDir, 'allScheduledMessages.json.tmp.123.456'), 'partial');
+    await fs.writeFile(path.join(dataDir, 'restore-temp.tar.gz'), 'legacy leftover');
 
     const { listBackupEntries } = await import('../backup');
     const entries = await listBackupEntries(dataDir, backupDir);
@@ -88,13 +89,18 @@ describe('CLI backup', () => {
       'user_accounts.json',
     ]);
 
+    const deepBackupDir = path.join(dataDir, 'backups', 'nested');
+    await fs.mkdir(deepBackupDir, { recursive: true });
+    await fs.writeFile(path.join(deepBackupDir, 'backup-deep.tar.gz'), 'nested backup');
+    await expect(listBackupEntries(dataDir, deepBackupDir)).resolves.not.toContain('backups');
+
     await fs.rm(dataDir, { recursive: true, force: true });
     await expect(listBackupEntries(dataDir, backupDir)).resolves.toEqual([]);
   });
 
   it('round-trips an encrypted backup into an empty directory', async () => {
     const dataDir = path.join(workDir, 'data');
-    const backupDir = path.join(workDir, 'backups');
+    const backupDir = path.join(dataDir, 'backups');
     await writeFixture(dataDir);
     await fs.writeFile(path.join(dataDir, '.health-check'), '');
     await fs.writeFile(path.join(dataDir, 'oauth_states.lock'), '');

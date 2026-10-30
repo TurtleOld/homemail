@@ -55,9 +55,12 @@ async function ensureBackupDir(): Promise<void> {
  * new files are covered without editing this list. The backup directory itself
  * and transient files are skipped.
  *
- * @param dataDir Directory that holds the HomeMail data files.
- * @param backupDir Directory where backups are written; skipped when nested.
- * @returns Sorted entry names relative to `dataDir`.
+ * Args:
+ *   dataDir: Directory that holds the HomeMail data files.
+ *   backupDir: Directory where backups are written; skipped when nested.
+ *
+ * Returns:
+ *   Sorted entry names relative to `dataDir`.
  */
 export async function listBackupEntries(dataDir: string, backupDir: string): Promise<string[]> {
   let entries: string[];
@@ -87,7 +90,8 @@ export async function listBackupEntries(dataDir: string, backupDir: string): Pro
  * provider state live in Stalwart and must be backed up separately on the mail
  * server; restoring this archive does not bring mail back.
  *
- * @returns Path of the encrypted backup, or an empty string when no data exists.
+ * Returns:
+ *   Path of the encrypted backup, or an empty string when no data exists.
  */
 async function createBackup(): Promise<string> {
   await ensureBackupDir();

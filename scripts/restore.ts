@@ -56,7 +56,8 @@ async function listBackups(): Promise<string[]> {
  * scripts and OAuth provider state are not part of it: they live in Stalwart
  * and need their own backup on the mail server.
  *
- * @param backupFileName Name of a backup inside the backup directory.
+ * Args:
+ *   backupFileName: Name of a backup inside the backup directory.
  */
 async function restoreBackup(backupFileName: string): Promise<void> {
   if (path.basename(backupFileName) !== backupFileName) {
