@@ -1,11 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs/promises';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  readStorage: vi.fn(),
-  writeStorage: vi.fn(),
-  sendMessage: vi.fn(),
-  bulkUpdateMessages: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  // Must be set before lib/storage is imported: DATA_DIR is resolved at import
+  // time, and the real withStorageLock writes lock files there.
+  // No imports available in vi.hoisted, so the path is assembled by hand.
+  const dataDir = `${process.env.TMPDIR || '/tmp'}/homemail-scheduled-test-${process.pid}-${Date.now()}`;
+  process.env.DATA_DIR = dataDir;
+
+  return {
+    dataDir,
+    readStorage: vi.fn(),
+    writeStorage: vi.fn(),
+    sendMessage: vi.fn(),
+    bulkUpdateMessages: vi.fn(),
+  };
+});
 
 vi.mock('@/lib/storage', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/storage')>();
@@ -64,6 +74,10 @@ function scheduledMessage(
 function storeMessage(message: StoredMessage) {
   stored = { [message.accountId]: [message] };
 }
+
+afterAll(async () => {
+  await fs.rm(mocks.dataDir, { recursive: true, force: true });
+});
 
 describe('processScheduledMessages', () => {
   beforeEach(() => {
