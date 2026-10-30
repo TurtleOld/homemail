@@ -11,6 +11,25 @@ const SETTINGS_FILE = path.join(DATA_DIR, '.settings.json');
 const settingsStore = new Map<string, any>();
 let loaded = false;
 let loadPromise: Promise<void> | null = null;
+let writeQueue: Promise<void> = Promise.resolve();
+
+/**
+ * Run a settings write after every earlier write has settled.
+ *
+ * Snapshotting and updating the cache must be part of the same queued task;
+ * otherwise two concurrent saves can both snapshot the old map and the last
+ * write silently drops the other account.
+ *
+ * A failed task is removed from the queue so later saves still run.
+ */
+function enqueueWrite<T>(task: () => Promise<T>): Promise<T> {
+  const result = writeQueue.then(task);
+  writeQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
 
 async function loadSettings(): Promise<void> {
   try {
@@ -48,7 +67,7 @@ async function writeSettings(settings: Map<string, any>): Promise<void> {
  * save that never reached the disk.
  */
 export async function saveSettingsStore(): Promise<void> {
-  await writeSettings(settingsStore);
+  await enqueueWrite(() => writeSettings(settingsStore));
 }
 
 export async function getAccountSettings(accountId: string) {
@@ -64,10 +83,12 @@ export async function getAccountSettings(accountId: string) {
  */
 export async function setAccountSettings(accountId: string, settings: Record<string, any>) {
   await ensureLoaded();
-  const next = new Map(settingsStore);
-  next.set(accountId, settings);
-  await writeSettings(next);
-  settingsStore.set(accountId, settings);
+  await enqueueWrite(async () => {
+    const next = new Map(settingsStore);
+    next.set(accountId, settings);
+    await writeSettings(next);
+    settingsStore.set(accountId, settings);
+  });
 }
 
 /**
