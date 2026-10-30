@@ -1,10 +1,11 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : path.join(process.cwd(), 'data'));
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
@@ -14,6 +15,12 @@ const BACKUP_ENCRYPTION_KEY = process.env.BACKUP_ENCRYPTION_KEY || process.env.S
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
+
+/**
+ * Files that are rebuilt on every start or whose stale copy is harmful after a
+ * restore: atomic-write leftovers, process locks and health probes.
+ */
+const TRANSIENT_FILE_PATTERN = /(\.tmp\.|\.tmp$|\.lock$|^\.health-check$|^restore-temp\.tar\.gz$)/;
 
 function getEncryptionKey(): Buffer {
   return crypto.scryptSync(BACKUP_ENCRYPTION_KEY, 'backup-salt', 32);
@@ -39,57 +46,83 @@ async function ensureBackupDir(): Promise<void> {
   }
 }
 
+/**
+ * Lists the top-level entries of the data directory that belong in a backup.
+ *
+ * The data directory holds every persistent HomeMail file: sessions,
+ * credentials, settings, contacts, groups, templates, labels, rules, OAuth
+ * tokens, the send queue and the stored mail state. Everything is included, so
+ * new files are covered without editing this list. The backup directory itself
+ * and transient files are skipped.
+ *
+ * @param dataDir Directory that holds the HomeMail data files.
+ * @param backupDir Directory where backups are written; skipped when nested.
+ * @returns Sorted entry names relative to `dataDir`.
+ */
+export async function listBackupEntries(dataDir: string, backupDir: string): Promise<string[]> {
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dataDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+  const relativeBackupDir = path.relative(path.resolve(dataDir), path.resolve(backupDir));
+  const nestedBackupRoot =
+    relativeBackupDir && !relativeBackupDir.startsWith('..') && !path.isAbsolute(relativeBackupDir)
+      ? relativeBackupDir.split(path.sep)[0]
+      : null;
+
+  return entries
+    .filter((entry) => !TRANSIENT_FILE_PATTERN.test(entry) && entry !== nestedBackupRoot)
+    .sort();
+}
+
+/**
+ * Creates an encrypted archive of HomeMail's persistent data.
+ *
+ * Only the local `DATA_DIR` is covered. Mailboxes, Sieve scripts and OAuth
+ * provider state live in Stalwart and must be backed up separately on the mail
+ * server; restoring this archive does not bring mail back.
+ *
+ * @returns Path of the encrypted backup, or an empty string when no data exists.
+ */
 async function createBackup(): Promise<string> {
   await ensureBackupDir();
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupName = `backup-${timestamp}.tar.gz`;
   const backupPath = path.join(BACKUP_DIR, backupName);
-  const tempBackupPath = `${backupPath}.tmp`;
+
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'homemail-backup-'));
+  const tempArchivePath = path.join(tempDir, 'backup.tar.gz');
 
   try {
-    const filesToBackup = [
-      'sessions.json',
-      'credentials.enc',
-      'user_accounts.json',
-      'filters.json',
-      'filter-rules.json',
-      'settings.json',
-    ];
+    const entries = await listBackupEntries(DATA_DIR, BACKUP_DIR);
 
-    const existingFiles: string[] = [];
-    for (const file of filesToBackup) {
-      const filePath = path.join(DATA_DIR, file);
-      try {
-        await fs.access(filePath);
-        existingFiles.push(file);
-      } catch {
-      }
-    }
-
-    if (existingFiles.length === 0) {
+    if (entries.length === 0) {
       console.log('No files to backup');
       return '';
     }
 
-    const tarCommand = `cd ${DATA_DIR} && tar -czf ${tempBackupPath} ${existingFiles.join(' ')}`;
-    await execAsync(tarCommand);
+    // Prefixing with ./ keeps tar from reading an entry name as an option.
+    const archiveEntries = entries.map((entry) => `./${entry}`);
+    await execFileAsync('tar', ['-czf', tempArchivePath, '-C', DATA_DIR, ...archiveEntries]);
 
-    const backupData = await fs.readFile(tempBackupPath);
+    const backupData = await fs.readFile(tempArchivePath);
     const encryptedData = await encryptBackup(backupData);
 
     await fs.writeFile(backupPath, encryptedData);
-    await fs.unlink(tempBackupPath);
 
     console.log(`Backup created: ${backupPath}`);
     return backupPath;
   } catch (error) {
-    try {
-      await fs.unlink(tempBackupPath);
-    } catch {
-    }
     console.error('Failed to create backup:', error);
     throw error;
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
   }
 }
 
@@ -135,7 +168,7 @@ async function main() {
   }
 }
 
-if (require.main === module) {
+if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
   main();
 }
 
