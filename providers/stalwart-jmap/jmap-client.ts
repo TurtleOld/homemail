@@ -1,6 +1,7 @@
 import * as dns from 'node:dns';
 import { promisify } from 'node:util';
 import { logger } from '@/lib/logger';
+import { SendUnknownError } from '../mail-provider';
 
 const lookup = promisify(dns.lookup);
 const resolve4 = promisify(dns.resolve4);
@@ -1312,15 +1313,23 @@ export class JMAPClient {
   /**
    * Submits an email that already exists in the account.
    *
-   * @param emailId - Id of the email to submit.
-   * @param accountId - Account that owns the email; defaults to the client account.
-   * @param identityId - Explicit submission identity. When omitted, the identity
-   *   matching `options.fromEmail` is used.
-   * @param options.fromEmail - Sender address that selects the submission identity.
-   * @param options.sentMailboxId - Mailbox to move the email to once the server
-   *   accepts the submission. JMAP applies the update only on success, so a
-   *   rejected submission leaves the email where it was created.
-   * @returns Id of the created EmailSubmission.
+   * Args:
+   *   emailId: Id of the email to submit.
+   *   accountId: Account that owns the email; defaults to the client account.
+   *   identityId: Explicit submission identity. When omitted, the identity
+   *     matching `options.fromEmail` is used.
+   *   options: Submission options. `fromEmail` selects the identity;
+   *     `sentMailboxId` moves the email once the server accepts it. JMAP
+   *     applies that update only on success, so a rejected submission leaves
+   *     the email where it was created.
+   *
+   * Returns:
+   *   Id of the created EmailSubmission.
+   *
+   * Raises:
+   *   SendUnknownError: The request may have reached the server, but its result
+   *     was not received.
+   *   Error: The server explicitly rejected the submission.
    */
   async sendEmail(
     emailId: string,
@@ -1370,22 +1379,49 @@ export class JMAPClient {
       };
     }
 
-    const response = await this.requestWithUsing(
-      [['EmailSubmission/set', setArguments, '0']],
-      ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'urn:ietf:params:jmap:submission']
-    );
+    let response: JMAPResponse;
+    try {
+      response = await this.requestWithUsing(
+        [['EmailSubmission/set', setArguments, '0']],
+        ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', 'urn:ietf:params:jmap:submission']
+      );
+    } catch (error) {
+      // The request may have been accepted before the connection broke.
+      throw new SendUnknownError('Email submission result is unknown', { cause: error });
+    }
 
     const submissionResponse = response.methodResponses[0];
+    if (!submissionResponse) {
+      throw new SendUnknownError('Email submission response contained no method response');
+    }
+    if (submissionResponse[0] === 'error') {
+      const errorData = submissionResponse[1] as { type?: string; description?: string };
+      throw new Error(
+        `Email submission rejected: ${errorData.type || 'unknown'}: ${errorData.description || 'no description'}`,
+      );
+    }
     if (submissionResponse[0] !== 'EmailSubmission/set') {
-      throw new Error('Invalid email submission response');
+      throw new SendUnknownError('Invalid email submission response');
     }
 
-    const data = submissionResponse[1] as { created?: Record<string, { id: string }> };
+    const data = submissionResponse[1] as {
+      created?: Record<string, { id: string }>;
+      notCreated?: Record<string, unknown>;
+    };
     if (!data.created || Object.keys(data.created).length === 0) {
-      throw new Error('Failed to create email submission');
+      if (data.notCreated && Object.keys(data.notCreated).length > 0) {
+        throw new Error(`Email submission rejected: ${JSON.stringify(data.notCreated)}`);
+      }
+      // A successful response without `created` is malformed, but the server
+      // may already have queued the submission. Never invite a blind retry.
+      throw new SendUnknownError('Email submission response did not report a created submission');
     }
 
-    return Object.values(data.created)[0].id;
+    const created = Object.values(data.created)[0];
+    if (!created?.id) {
+      throw new SendUnknownError('Email submission response did not include a submission id');
+    }
+    return created.id;
   }
 
   // ── Sieve (RFC 9661) ──────────────────────────────────────────────────────

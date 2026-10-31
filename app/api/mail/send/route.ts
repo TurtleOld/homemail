@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
         references: validatedData.references,
         requestReadReceipt: validatedData.requestReadReceipt,
         createdAt: new Date().toISOString(),
+        status: 'pending' as const,
       };
 
       await updateScheduledMessages((allScheduled) => {
