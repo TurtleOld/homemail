@@ -26,11 +26,33 @@ describe('storage key validation', () => {
     expect(result).toEqual({ msg1: ['important'] });
   });
 
+  it('accepts and round-trips an accountId with a plus tag', async () => {
+    const { readStorage, writeStorage } = await import('@/lib/storage');
+    const key = 'messageLabels:user+home@example.org';
+    await writeStorage(key, { msg1: ['important'] });
+    const result = await readStorage<Record<string, string[]>>(key, {});
+    expect(result).toEqual({ msg1: ['important'] });
+    const expectedPath = path.join(dataDir, 'messageLabels_user+home@example.org.json');
+    await expect(fs.readFile(expectedPath, 'utf-8')).resolves.toContain('important');
+  });
+
   it('rejects keys containing a path traversal sequence', async () => {
     const { writeStorage } = await import('@/lib/storage');
     await expect(writeStorage('messageLabels:../../etc/passwd', {})).rejects.toThrow(
       'Invalid storage key'
     );
+  });
+
+  it('rejects traversal sequences combined with a plus tag', async () => {
+    const { writeStorage } = await import('@/lib/storage');
+    for (const key of [
+      'messageLabels:user+home@example.org/../../etc/passwd',
+      'messageLabels:user+home@example.org\\..\\..\\etc\\passwd',
+      'messageLabels:..+home@example.org',
+      'messageLabels:user+home@example.org%2F..%2Fetc',
+    ]) {
+      await expect(writeStorage(key, {})).rejects.toThrow('Invalid storage key');
+    }
   });
 
   it('rejects keys containing a path separator', async () => {
