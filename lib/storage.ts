@@ -327,6 +327,128 @@ function storageKeyToPath(key: string): string {
   return resolved;
 }
 
+const STORAGE_LOCK_TIMEOUT_MS = 5_000;
+const STORAGE_LOCK_RETRY_MS = 10;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+interface StorageLock {
+  path: string;
+  token: string;
+}
+
+/**
+ * Create a file exclusively and write its owner token into it.
+ *
+ * Exclusive creation (`wx`) is atomic at the operating system level, so only
+ * one process can own the file at a time. Returns null when the path already
+ * exists. A file that could not be written is removed instead of being left
+ * behind as an unreadable lock.
+ */
+async function createExclusiveFile(filePath: string, token: string): Promise<string | null> {
+  let handle;
+  try {
+    handle = await fs.open(filePath, 'wx');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      return null;
+    }
+    throw error;
+  }
+
+  try {
+    await handle.writeFile(token, 'utf-8');
+    return token;
+  } catch (error) {
+    await fs.unlink(filePath).catch(() => {});
+    throw error;
+  } finally {
+    await handle.close().catch(() => {});
+  }
+}
+
+/**
+ * Remove a file only if it still contains this caller's token.
+ *
+ * Reading the owner before unlinking prevents a slow transaction from
+ * deleting a lock that a newer owner has already created at the same path.
+ */
+async function releaseTokenFile(filePath: string, token: string): Promise<void> {
+  try {
+    const owner = await fs.readFile(filePath, 'utf-8');
+    if (owner === token) {
+      await fs.unlink(filePath);
+    }
+  } catch {
+    // Already gone.
+  }
+}
+
+/**
+ * Create the lock file for one storage key.
+ *
+ * Any number of processes that share DATA_DIR contend for the same file.
+ * When another owner holds it, waiting continues until the deadline and then
+ * fails with STORAGE_LOCK_TIMEOUT; a stale lock is never removed
+ * automatically. Age or a recorded PID cannot prove that the owner is gone
+ * (a live process may be paused in filesystem I/O, and PIDs are reused), so
+ * an operator removes a stale lock only after confirming that its owner no
+ * longer runs.
+ */
+async function acquireStorageLock(key: string, deadline: number): Promise<StorageLock> {
+  const lockPath = `${storageKeyToPath(key)}.lock`;
+  const token = `${process.pid}:${crypto.randomUUID()}`;
+
+  for (;;) {
+    await fs.mkdir(path.dirname(lockPath), { recursive: true });
+    if ((await createExclusiveFile(lockPath, token)) !== null) {
+      return { path: lockPath, token };
+    }
+
+    if (Date.now() >= deadline) {
+      throw Object.assign(new Error(`Timed out waiting for storage lock: ${key}`), {
+        code: 'STORAGE_LOCK_TIMEOUT',
+      });
+    }
+
+    await sleep(STORAGE_LOCK_RETRY_MS);
+  }
+}
+
+/**
+ * Run a read-modify-write cycle on one or more storage keys under exclusive
+ * locks, so concurrent requests cannot overwrite each other's changes.
+ *
+ * Locks are files in DATA_DIR, so the guarantee covers every process that
+ * shares that directory on one host (Next.js worker processes and cron
+ * scripts). A lock is released in the same call that took it; a crash leaves
+ * the file behind and requires manual removal. Shared DATA_DIR across hosts
+ * or containers with independent filesystems is out of scope.
+ *
+ * Keys are locked in sorted order to avoid deadlocks between transactions
+ * that touch the same pair of collections. The cycle body must do its reads
+ * and writes through this module.
+ */
+export async function withStorageLock<T>(
+  keys: string | string[],
+  fn: () => Promise<T>
+): Promise<T> {
+  const orderedKeys = [...new Set(Array.isArray(keys) ? keys : [keys])].sort();
+  const deadline = Date.now() + STORAGE_LOCK_TIMEOUT_MS;
+  const held: StorageLock[] = [];
+
+  try {
+    for (const key of orderedKeys) {
+      held.push(await acquireStorageLock(key, deadline));
+    }
+    return await fn();
+  } finally {
+    await Promise.all(held.reverse().map((lock) => releaseTokenFile(lock.path, lock.token)));
+  }
+}
+
 /**
  * Raised when a storage file exists but cannot be read or decoded.
  *
