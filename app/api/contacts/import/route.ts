@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 import type { Contact } from '@/lib/types';
 import { parse } from 'csv-parse/sync';
 
@@ -109,30 +109,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No contacts found in file' }, { status: 400 });
     }
 
-    const existingContacts = await readStorage<Contact[]>(`contacts:${session.accountId}`, []);
-    const existingEmails = new Set(existingContacts.map((c) => c.email.toLowerCase()));
-    
-    let importedCount = 0;
-    let skippedCount = 0;
-    
-    for (const contact of contacts) {
-      if (existingEmails.has(contact.email.toLowerCase())) {
-        skippedCount++;
-        continue;
-      }
-      
-      existingContacts.push(contact);
-      existingEmails.add(contact.email.toLowerCase());
-      importedCount++;
-    }
-    
-    await writeStorage(`contacts:${session.accountId}`, existingContacts);
+    const key = `contacts:${session.accountId}`;
 
-    return NextResponse.json({
-      success: true,
-      imported: importedCount,
-      skipped: skippedCount,
-      total: contacts.length,
+    return await withStorageLock(key, async () => {
+      const existingContacts = await readStorage<Contact[]>(key, []);
+      const existingEmails = new Set(existingContacts.map((c) => c.email.toLowerCase()));
+
+      let importedCount = 0;
+      let skippedCount = 0;
+
+      for (const contact of contacts) {
+        if (existingEmails.has(contact.email.toLowerCase())) {
+          skippedCount++;
+          continue;
+        }
+
+        existingContacts.push(contact);
+        existingEmails.add(contact.email.toLowerCase());
+        importedCount++;
+      }
+
+      await writeStorage(key, existingContacts);
+
+      return NextResponse.json({
+        success: true,
+        imported: importedCount,
+        skipped: skippedCount,
+        total: contacts.length,
+      });
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

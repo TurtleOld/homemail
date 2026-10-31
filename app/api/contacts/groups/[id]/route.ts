@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 import type { ContactGroup, Contact } from '@/lib/types';
 
 const updateGroupSchema = z.object({
@@ -25,42 +25,47 @@ export async function PUT(
     const body = await request.json();
     const data = updateGroupSchema.parse(body);
 
-    const groups = await readStorage<ContactGroup[]>(`contactGroups:${session.accountId}`, []);
-    const groupIndex = groups.findIndex((g) => g.id === id);
+    const groupsKey = `contactGroups:${session.accountId}`;
+    const contactsKey = `contacts:${session.accountId}`;
 
-    if (groupIndex === -1) {
-      return NextResponse.json({ error: 'Group not found' }, { status: 404 });
-    }
+    return await withStorageLock([groupsKey, contactsKey], async () => {
+      const groups = await readStorage<ContactGroup[]>(groupsKey, []);
+      const groupIndex = groups.findIndex((g) => g.id === id);
 
-    const updatedGroup = {
-      ...groups[groupIndex]!,
-      ...data,
-      updatedAt: new Date(),
-    };
+      if (groupIndex === -1) {
+        return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+      }
 
-    if (data.contactIds !== undefined) {
-      const contacts = await readStorage<Contact[]>(`contacts:${session.accountId}`, []);
-      for (const contact of contacts) {
-        if (data.contactIds.includes(contact.id)) {
-          if (!contact.groups) {
-            contact.groups = [];
-          }
-          if (!contact.groups.includes(id)) {
-            contact.groups.push(id);
-          }
-        } else {
-          if (contact.groups) {
-            contact.groups = contact.groups.filter((gid) => gid !== id);
+      const updatedGroup = {
+        ...groups[groupIndex]!,
+        ...data,
+        updatedAt: new Date(),
+      };
+
+      if (data.contactIds !== undefined) {
+        const contacts = await readStorage<Contact[]>(contactsKey, []);
+        for (const contact of contacts) {
+          if (data.contactIds.includes(contact.id)) {
+            if (!contact.groups) {
+              contact.groups = [];
+            }
+            if (!contact.groups.includes(id)) {
+              contact.groups.push(id);
+            }
+          } else {
+            if (contact.groups) {
+              contact.groups = contact.groups.filter((gid) => gid !== id);
+            }
           }
         }
+        await writeStorage(contactsKey, contacts);
       }
-      await writeStorage(`contacts:${session.accountId}`, contacts);
-    }
 
-    groups[groupIndex] = updatedGroup;
-    await writeStorage(`contactGroups:${session.accountId}`, groups);
+      groups[groupIndex] = updatedGroup;
+      await writeStorage(groupsKey, groups);
 
-    return NextResponse.json(updatedGroup);
+      return NextResponse.json(updatedGroup);
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
@@ -82,20 +87,25 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const groups = await readStorage<ContactGroup[]>(`contactGroups:${session.accountId}`, []);
-    const filteredGroups = groups.filter((g) => g.id !== id);
+    const groupsKey = `contactGroups:${session.accountId}`;
+    const contactsKey = `contacts:${session.accountId}`;
 
-    const contacts = await readStorage<Contact[]>(`contacts:${session.accountId}`, []);
-    for (const contact of contacts) {
-      if (contact.groups) {
-        contact.groups = contact.groups.filter((gid) => gid !== id);
+    return await withStorageLock([groupsKey, contactsKey], async () => {
+      const groups = await readStorage<ContactGroup[]>(groupsKey, []);
+      const filteredGroups = groups.filter((g) => g.id !== id);
+
+      const contacts = await readStorage<Contact[]>(contactsKey, []);
+      for (const contact of contacts) {
+        if (contact.groups) {
+          contact.groups = contact.groups.filter((gid) => gid !== id);
+        }
       }
-    }
-    await writeStorage(`contacts:${session.accountId}`, contacts);
+      await writeStorage(contactsKey, contacts);
 
-    await writeStorage(`contactGroups:${session.accountId}`, filteredGroups);
+      await writeStorage(groupsKey, filteredGroups);
 
-    return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true });
+    });
   } catch (error) {
     console.error('Error deleting contact group:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

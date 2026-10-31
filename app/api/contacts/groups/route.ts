@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 import { getAccountAccentColor } from '@/lib/settings-store';
 import type { ContactGroup } from '@/lib/types';
 
@@ -38,20 +38,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = groupSchema.parse(body);
 
-    const groups = await readStorage<ContactGroup[]>(`contactGroups:${session.accountId}`, []);
+    const key = `contactGroups:${session.accountId}`;
 
-    const newGroup: ContactGroup = {
-      id: `group_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
-      name: data.name,
-      color: data.color || (await getAccountAccentColor(session.accountId)),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    return await withStorageLock(key, async () => {
+      const groups = await readStorage<ContactGroup[]>(key, []);
 
-    groups.push(newGroup);
-    await writeStorage(`contactGroups:${session.accountId}`, groups);
+      const newGroup: ContactGroup = {
+        id: `group_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        name: data.name,
+        color: data.color || (await getAccountAccentColor(session.accountId)),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    return NextResponse.json(newGroup);
+      groups.push(newGroup);
+      await writeStorage(key, groups);
+
+      return NextResponse.json(newGroup);
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });

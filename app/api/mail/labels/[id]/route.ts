@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 import type { Label } from '@/lib/types';
 
 const updateLabelSchema = z.object({
@@ -24,22 +24,26 @@ export async function PUT(
     const body = await request.json();
     const data = updateLabelSchema.parse(body);
 
-    const labels = await readStorage<Label[]>(`labels:${session.accountId}`, []);
-    const labelIndex = labels.findIndex((l) => l.id === id);
+    const key = `labels:${session.accountId}`;
 
-    if (labelIndex === -1) {
-      return NextResponse.json({ error: 'Label not found' }, { status: 404 });
-    }
+    return await withStorageLock(key, async () => {
+      const labels = await readStorage<Label[]>(key, []);
+      const labelIndex = labels.findIndex((l) => l.id === id);
 
-    labels[labelIndex] = {
-      ...labels[labelIndex]!,
-      ...data,
-      updatedAt: new Date(),
-    };
+      if (labelIndex === -1) {
+        return NextResponse.json({ error: 'Label not found' }, { status: 404 });
+      }
 
-    await writeStorage(`labels:${session.accountId}`, labels);
+      labels[labelIndex] = {
+        ...labels[labelIndex]!,
+        ...data,
+        updatedAt: new Date(),
+      };
 
-    return NextResponse.json(labels[labelIndex]);
+      await writeStorage(key, labels);
+
+      return NextResponse.json(labels[labelIndex]);
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
@@ -61,12 +65,16 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const labels = await readStorage<Label[]>(`labels:${session.accountId}`, []);
-    const filteredLabels = labels.filter((l) => l.id !== id);
+    const key = `labels:${session.accountId}`;
 
-    await writeStorage(`labels:${session.accountId}`, filteredLabels);
+    return await withStorageLock(key, async () => {
+      const labels = await readStorage<Label[]>(key, []);
+      const filteredLabels = labels.filter((l) => l.id !== id);
 
-    return NextResponse.json({ success: true });
+      await writeStorage(key, filteredLabels);
+
+      return NextResponse.json({ success: true });
+    });
   } catch (error) {
     console.error('Error deleting label:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

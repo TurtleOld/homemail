@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
+import { getAccountSettings, setAccountSettings } from '@/lib/settings-store';
 import JSZip from 'jszip';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
-
-// ─── Limits ──────────────────────────────────────────────────────────────────
-
-/** Maximum compressed upload size (10 MB). */
-const MAX_BACKUP_SIZE_BYTES = 10 * 1024 * 1024;
-
-/** Maximum number of files allowed inside the archive. */
-const MAX_ARCHIVE_FILES = 20;
-
-/** Maximum total uncompressed bytes extracted from the archive (50 MB). */
-const MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
-
-/** Maximum size of a single extracted JSON string (10 MB). */
-const MAX_SINGLE_FILE_BYTES = 10 * 1024 * 1024;
+import {
+  BackupLimitExceededError,
+  MAX_ARCHIVE_FILES,
+  MAX_BACKUP_SIZE_BYTES,
+  MAX_SINGLE_FILE_BYTES,
+  MAX_UNCOMPRESSED_BYTES,
+  readZipEntryLimited,
+} from '@/lib/backup-archive';
 
 // ─── Zod schemas for each backup slot ────────────────────────────────────────
 
@@ -61,18 +56,25 @@ const BackupMetadataSchema = z.object({
 
 interface RestoreSlot<T> {
   filename: string;
-  storageKey: (accountId: string) => string;
   schema: z.ZodType<T>;
+  restore: (accountId: string, value: T) => Promise<void>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const RESTORE_SLOTS: RestoreSlot<any>[] = [
-  { filename: 'contacts.json',       storageKey: (id) => `contacts:${id}`,       schema: z.array(ContactSchema) },
-  { filename: 'labels.json',         storageKey: (id) => `labels:${id}`,         schema: z.array(LabelSchema) },
-  { filename: 'messageLabels.json',  storageKey: (id) => `messageLabels:${id}`,  schema: MessageLabelsSchema },
-  { filename: 'settings.json',       storageKey: (id) => `settings:${id}`,       schema: SettingsSchema },
-  { filename: 'emailTemplates.json', storageKey: (id) => `emailTemplates:${id}`, schema: z.array(EmailTemplateSchema) },
-  { filename: 'contactGroups.json',  storageKey: (id) => `contactGroups:${id}`,  schema: z.array(ContactGroupSchema) },
+  { filename: 'contacts.json',       schema: z.array(ContactSchema),       restore: (id, value) => writeStorage(`contacts:${id}`, value) },
+  { filename: 'labels.json',         schema: z.array(LabelSchema),         restore: (id, value) => writeStorage(`labels:${id}`, value) },
+  { filename: 'messageLabels.json',  schema: MessageLabelsSchema,          restore: (id, value) => writeStorage(`messageLabels:${id}`, value) },
+  {
+    filename: 'settings.json',
+    schema: SettingsSchema,
+    restore: async (id, value) => {
+      // Older archives stored null when the separate settings slot was empty; keep current settings.
+      if (value) await setAccountSettings(id, value);
+    },
+  },
+  { filename: 'emailTemplates.json', schema: z.array(EmailTemplateSchema), restore: (id, value) => writeStorage(`emailTemplates:${id}`, value) },
+  { filename: 'contactGroups.json',  schema: z.array(ContactGroupSchema),  restore: (id, value) => writeStorage(`contactGroups:${id}`, value) },
 ];
 
 // ─── GET: create backup ───────────────────────────────────────────────────────
@@ -90,7 +92,7 @@ export async function GET() {
     const contacts      = await readStorage<unknown[]>(`contacts:${session.accountId}`, []);
     const labels        = await readStorage<unknown[]>(`labels:${session.accountId}`, []);
     const messageLabels = await readStorage<Record<string, string[]>>(`messageLabels:${session.accountId}`, {});
-    const settings      = await readStorage<unknown>(`settings:${session.accountId}`, null);
+    const settings      = await getAccountSettings(session.accountId);
     const emailTemplates = await readStorage<unknown[]>(`emailTemplates:${session.accountId}`, []);
     const contactGroups = await readStorage<unknown[]>(`contactGroups:${session.accountId}`, []);
 
@@ -159,7 +161,12 @@ export async function POST(request: NextRequest) {
     if (!metaFile || metaFile.dir) {
       return NextResponse.json({ error: 'Backup is missing metadata' }, { status: 400 });
     }
-    const metaContent = await metaFile.async('string');
+    const metaBytes = await readZipEntryLimited(
+      metaFile,
+      Math.min(MAX_SINGLE_FILE_BYTES, MAX_UNCOMPRESSED_BYTES)
+    );
+    const metaContent = metaBytes.toString('utf8');
+    let totalUncompressed = metaBytes.byteLength;
     let metadata: z.infer<typeof BackupMetadataSchema>;
     try {
       metadata = BackupMetadataSchema.parse(JSON.parse(metaContent));
@@ -176,19 +183,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Backup belongs to a different account' }, { status: 403 });
     }
 
-    // ── Uncompressed size guard (streaming) ─────────────────────────────────
-    let totalUncompressed = 0;
-    for (const entry of fileEntries) {
-      const buf = await entry.async('uint8array');
-      totalUncompressed += buf.byteLength;
-      if (totalUncompressed > MAX_UNCOMPRESSED_BYTES) {
-        logger.warn('[Restore] Zip bomb guard triggered', { accountId: session.accountId });
-        return NextResponse.json({ error: 'Backup archive is too large when decompressed' }, { status: 400 });
-      }
-    }
-
     // ── Restore each slot with Zod validation ────────────────────────────────
-    let restoredCount = 0;
+    // Reads and validates every slot before the first write, so a zip bomb
+    // rejected half-way cannot leave the account with partially restored data.
+    const pendingWrites: Array<{ filename: string; restore: () => Promise<void> }> = [];
     const errors: string[] = [];
 
     for (const slot of RESTORE_SLOTS) {
@@ -196,17 +194,21 @@ export async function POST(request: NextRequest) {
       if (!entry || entry.dir) continue;
 
       try {
-        const content = await entry.async('string');
-        if (content.length > MAX_SINGLE_FILE_BYTES) {
-          errors.push(`${slot.filename}: file too large`);
-          continue;
-        }
+        const remaining = MAX_UNCOMPRESSED_BYTES - totalUncompressed;
+        const content = await readZipEntryLimited(
+          entry,
+          Math.min(MAX_SINGLE_FILE_BYTES, remaining)
+        );
+        totalUncompressed += content.byteLength;
 
-        const parsed = JSON.parse(content);
-        const validated = slot.schema.parse(parsed);
-        await writeStorage(slot.storageKey(session.accountId), validated);
-        restoredCount++;
+        const validated = slot.schema.parse(JSON.parse(content.toString('utf8')));
+        pendingWrites.push({
+          filename: slot.filename,
+          restore: () => slot.restore(session.accountId, validated),
+        });
       } catch (err) {
+        if (err instanceof BackupLimitExceededError) throw err;
+
         // Log detail server-side, return generic message to client.
         logger.error('[Restore] Failed to restore slot', {
           filename: slot.filename,
@@ -217,12 +219,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let restoredCount = 0;
+    for (const write of pendingWrites) {
+      try {
+        await write.restore();
+        restoredCount++;
+      } catch (err) {
+        logger.error('[Restore] Failed to restore slot', {
+          filename: write.filename,
+          accountId: session.accountId,
+          error: String(err),
+        });
+        errors.push(`Failed to restore ${write.filename}`);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       restored: restoredCount,
       ...(errors.length > 0 && { errors }),
     });
   } catch (error) {
+    if (error instanceof BackupLimitExceededError) {
+      logger.warn('[Restore] Zip bomb guard triggered', { accountId: session.accountId });
+      return NextResponse.json({ error: 'Backup archive is too large when decompressed' }, { status: 400 });
+    }
+
     logger.error('[Restore] Unexpected error', { accountId: session.accountId, error: String(error) });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
