@@ -1,10 +1,11 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const DATA_DIR = process.env.DATA_DIR || (process.env.NODE_ENV === 'production' ? '/app/data' : path.join(process.cwd(), 'data'));
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
@@ -48,7 +49,21 @@ async function listBackups(): Promise<string[]> {
   }
 }
 
+/**
+ * Restores an encrypted backup into the data directory.
+ *
+ * The archive contains only HomeMail's local `DATA_DIR`. Mailboxes, Sieve
+ * scripts and OAuth provider state are not part of it: they live in Stalwart
+ * and need their own backup on the mail server.
+ *
+ * Args:
+ *   backupFileName: Name of a backup inside the backup directory.
+ */
 async function restoreBackup(backupFileName: string): Promise<void> {
+  if (path.basename(backupFileName) !== backupFileName) {
+    throw new Error(`Invalid backup file name: ${backupFileName}`);
+  }
+
   const backupPath = path.join(BACKUP_DIR, backupFileName);
 
   try {
@@ -57,24 +72,25 @@ async function restoreBackup(backupFileName: string): Promise<void> {
     throw new Error(`Backup file not found: ${backupFileName}`);
   }
 
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'homemail-restore-'));
+
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
 
     const encryptedData = await fs.readFile(backupPath);
     const decryptedData = await decryptBackup(encryptedData);
 
-    const tempBackupPath = path.join(DATA_DIR, 'restore-temp.tar.gz');
-    await fs.writeFile(tempBackupPath, decryptedData);
+    const tempArchivePath = path.join(tempDir, 'restore.tar.gz');
+    await fs.writeFile(tempArchivePath, decryptedData);
 
-    const extractCommand = `cd ${DATA_DIR} && tar -xzf ${tempBackupPath}`;
-    await execAsync(extractCommand);
-
-    await fs.unlink(tempBackupPath);
+    await execFileAsync('tar', ['-xzf', tempArchivePath, '-C', DATA_DIR]);
 
     console.log(`Backup restored from: ${backupFileName}`);
   } catch (error) {
     console.error('Failed to restore backup:', error);
     throw error;
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
   }
 }
 
@@ -106,7 +122,7 @@ async function main() {
   }
 }
 
-if (require.main === module) {
+if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
   main();
 }
 
