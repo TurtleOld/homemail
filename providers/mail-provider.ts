@@ -10,6 +10,20 @@ import type {
   MessageSourceHandle,
 } from '@/lib/types';
 
+/**
+ * Raised when a submission request may have reached the server but no
+ * response was received.
+ *
+ * Retrying such a send could deliver the message twice, so callers must treat
+ * the delivery result as unknown rather than as a normal failure.
+ */
+export class SendUnknownError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'SendUnknownError';
+  }
+}
+
 export interface MailProvider {
   getAccount(accountId: string): Promise<Account | null>;
   getFolders(accountId: string): Promise<Folder[]>;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 import type { EmailTemplate } from '../route';
 
 const updateTemplateSchema = z.object({
@@ -38,29 +38,33 @@ export async function PUT(
     const body = await request.json();
     const data = updateTemplateSchema.parse(body);
 
-    const templates = await readStorage<EmailTemplate[]>(`emailTemplates:${session.accountId}`, []);
-    const templateIndex = templates.findIndex((t) => t.id === id);
+    const key = `emailTemplates:${session.accountId}`;
 
-    if (templateIndex === -1) {
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
-    }
+    return await withStorageLock(key, async () => {
+      const templates = await readStorage<EmailTemplate[]>(key, []);
+      const templateIndex = templates.findIndex((t) => t.id === id);
 
-    const updatedTemplate = {
-      ...templates[templateIndex]!,
-      ...data,
-      updatedAt: new Date(),
-    };
+      if (templateIndex === -1) {
+        return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+      }
 
-    if (data.subject || data.body) {
-      const subject = data.subject || updatedTemplate.subject;
-      const body = data.body || updatedTemplate.body;
-      updatedTemplate.variables = extractVariables(subject + ' ' + body);
-    }
+      const updatedTemplate = {
+        ...templates[templateIndex]!,
+        ...data,
+        updatedAt: new Date(),
+      };
 
-    templates[templateIndex] = updatedTemplate;
-    await writeStorage(`emailTemplates:${session.accountId}`, templates);
+      if (data.subject || data.body) {
+        const subject = data.subject || updatedTemplate.subject;
+        const body = data.body || updatedTemplate.body;
+        updatedTemplate.variables = extractVariables(subject + ' ' + body);
+      }
 
-    return NextResponse.json(updatedTemplate);
+      templates[templateIndex] = updatedTemplate;
+      await writeStorage(key, templates);
+
+      return NextResponse.json(updatedTemplate);
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
@@ -82,12 +86,16 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const templates = await readStorage<EmailTemplate[]>(`emailTemplates:${session.accountId}`, []);
-    const filteredTemplates = templates.filter((t) => t.id !== id);
+    const key = `emailTemplates:${session.accountId}`;
 
-    await writeStorage(`emailTemplates:${session.accountId}`, filteredTemplates);
+    return await withStorageLock(key, async () => {
+      const templates = await readStorage<EmailTemplate[]>(key, []);
+      const filteredTemplates = templates.filter((t) => t.id !== id);
 
-    return NextResponse.json({ success: true });
+      await writeStorage(key, filteredTemplates);
+
+      return NextResponse.json({ success: true });
+    });
   } catch (error) {
     console.error('Error deleting template:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
