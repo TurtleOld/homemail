@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 import type { Contact } from '@/lib/types';
 
 const contactSchema = z.object({
@@ -40,28 +40,32 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = contactSchema.parse(body);
 
-    const contacts = await readStorage<Contact[]>(`contacts:${session.accountId}`, []);
+    const key = `contacts:${session.accountId}`;
 
-    const existingContact = contacts.find((c) => c.email.toLowerCase() === data.email.toLowerCase());
-    if (existingContact) {
-      return NextResponse.json({ error: 'Contact with this email already exists' }, { status: 409 });
-    }
+    return await withStorageLock(key, async () => {
+      const contacts = await readStorage<Contact[]>(key, []);
 
-    const newContact: Contact = {
-      id: `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      email: data.email,
-      name: data.name,
-      phone: data.phone,
-      notes: data.notes,
-      groups: data.groups || [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+      const existingContact = contacts.find((c) => c.email.toLowerCase() === data.email.toLowerCase());
+      if (existingContact) {
+        return NextResponse.json({ error: 'Contact with this email already exists' }, { status: 409 });
+      }
 
-    contacts.push(newContact);
-    await writeStorage(`contacts:${session.accountId}`, contacts);
+      const newContact: Contact = {
+        id: `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        email: data.email,
+        name: data.name,
+        phone: data.phone,
+        notes: data.notes,
+        groups: data.groups || [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    return NextResponse.json(newContact);
+      contacts.push(newContact);
+      await writeStorage(key, contacts);
+
+      return NextResponse.json(newContact);
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });

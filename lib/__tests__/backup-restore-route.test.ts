@@ -6,12 +6,17 @@ import JSZip from 'jszip';
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   writeStorage: vi.fn(),
+  setAccountSettings: vi.fn(),
 }));
 
 vi.mock('@/lib/session', () => ({ getSession: mocks.getSession }));
 vi.mock('@/lib/storage', () => ({
   readStorage: vi.fn(),
   writeStorage: mocks.writeStorage,
+}));
+vi.mock('@/lib/settings-store', () => ({
+  getAccountSettings: vi.fn(),
+  setAccountSettings: mocks.setAccountSettings,
 }));
 vi.mock('@/lib/logger', () => ({
   logger: { log: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
@@ -81,6 +86,35 @@ describe('POST /api/backup restore limits', () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: 'Backup archive is too large when decompressed' });
+    expect(mocks.writeStorage).not.toHaveBeenCalled();
+  });
+
+  it('restores settings through the canonical store after validation', async () => {
+    const settings = { theme: 'dark', signature: 'Saved signature' };
+    const body = await buildArchive({
+      'backup-metadata.json': metadata(),
+      'settings.json': JSON.stringify(settings),
+    });
+
+    const response = await POST(restoreRequest(body));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true, restored: 1 });
+    expect(mocks.setAccountSettings).toHaveBeenCalledWith(ACCOUNT_ID, settings);
+    expect(mocks.writeStorage).not.toHaveBeenCalled();
+  });
+
+  it('does not restore settings when a later slot exceeds the total limit', async () => {
+    const body = await buildArchive({
+      'backup-metadata.json': metadata(),
+      'settings.json': JSON.stringify({ signature: 'x'.repeat(1024) }),
+      'emailTemplates.json': JSON.stringify([{ id: 'template-1', name: 'Template', body: 'x'.repeat(1024) }]),
+    });
+
+    const response = await POST(restoreRequest(body));
+
+    expect(response.status).toBe(400);
+    expect(mocks.setAccountSettings).not.toHaveBeenCalled();
     expect(mocks.writeStorage).not.toHaveBeenCalled();
   });
 

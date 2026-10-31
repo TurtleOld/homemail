@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 
 export interface EmailTemplate {
   id: string;
@@ -50,25 +50,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = templateSchema.parse(body);
 
-    const templates = await readStorage<EmailTemplate[]>(`emailTemplates:${session.accountId}`, []);
+    const key = `emailTemplates:${session.accountId}`;
 
-    const variables = extractVariables(data.subject + ' ' + data.body).filter((v) => v !== '');
+    return await withStorageLock(key, async () => {
+      const templates = await readStorage<EmailTemplate[]>(key, []);
 
-    const newTemplate: EmailTemplate = {
-      id: `template_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
-      name: data.name,
-      subject: data.subject,
-      body: data.body,
-      category: data.category || 'general',
-      variables,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+      const variables = extractVariables(data.subject + ' ' + data.body).filter((v) => v !== '');
 
-    templates.push(newTemplate);
-    await writeStorage(`emailTemplates:${session.accountId}`, templates);
+      const newTemplate: EmailTemplate = {
+        id: `template_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        name: data.name,
+        subject: data.subject,
+        body: data.body,
+        category: data.category || 'general',
+        variables,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    return NextResponse.json(newTemplate);
+      templates.push(newTemplate);
+      await writeStorage(key, templates);
+
+      return NextResponse.json(newTemplate);
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });

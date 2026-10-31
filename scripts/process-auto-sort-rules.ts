@@ -14,13 +14,12 @@ const EXCLUDED_FOLDER_ROLES = new Set(['sent', 'trash', 'drafts']);
 /**
  * Load processed messages map from disk.
  * Returns a mutable object that callers can add entries to.
+ *
+ * A read failure propagates to the account-level handler: falling back to an
+ * empty map would let the next flush replace the unread history.
  */
 async function loadProcessedMessages(): Promise<Record<string, number>> {
-  try {
-    return await readStorage<Record<string, number>>(PROCESSED_MESSAGES_KEY, {});
-  } catch {
-    return {};
-  }
+  return readStorage<Record<string, number>>(PROCESSED_MESSAGES_KEY, {});
 }
 
 /**
