@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
 import { getMailProviderForAccount } from '@/lib/get-provider';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 
 const updateLabelsSchema = z.object({
   labelIds: z.array(z.string()),
@@ -23,16 +23,17 @@ export async function POST(
     const body = await request.json();
     const data = updateLabelsSchema.parse(body);
 
-    const messageLabels = await readStorage<Record<string, string[]>>(
-      `messageLabels:${session.accountId}`,
-      {}
-    );
+    const key = `messageLabels:${session.accountId}`;
 
-    messageLabels[id] = data.labelIds;
+    return await withStorageLock(key, async () => {
+      const messageLabels = await readStorage<Record<string, string[]>>(key, {});
 
-    await writeStorage(`messageLabels:${session.accountId}`, messageLabels);
+      messageLabels[id] = data.labelIds;
 
-    return NextResponse.json({ success: true });
+      await writeStorage(key, messageLabels);
+
+      return NextResponse.json({ success: true });
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });

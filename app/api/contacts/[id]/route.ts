@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 import type { Contact } from '@/lib/types';
 
 const updateContactSchema = z.object({
@@ -27,32 +27,36 @@ export async function PUT(
     const body = await request.json();
     const data = updateContactSchema.parse(body);
 
-    const contacts = await readStorage<Contact[]>(`contacts:${session.accountId}`, []);
-    const contactIndex = contacts.findIndex((c) => c.id === id);
+    const key = `contacts:${session.accountId}`;
 
-    if (contactIndex === -1) {
-      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
-    }
+    return await withStorageLock(key, async () => {
+      const contacts = await readStorage<Contact[]>(key, []);
+      const contactIndex = contacts.findIndex((c) => c.id === id);
 
-    if (data.email) {
-      const newEmail = data.email.toLowerCase();
-      if (newEmail !== contacts[contactIndex]!.email.toLowerCase()) {
-        const existingContact = contacts.find((c) => c.id !== id && c.email.toLowerCase() === newEmail);
-        if (existingContact) {
-          return NextResponse.json({ error: 'Contact with this email already exists' }, { status: 409 });
+      if (contactIndex === -1) {
+        return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+      }
+
+      if (data.email) {
+        const newEmail = data.email.toLowerCase();
+        if (newEmail !== contacts[contactIndex]!.email.toLowerCase()) {
+          const existingContact = contacts.find((c) => c.id !== id && c.email.toLowerCase() === newEmail);
+          if (existingContact) {
+            return NextResponse.json({ error: 'Contact with this email already exists' }, { status: 409 });
+          }
         }
       }
-    }
 
-    contacts[contactIndex] = {
-      ...contacts[contactIndex]!,
-      ...data,
-      updatedAt: new Date(),
-    };
+      contacts[contactIndex] = {
+        ...contacts[contactIndex]!,
+        ...data,
+        updatedAt: new Date(),
+      };
 
-    await writeStorage(`contacts:${session.accountId}`, contacts);
+      await writeStorage(key, contacts);
 
-    return NextResponse.json(contacts[contactIndex]);
+      return NextResponse.json(contacts[contactIndex]);
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
@@ -74,12 +78,16 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const contacts = await readStorage<Contact[]>(`contacts:${session.accountId}`, []);
-    const filteredContacts = contacts.filter((c) => c.id !== id);
+    const key = `contacts:${session.accountId}`;
 
-    await writeStorage(`contacts:${session.accountId}`, filteredContacts);
+    return await withStorageLock(key, async () => {
+      const contacts = await readStorage<Contact[]>(key, []);
+      const filteredContacts = contacts.filter((c) => c.id !== id);
 
-    return NextResponse.json({ success: true });
+      await writeStorage(key, filteredContacts);
+
+      return NextResponse.json({ success: true });
+    });
   } catch (error) {
     console.error('Error deleting contact:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

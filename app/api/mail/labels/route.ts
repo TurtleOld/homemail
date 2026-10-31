@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/session';
-import { readStorage, writeStorage } from '@/lib/storage';
+import { readStorage, writeStorage, withStorageLock } from '@/lib/storage';
 import { getAccountAccentColor } from '@/lib/settings-store';
 import type { Label } from '@/lib/types';
 
@@ -38,20 +38,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = labelSchema.parse(body);
 
-    const labels = await readStorage<Label[]>(`labels:${session.accountId}`, []);
+    const key = `labels:${session.accountId}`;
 
-    const newLabel: Label = {
-      id: `label_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      name: data.name,
-      color: data.color || (await getAccountAccentColor(session.accountId)),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    return await withStorageLock(key, async () => {
+      const labels = await readStorage<Label[]>(key, []);
 
-    labels.push(newLabel);
-    await writeStorage(`labels:${session.accountId}`, labels);
+      const newLabel: Label = {
+        id: `label_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: data.name,
+        color: data.color || (await getAccountAccentColor(session.accountId)),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    return NextResponse.json(newLabel);
+      labels.push(newLabel);
+      await writeStorage(key, labels);
+
+      return NextResponse.json(newLabel);
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
