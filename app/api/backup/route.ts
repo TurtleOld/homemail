@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { readStorage, writeStorage } from '@/lib/storage';
+import { getAccountSettings, setAccountSettings } from '@/lib/settings-store';
 import JSZip from 'jszip';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -61,18 +62,25 @@ const BackupMetadataSchema = z.object({
 
 interface RestoreSlot<T> {
   filename: string;
-  storageKey: (accountId: string) => string;
   schema: z.ZodType<T>;
+  restore: (accountId: string, value: T) => Promise<void>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const RESTORE_SLOTS: RestoreSlot<any>[] = [
-  { filename: 'contacts.json',       storageKey: (id) => `contacts:${id}`,       schema: z.array(ContactSchema) },
-  { filename: 'labels.json',         storageKey: (id) => `labels:${id}`,         schema: z.array(LabelSchema) },
-  { filename: 'messageLabels.json',  storageKey: (id) => `messageLabels:${id}`,  schema: MessageLabelsSchema },
-  { filename: 'settings.json',       storageKey: (id) => `settings:${id}`,       schema: SettingsSchema },
-  { filename: 'emailTemplates.json', storageKey: (id) => `emailTemplates:${id}`, schema: z.array(EmailTemplateSchema) },
-  { filename: 'contactGroups.json',  storageKey: (id) => `contactGroups:${id}`,  schema: z.array(ContactGroupSchema) },
+  { filename: 'contacts.json',       schema: z.array(ContactSchema),       restore: (id, value) => writeStorage(`contacts:${id}`, value) },
+  { filename: 'labels.json',         schema: z.array(LabelSchema),         restore: (id, value) => writeStorage(`labels:${id}`, value) },
+  { filename: 'messageLabels.json',  schema: MessageLabelsSchema,          restore: (id, value) => writeStorage(`messageLabels:${id}`, value) },
+  {
+    filename: 'settings.json',
+    schema: SettingsSchema,
+    restore: async (id, value) => {
+      // Older archives stored null when the separate settings slot was empty; keep current settings.
+      if (value) await setAccountSettings(id, value);
+    },
+  },
+  { filename: 'emailTemplates.json', schema: z.array(EmailTemplateSchema), restore: (id, value) => writeStorage(`emailTemplates:${id}`, value) },
+  { filename: 'contactGroups.json',  schema: z.array(ContactGroupSchema),  restore: (id, value) => writeStorage(`contactGroups:${id}`, value) },
 ];
 
 // ─── GET: create backup ───────────────────────────────────────────────────────
@@ -90,7 +98,7 @@ export async function GET() {
     const contacts      = await readStorage<unknown[]>(`contacts:${session.accountId}`, []);
     const labels        = await readStorage<unknown[]>(`labels:${session.accountId}`, []);
     const messageLabels = await readStorage<Record<string, string[]>>(`messageLabels:${session.accountId}`, {});
-    const settings      = await readStorage<unknown>(`settings:${session.accountId}`, null);
+    const settings      = await getAccountSettings(session.accountId);
     const emailTemplates = await readStorage<unknown[]>(`emailTemplates:${session.accountId}`, []);
     const contactGroups = await readStorage<unknown[]>(`contactGroups:${session.accountId}`, []);
 
@@ -204,7 +212,7 @@ export async function POST(request: NextRequest) {
 
         const parsed = JSON.parse(content);
         const validated = slot.schema.parse(parsed);
-        await writeStorage(slot.storageKey(session.accountId), validated);
+        await slot.restore(session.accountId, validated);
         restoredCount++;
       } catch (err) {
         // Log detail server-side, return generic message to client.
